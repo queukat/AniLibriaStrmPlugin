@@ -1,0 +1,24 @@
+# .github/workflows/build.yml
+name: build-plugin
+on:
+  push:
+    tags: ["v*"]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+      - run: dotnet publish AniLibriaStrmPlugin.csproj -c Release -o publish
+      - run: |
+          cd publish
+          zip -r ../AniLibriaStrm_${{ github.ref_name }}.zip .
+      - run: sha256sum AniLibriaStrm_${{ github.ref_name }}.zip > checksum.txt
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            AniLibriaStrm_${{ github.ref_name }}.zip
+            checksum.txt
