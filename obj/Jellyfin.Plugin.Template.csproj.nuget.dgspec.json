@@ -1,0 +1,92 @@
+{
+  "format": 1,
+  "restore": {
+    "C:\\Users\\User\\RiderProjects\\jellyfin-plugin-template\\Jellyfin.Plugin.Template\\Jellyfin.Plugin.Template.csproj": {}
+  },
+  "projects": {
+    "C:\\Users\\User\\RiderProjects\\jellyfin-plugin-template\\Jellyfin.Plugin.Template\\Jellyfin.Plugin.Template.csproj": {
+      "version": "0.0.0",
+      "restore": {
+        "projectUniqueName": "C:\\Users\\User\\RiderProjects\\jellyfin-plugin-template\\Jellyfin.Plugin.Template\\Jellyfin.Plugin.Template.csproj",
+        "projectName": "Jellyfin.Plugin.Template",
+        "projectPath": "C:\\Users\\User\\RiderProjects\\jellyfin-plugin-template\\Jellyfin.Plugin.Template\\Jellyfin.Plugin.Template.csproj",
+        "packagesPath": "C:\\Users\\User\\.nuget\\packages\\",
+        "outputPath": "C:\\Users\\User\\RiderProjects\\jellyfin-plugin-template\\Jellyfin.Plugin.Template\\obj\\",
+        "projectStyle": "PackageReference",
+        "configFilePaths": [
+          "C:\\Users\\User\\AppData\\Roaming\\NuGet\\NuGet.Config"
+        ],
+        "originalTargetFrameworks": [
+          "net8.0"
+        ],
+        "sources": {
+          "https://api.nuget.org/v3/index.json": {}
+        },
+        "frameworks": {
+          "net8.0": {
+            "targetAlias": "net8.0",
+            "projectReferences": {}
+          }
+        },
+        "warningProperties": {
+          "allWarningsAsErrors": true,
+          "warnAsError": [
+            "NU1605"
+          ]
+        },
+        "restoreAuditProperties": {
+          "enableAudit": "true",
+          "auditLevel": "low",
+          "auditMode": "direct"
+        }
+      },
+      "frameworks": {
+        "net8.0": {
+          "targetAlias": "net8.0",
+          "dependencies": {
+            "Jellyfin.Controller": {
+              "target": "Package",
+              "version": "[10.9.11, )"
+            },
+            "Jellyfin.Model": {
+              "target": "Package",
+              "version": "[10.9.11, )"
+            },
+            "SerilogAnalyzer": {
+              "suppressParent": "All",
+              "target": "Package",
+              "version": "[0.15.0, )"
+            },
+            "SmartAnalyzers.MultithreadingAnalyzer": {
+              "suppressParent": "All",
+              "target": "Package",
+              "version": "[1.1.31, )"
+            },
+            "StyleCop.Analyzers": {
+              "suppressParent": "All",
+              "target": "Package",
+              "version": "[1.2.0-beta.556, )"
+            }
+          },
+          "imports": [
+            "net461",
+            "net462",
+            "net47",
+            "net471",
+            "net472",
+            "net48",
+            "net481"
+          ],
+          "assetTargetFallback": true,
+          "warn": true,
+          "frameworkReferences": {
+            "Microsoft.NETCore.App": {
+              "privateAssets": "all"
+            }
+          },
+          "runtimeIdentifierGraphPath": "C:\\Users\\User\\.dotnet\\sdk\\8.0.406/PortableRuntimeIdentifierGraph.json"
+        }
+      }
+    }
+  }
+}

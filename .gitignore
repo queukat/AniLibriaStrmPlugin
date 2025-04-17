@@ -1,0 +1,17 @@
+# JetBrains Rider
+.idea/
+*.sln.iml
+
+# Build
+bin/
+obj/
+build/
+*.user
+*.DotSettings.user
+
+# Publish artifacts
+*.zip
+
+# OS junk
+.DS_Store
+Thumbs.db

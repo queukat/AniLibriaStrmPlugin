@@ -1,0 +1,3 @@
+C:\Users\User\RiderProjects\AniLibriaStrmPlugin\build\AniLibriaStrmPlugin.dll
+C:\Users\User\RiderProjects\AniLibriaStrmPlugin\build\AniLibriaStrmPlugin.pdb
+C:\Users\User\RiderProjects\AniLibriaStrmPlugin\build\AniLibriaStrmPlugin.deps.json

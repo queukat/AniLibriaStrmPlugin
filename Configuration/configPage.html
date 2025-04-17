@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>AniLibria STRM Plugin</title>
+</head>
+<body>
+<div class="page type-interior pluginConfigurationPage" data-role="page" id="anilibriaConfigurationPage">
+    <div data-role="content">
+        <div class="content-primary">
+
+            <!--     -->
+            <form class="anilibriaConfigurationForm" id="AniConfigForm">
+                <div class="verticalSection verticalSection-extrabottompadding">
+                    <div class="sectionTitleContainer flex align-items-center">
+                        <h2 class="sectionTitle">AniLibria STRM Plugin Settings</h2>
+                    </div>
+
+                    <div class="inputContainer">
+                        <label for="StrmAllPath">All Titles STRM Path:</label>
+                        <input id="StrmAllPath" is="emby-input" type="text"/>
+                        <div class="fieldDescription">
+                            Where to store *.strm files for all AniLibria titles.
+                        </div>
+                    </div>
+
+                    <div class="inputContainer">
+                        <label for="StrmFavoritesPath">Favorites STRM Path:</label>
+                        <input id="StrmFavoritesPath" is="emby-input" type="text"/>
+                        <div class="fieldDescription">
+                            Where to store *.strm files for your favorites.
+                        </div>
+                    </div>
+
+                    <div class="inputContainer">
+                        <label for="PreferredResolution">Preferred Resolution:</label>
+                        <select id="PreferredResolution" is="emby-select">
+                            <option value="1080">1080p</option>
+                            <option value="720">720p</option>
+                            <option value="480">480p</option>
+                        </select>
+                        <div class="fieldDescription">
+                            Which resolution link to use when generating the .strm files.
+                        </div>
+                    </div>
+
+                    <div class="inputContainer">
+                        <label for="AniLibriaSession">AniLibria Session ID:</label>
+                        <input id="AniLibriaSession" is="emby-input" type="text"/>
+                        <div class="fieldDescription">
+                            Optional. If provided, can fetch your favorites automatically.
+                        </div>
+                    </div>
+
+                    <!--      " " -->
+                    <fieldset style="border:1px solid #ccc; padding:1em; margin-top:1em;">
+                        <legend>All Titles Fetch Settings</legend>
+
+                        <div class="inputContainer">
+                            <label for="AllTitlesPageSize">Items Per Page (All Titles):</label>
+                            <input id="AllTitlesPageSize" is="emby-input" type="number" min="1" step="1"/>
+                            <div class="fieldDescription">
+                                Default is 50. The "limit" parameter per page for all titles.
+                            </div>
+                        </div>
+
+                        <div class="inputContainer">
+                            <label for="AllTitlesMaxPages">Max Pages (All Titles):</label>
+                            <input id="AllTitlesMaxPages" is="emby-input" type="number" min="1" step="1"/>
+                            <div class="fieldDescription">
+                                Default is 100. Stop after this many pages even if more data is available.
+                            </div>
+                        </div>
+                    </fieldset>
+
+                    <!--      "" -->
+                    <fieldset style="border:1px solid #ccc; padding:1em; margin-top:1em;">
+                        <legend>Favorites Fetch Settings</legend>
+
+                        <div class="inputContainer">
+                            <label for="FavoritesPageSize">Items Per Page (Favorites):</label>
+                            <input id="FavoritesPageSize" is="emby-input" type="number" min="1" step="1"/>
+                            <div class="fieldDescription">
+                                Default is 50.
+                            </div>
+                        </div>
+
+                        <div class="inputContainer">
+                            <label for="FavoritesMaxPages">Max Pages (Favorites):</label>
+                            <input id="FavoritesMaxPages" is="emby-input" type="number" min="1" step="1"/>
+                            <div class="fieldDescription">
+                                Default is 50.
+                            </div>
+                        </div>
+                    </fieldset>
+
+                    <div style="margin-top:1em;">
+                        <!--    -->
+                        <button class="raised button-submit block" data-theme="b" is="emby-button" type="submit">
+                            <span>Save</span>
+                        </button>
+                    </div>
+                </div>
+            </form>
+
+            <hr>
+
+            <!--   ,   SessionID () -->
+            <form class="anilibriaLoginForm" id="LoginForm">
+                <div class="verticalSection verticalSection-extrabottompadding">
+                    <div class="sectionTitleContainer flex align-items-center">
+                        <h2 class="sectionTitle">Log in to AniLibria</h2>
+                    </div>
+
+                    <div class="inputContainer">
+                        <label for="loginMail">AniLibria Email:</label>
+                        <input id="loginMail" is="emby-input" type="text"/>
+                    </div>
+
+                    <div class="inputContainer">
+                        <label for="loginPass">AniLibria Password:</label>
+                        <input id="loginPass" is="emby-input" type="password"/>
+                    </div>
+
+                    <div class="fieldDescription">
+                        This will attempt to log in and update the SessionID in plugin config.
+                    </div>
+
+                    <div>
+                        <button class="raised button-submit" id="btnLoginAni" is="emby-button" type="button">
+                            <span>Log In</span>
+                        </button>
+                    </div>
+                </div>
+            </form>
+
+            <hr>
+
+            <!--    -->
+            <div class="verticalSection verticalSection-extrabottompadding">
+                <div class="sectionTitleContainer flex align-items-center">
+                    <h2 class="sectionTitle">Last Task Logs</h2>
+                </div>
+
+                <div style="margin-bottom:1em;">
+                    <button class="raised button-submit" id="btnShowLogs" is="emby-button" type="button">
+                        <span>Show Logs</span>
+                    </button>
+                </div>
+
+                <div class="inputContainer" style="white-space: pre-wrap; max-height: 300px; overflow-y: auto;">
+                    <div id="debugOutput" style="border: 1px solid #ccc; padding: 0.5em;">
+                        (Logs will appear here)
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script type="text/javascript">
+        // GUID   Plugin.cs ( Id)
+        var pluginGuid = "cce0798d-c8b7-4265-b08c-dc9e7bd3fc0f";
+
+        // 1)  
+        function loadConfig() {
+            console.log("loadConfig() called");
+            writeToDebug("Loading plugin config...");
+            Dashboard.showLoadingMsg();
+
+            ApiClient.getPluginConfiguration(pluginGuid).then(function (cfg) {
+                console.log("Config loaded from server:", cfg);
+                writeToDebug("Config loaded from server. AniLibriaSession=" + (cfg.AniLibriaSession || 'N/A'));
+
+                //    
+                document.getElementById('StrmAllPath').value = cfg.StrmAllPath || '';
+                document.getElementById('StrmFavoritesPath').value = cfg.StrmFavoritesPath || '';
+                document.getElementById('PreferredResolution').value = cfg.PreferredResolution || '1080';
+                document.getElementById('AniLibriaSession').value = cfg.AniLibriaSession || '';
+
+                document.getElementById('AllTitlesPageSize').value = cfg.AllTitlesPageSize || 50;
+                document.getElementById('AllTitlesMaxPages').value = cfg.AllTitlesMaxPages || 100;
+
+                document.getElementById('FavoritesPageSize').value = cfg.FavoritesPageSize || 50;
+                document.getElementById('FavoritesMaxPages').value = cfg.FavoritesMaxPages || 50;
+            })
+            .catch(function (e) {
+                console.error("Error loading config:", e);
+                writeToDebug("Error loading config: " + e);
+                alert("Error loading config: " + e);
+            })
+            .finally(function () {
+                Dashboard.hideLoadingMsg();
+            });
+        }
+
+        // 2)  
+        function saveConfig() {
+            console.log("saveConfig() called");
+            writeToDebug("Saving plugin config...");
+            Dashboard.showLoadingMsg();
+
+            ApiClient.getPluginConfiguration(pluginGuid).then(function (cfg) {
+                //     
+                cfg.StrmAllPath = document.getElementById('StrmAllPath').value;
+                cfg.StrmFavoritesPath = document.getElementById('StrmFavoritesPath').value;
+                cfg.PreferredResolution = document.getElementById('PreferredResolution').value;
+                cfg.AniLibriaSession = document.getElementById('AniLibriaSession').value;
+
+                cfg.AllTitlesPageSize = parseInt(document.getElementById('AllTitlesPageSize').value) || 50;
+                cfg.AllTitlesMaxPages = parseInt(document.getElementById('AllTitlesMaxPages').value) || 100;
+                cfg.FavoritesPageSize = parseInt(document.getElementById('FavoritesPageSize').value) || 50;
+                cfg.FavoritesMaxPages = parseInt(document.getElementById('FavoritesMaxPages').value) || 50;
+
+                //   
+                return ApiClient.updatePluginConfiguration(pluginGuid, cfg);
+            })
+            .then(function (result) {
+                console.log("Config saved. Server result:", result);
+                writeToDebug("Config saved successfully.");
+                Dashboard.processPluginConfigurationUpdateResult(result);
+            })
+            .catch(function (err) {
+                console.error("Error saving config:", err);
+                writeToDebug("Error saving config: " + err);
+                alert("Error saving config: " + err);
+            })
+            .finally(function () {
+                Dashboard.hideLoadingMsg();
+            });
+        }
+
+        // 3)   AniLibria ( sessionId)
+        function loginAniLibria() {
+            var mail = document.getElementById('loginMail').value || '';
+            var pass = document.getElementById('loginPass').value || '';
+
+            console.log("loginAniLibria() clicked. mail=", mail);
+            writeToDebug("Attempting to log in with mail=" + mail);
+
+            if (!mail || !pass) {
+                alert("Please enter both email and password.");
+                writeToDebug("Missing email or password.");
+                return;
+            }
+
+            writeToDebug("Sending POST request to AniLibriaAuth/SignInLoginPass ...");
+            Dashboard.showLoadingMsg();
+
+            // : POST   -ё
+            ApiClient.fetch(ApiClient.getUrl("AniLibriaAuth/SignInLoginPass"), {
+                method: "POST",
+                headers: {"Content-Type": "application/json"},
+                body: JSON.stringify({mail: mail, passwd: pass})
+            })
+            .then(function (resp) {
+                console.log("loginAniLibria - HTTP response:", resp);
+                writeToDebug("HTTP response: " + resp.status + " " + resp.statusText);
+                if (!resp.ok) {
+                    throw new Error("HTTP " + resp.status);
+                }
+                return resp.json();
+            })
+            .then(function (data) {
+                console.log("loginAniLibria - JSON response:", data);
+                writeToDebug("Login response JSON: " + JSON.stringify(data));
+
+                if (data.success) {
+                    writeToDebug("Login success. SessionID=" + data.sessionId);
+                    alert("Successfully logged in! Session ID = " + data.sessionId);
+
+                    //   —      sessionId
+                    loadConfig();
+                } else {
+                    alert("Login failed: " + (data.error || "Unknown error"));
+                    writeToDebug("Login failed. serverResponse=" + JSON.stringify(data));
+                }
+            })
+            .catch(function (err) {
+                console.error("Login error:", err);
+                writeToDebug("Login error: " + err);
+                alert("Login error: " + err);
+            })
+            .finally(function () {
+                Dashboard.hideLoadingMsg();
+            });
+        }
+
+        // 4)     LastTaskLog
+        function showLogs() {
+            console.log("showLogs() clicked");
+            writeToDebug("Fetching logs from server...");
+            Dashboard.showLoadingMsg();
+
+            ApiClient.getPluginConfiguration(pluginGuid).then(function (cfg) {
+                var logs = cfg.LastTaskLog || "(No logs yet)";
+                console.log("Loaded logs from config:", logs);
+                document.getElementById('debugOutput').textContent = logs;
+            })
+            .catch(function (e) {
+                console.error("Error reading logs:", e);
+                writeToDebug("Error reading logs: " + e);
+                alert("Error reading logs: " + e);
+            })
+            .finally(function () {
+                Dashboard.hideLoadingMsg();
+            });
+        }
+
+        // 5)     debugOutput ( )
+        function writeToDebug(msg) {
+            var debugDiv = document.getElementById('debugOutput');
+            var current = debugDiv.textContent;
+            var timestamp = new Date().toLocaleTimeString();
+            debugDiv.textContent = "[" + timestamp + "] " + msg + "\n" + current;
+        }
+
+        //     
+        document.getElementById('anilibriaConfigurationPage')
+            .addEventListener('pageshow', function () {
+                console.log("pageshow event: loading config...");
+                writeToDebug("Page shown. Loading config...");
+                loadConfig();
+            });
+
+        //     ()
+        document.getElementById('AniConfigForm')
+            .addEventListener('submit', function (e) {
+                e.preventDefault(); //  
+                saveConfig();
+            });
+
+        //  "Log In" ( SessionID)
+        document.getElementById('btnLoginAni')
+            .addEventListener('click', function () {
+                loginAniLibria();
+            });
+
+        //  "Show Logs"
+        document.getElementById('btnShowLogs')
+            .addEventListener('click', function () {
+                showLogs();
+            });
+    </script>
+</div>
+</body>
+</html>
