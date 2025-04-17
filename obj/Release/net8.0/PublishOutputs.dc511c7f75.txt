@@ -1,3 +1,0 @@
-C:\Users\User\RiderProjects\AniLibriaStrmPlugin\bin\Release\net8.0\publish\AniLibriaStrmPlugin.dll
-C:\Users\User\RiderProjects\AniLibriaStrmPlugin\bin\Release\net8.0\publish\AniLibriaStrmPlugin.pdb
-C:\Users\User\RiderProjects\AniLibriaStrmPlugin\bin\Release\net8.0\publish\AniLibriaStrmPlugin.deps.json
