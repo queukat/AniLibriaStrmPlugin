@@ -7,49 +7,89 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: write   #      GitHub
+  packages: read    #      GitHub Packages (  jellyfin)
 
 env:
-  NUGET_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  JELLYFIN_NUGET_PAT: ${{ secrets.JELLYFIN_NUGET_PAT }}
 
 jobs:
   build:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      # 1.     
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-      - uses: actions/setup-dotnet@v3
+      # 2.   .NET (  )
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v3
         with:
           dotnet-version: 9.0.x
 
-      - name: Write NuGet.Config
+      # 3.   NuGet.Config     PAT
+      #       dotnet,       GitHub Packages
+      - name: Write NuGet.Config (using PAT)
         run: |
           cat <<EOF > NuGet.Config
           <?xml version="1.0" encoding="utf-8"?>
           <configuration>
             <packageSources>
-              <add key="github" value="https://nuget.pkg.github.com/jellyfin/index.json" />
               <add key="nuget" value="https://api.nuget.org/v3/index.json" />
-            </packageSources>
+              <add key="github" value="https://nuget.pkg.github.com/jellyfin/index.json" />
+              </packageSources>
+            <packageSourceCredentials>
+              <github>
+                <add key="Username" value="${{ github.actor }}" />
+                <add key="ClearTextPassword" value="${{ env.JELLYFIN_NUGET_PAT }}" />
+              </github>
+            </packageSourceCredentials>
           </configuration>
           EOF
-
-      - name: Publish & pack
+        #    (workflow  ,    )
+      - name: Check PAT Secret
         run: |
-          dotnet publish AniLibriaStrmPlugin.csproj -c Release -o publish
+          if [ -z "${{ env.JELLYFIN_NUGET_PAT }}" ]; then
+            echo "Error: JELLYFIN_NUGET_PAT secret is not set."
+            exit 1
+          fi
+
+      # 4.   (dotnet restore)
+      #      NuGet.Config  
+      - name: Restore dependencies
+        run: dotnet restore AniLibriaStrmPlugin.csproj
+
+      # 5.     Release
+      - name: Build plugin
+        run: dotnet build AniLibriaStrmPlugin.csproj -c Release --no-restore
+
+      # 6.   (   )
+      - name: Publish plugin
+        run: dotnet publish AniLibriaStrmPlugin.csproj -c Release --no-build -o publish
+
+      # 7.     
+      - name: Package plugin
+        run: |
           cd publish
           zip -r ../AniLibriaStrm_${{ github.ref_name }}.zip .
+          #    (,  )
+          echo "Zip contents:"
+          unzip -l ../AniLibriaStrm_${{ github.ref_name }}.zip
           cd ..
           sha256sum AniLibriaStrm_${{ github.ref_name }}.zip > checksum.txt
 
+      # 8.    GitHub   
+      #        
       - name: Release on GitHub
+        if: startsWith(github.ref, 'refs/tags/') # :   
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ github.ref_name }}
-          name: AniLibria STRM ${{ github.ref_name }}
-          generate_release_notes: true
-          draft: false
-          files: |
+          tag_name: ${{ github.ref_name }}             #    
+          name: AniLibria STRM ${{ github.ref_name }} #  
+          generate_release_notes: true                #   
+          draft: false                                #  
+          prerelease: false                           #     ( true  pre-release)
+          files: |                                    #   
             AniLibriaStrm_${{ github.ref_name }}.zip
             checksum.txt
