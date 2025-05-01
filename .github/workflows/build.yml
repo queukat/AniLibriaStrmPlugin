@@ -2,8 +2,10 @@ name: build-plugin
 
 on:
   push:
-    tags: ['v*']     
-  workflow_dispatch:    
+    tags:
+      - '*'
+  workflow_dispatch:
+   
 
 permissions:
   contents: write         
