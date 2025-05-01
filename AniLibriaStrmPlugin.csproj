@@ -1,0 +1,63 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
+
+    <!--  manifest.json -->
+    <JellyfinManifestId>cce0798d-c8b7-4265-b08c-dc9e7bd3fc0f</JellyfinManifestId>
+    <JellyfinManifestName>AniLibria STRM Plugin</JellyfinManifestName>
+    <JellyfinManifestDescription>Creates .strm / .edl / .nfo files for AniLibria titles</JellyfinManifestDescription>
+    <JellyfinManifestVersion>1.0.0.0</JellyfinManifestVersion>
+    <JellyfinTargetAbi>10.11.0.0</JellyfinTargetAbi>
+    <JellyfinManifestEntryPoint>AniLibriaStrmPlugin.Plugin</JellyfinManifestEntryPoint>
+    <JellyfinManifestIcon>icon.png</JellyfinManifestIcon>
+    <JellyfinManifestConfigurationOptions>AniLibriaStrm</JellyfinManifestConfigurationOptions>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!--  manifest.json   csproj -->
+<!--    <PackageReference Include="Jellyfin.Build" Version="10.11.0" PrivateAssets="all" />-->
+
+    <!--   Jellyfin -->
+    <PackageReference Include="Jellyfin.Controller" Version="10.11.0-20250428050218" PrivateAssets="all" />
+    <PackageReference Include="Jellyfin.Model"      Version="10.11.0-20250428050218" PrivateAssets="all" />
+
+    <!-- Polly   HTTP -->
+    <PackageReference Include="Polly"                         Version="8.5.2" />
+    <PackageReference Include="Microsoft.Extensions.Http.Polly" Version="9.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Hosting"   Version="9.0.0" PrivateAssets="all" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="manifest.json">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
+
+    <None Include="Resources\icon.png">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
+  <ItemGroup>
+    <!--   (HTML-  ) -->
+    <EmbeddedResource Include="Configuration\configPage.html" />
+    <EmbeddedResource Include="Resources\icon.png" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!--     Jellyfin  -->
+    <Reference Include="Emby.Server.Implementations"
+               HintPath="C:\Program Files\Jellyfin\Server\Emby.Server.Implementations.dll">
+      <Private>false</Private>
+    </Reference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <!--          -->
+    <None Include="Resources\icon.png">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+</Project>

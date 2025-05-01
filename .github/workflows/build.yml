@@ -1,0 +1,40 @@
+name: build-plugin
+
+on:
+  push:
+    tags: ['v*']     
+  workflow_dispatch:    
+
+permissions:
+  contents: write         
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - uses: actions/setup-dotnet@v3      
+      with:
+        dotnet-version: 8.0.x
+        cache: true                   
+
+    - name: Publish & pack
+      run: |
+        dotnet publish AniLibriaStrmPlugin.csproj -c Release -o publish
+        cd publish
+        zip -r ../AniLibriaStrm_${{ github.ref_name }}.zip .
+        cd ..
+        sha256sum AniLibriaStrm_${{ github.ref_name }}.zip > checksum.txt
+
+    - name: Release on GitHub
+      uses: softprops/action-gh-release@v2
+      with:
+        tag_name: ${{ github.ref_name }}        
+        name: AniLibria STRM ${{ github.ref_name }}
+        generate_release_notes: true           
+        draft: false
+        files: |
+          AniLibriaStrm_${{ github.ref_name }}.zip
+          checksum.txt

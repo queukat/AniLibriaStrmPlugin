@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>AniLibria STRM Plugin</title>
+</head>
+
+<body>
+<div id="anilibriaConfigurationPage"
+     data-role="page"
+     class="page type-interior pluginConfigurationPage">
+
+    <div data-role="content"><div class="content-primary">
+
+        <!-- ────────── SETTINGS ────────── -->
+        <form id="AniConfigForm" class="anilibriaConfigurationForm">
+            <div class="verticalSection verticalSection-extrabottompadding">
+                <div class="sectionTitleContainer flex align-items-center">
+                    <h2 class="sectionTitle">AniLibria STRM Plugin Settings</h2>
+                </div>
+
+                <div class="inputContainer">
+                    <label for="StrmAllPath">All Titles STRM Path:</label>
+                    <input id="StrmAllPath" is="emby-input" type="text">
+                </div>
+
+                <div class="inputContainer">
+                    <label for="StrmFavoritesPath">Favorites STRM Path:</label>
+                    <input id="StrmFavoritesPath" is="emby-input" type="text">
+                </div>
+
+                <div class="inputContainer">
+                    <label for="PreferredResolution">Preferred resolution:</label>
+                    <select id="PreferredResolution" is="emby-select">
+                        <option value="1080">1080p</option>
+                        <option value="720">720p</option>
+                        <option value="480">480p</option>
+                    </select>
+                </div>
+
+                <div class="inputContainer">
+                    <label for="AniLibriaSession">AniLibria Session ID:</label>
+                    <input id="AniLibriaSession" is="emby-input" type="text">
+                </div>
+
+                <label class="checkboxContainer">
+                    <input id="TrackFavoritesOnly" is="emby-checkbox" type="checkbox">
+                    <span>Track favorites only (skip full catalogue)</span>
+                </label>
+
+                <label class="checkboxContainer">
+                    <input id="EnableRealtime" is="emby-checkbox" type="checkbox">
+                    <span>Enable real-time updates (WebSocket)</span>
+                </label>
+
+                <fieldset class="verticalSection" style="border:1px solid #555;padding:1em">
+                    <legend>All-titles fetch</legend>
+                    <div class="inputContainer">
+                        <label for="AllTitlesPageSize">Items/page:</label>
+                        <input id="AllTitlesPageSize" is="emby-input" type="number" min="1">
+                    </div>
+                    <div class="inputContainer">
+                        <label for="AllTitlesMaxPages">Max pages:</label>
+                        <input id="AllTitlesMaxPages" is="emby-input" type="number" min="1">
+                    </div>
+                </fieldset>
+
+                <fieldset class="verticalSection" style="border:1px solid #555;padding:1em">
+                    <legend>Favorites fetch</legend>
+                    <div class="inputContainer">
+                        <label for="FavoritesPageSize">Items/page:</label>
+                        <input id="FavoritesPageSize" is="emby-input" type="number" min="1">
+                    </div>
+                    <div class="inputContainer">
+                        <label for="FavoritesMaxPages">Max pages:</label>
+                        <input id="FavoritesMaxPages" is="emby-input" type="number" min="1">
+                    </div>
+                </fieldset>
+
+                <button is="emby-button"
+                        class="raised button-submit block"
+                        data-theme="b"
+                        type="submit">
+                    <span>Save</span>
+                </button>
+            </div>
+        </form>
+
+        <hr>
+
+        <!-- ────────── LOGIN ────────── -->
+        <form id="LoginForm" class="anilibriaLoginForm">
+            <div class="verticalSection verticalSection-extrabottompadding">
+                <div class="sectionTitleContainer flex align-items-center">
+                    <h2 class="sectionTitle">Log in to AniLibria</h2>
+                </div>
+
+                <div class="inputContainer">
+                    <label for="loginMail">E-mail:</label>
+                    <input id="loginMail" is="emby-input" type="text">
+                </div>
+                <div class="inputContainer">
+                    <label for="loginPass">Password:</label>
+                    <input id="loginPass" is="emby-input" type="password">
+                </div>
+
+                <button is="emby-button"
+                        id="btnLoginAni"
+                        class="raised button-submit"
+                        type="button">
+                    <span>Log In</span>
+                </button>
+            </div>
+        </form>
+
+        <hr>
+
+        <!-- ────────── LOGS ────────── -->
+        <div class="verticalSection verticalSection-extrabottompadding">
+            <div class="sectionTitleContainer flex align-items-center">
+                <h2 class="sectionTitle">Last Task Logs</h2>
+            </div>
+
+            <button is="emby-button"
+                    id="btnShowLogs"
+                    class="raised button-submit">
+                <span>Show Logs</span>
+            </button>
+
+            <div class="inputContainer"
+                 style="white-space:pre-wrap;max-height:300px;overflow-y:auto">
+                <div id="debugOutput"
+                     style="border:1px solid #666;padding:.5em">(Logs will appear here)
+                </div>
+            </div>
+        </div>
+
+    </div></div> <!-- /content-primary /content -->
+
+    <script type="text/javascript">
+        /* global ApiClient, Dashboard */
+        const pluginId = "cce0798d-c8b7-4265-b08c-dc9e7bd3fc0f";
+        const Q = id => document.getElementById(id);
+        const logBox = () => Q("debugOutput");
+        const debug = t => { logBox().textContent = `[${new Date().toLocaleTimeString()}] ${t}\n` + logBox().textContent; };
+
+        /* ---------- CONFIG ---------- */
+        function loadCfg() {
+            Dashboard.showLoadingMsg();
+            ApiClient.getPluginConfiguration(pluginId)
+                .then(cfg=>{
+                    Q("StrmAllPath").value       = cfg.StrmAllPath       || "";
+                    Q("StrmFavoritesPath").value = cfg.StrmFavoritesPath || "";
+                    Q("PreferredResolution").value = cfg.PreferredResolution || "1080";
+                    Q("AniLibriaSession").value  = cfg.AniLibriaSession  || "";
+                    Q("TrackFavoritesOnly").checked = !!cfg.TrackFavoritesOnly;
+                    Q("EnableRealtime").checked     = !!cfg.EnableRealtimeUpdates;
+                    Q("AllTitlesPageSize").value   = cfg.AllTitlesPageSize || 50;
+                    Q("AllTitlesMaxPages").value   = cfg.AllTitlesMaxPages || 100;
+                    Q("FavoritesPageSize").value   = cfg.FavoritesPageSize || 50;
+                    Q("FavoritesMaxPages").value   = cfg.FavoritesMaxPages || 50;
+                })
+                .catch(e=>{debug(e);alert(e);})
+                .finally(()=>Dashboard.hideLoadingMsg());
+        }
+
+        function saveCfg() {
+            Dashboard.showLoadingMsg();
+            ApiClient.getPluginConfiguration(pluginId)
+                .then(cfg=>{
+                    cfg.StrmAllPath          = Q("StrmAllPath").value;
+                    cfg.StrmFavoritesPath    = Q("StrmFavoritesPath").value;
+                    cfg.PreferredResolution  = Q("PreferredResolution").value;
+                    cfg.AniLibriaSession     = Q("AniLibriaSession").value;
+                    cfg.TrackFavoritesOnly   = Q("TrackFavoritesOnly").checked;
+                    cfg.EnableRealtimeUpdates= Q("EnableRealtime").checked;
+                    cfg.AllTitlesPageSize    = +Q("AllTitlesPageSize").value||50;
+                    cfg.AllTitlesMaxPages    = +Q("AllTitlesMaxPages").value||100;
+                    cfg.FavoritesPageSize    = +Q("FavoritesPageSize").value||50;
+                    cfg.FavoritesMaxPages    = +Q("FavoritesMaxPages").value||50;
+                    return ApiClient.updatePluginConfiguration(pluginId,cfg);
+                })
+                .then(()=>Dashboard.showToast({text:"Settings saved"}))
+                .catch(e=>{debug(e);alert(e);})
+                .finally(()=>Dashboard.hideLoadingMsg());
+        }
+
+        /* ---------- LOGIN ---------- */
+        function doLogin() {
+            const mail = Q("loginMail").value.trim(),
+                pass = Q("loginPass").value;
+            if(!mail||!pass){alert(" e-mail  .");return;}
+
+            const btn = Q("btnLoginAni");
+            btn.disabled = true;
+            Dashboard.showLoadingMsg();
+            fetch(ApiClient.getUrl("AniLibriaAuth/SignInLoginPass",{api:false}),{
+                method:"POST",
+                headers:{"Content-Type":"application/json"},
+                body:JSON.stringify({mail,passwd:pass})
+            })
+                .then(r=>r.text().then(t=>({ok:r.ok,status:r.status,txt:t})))
+                .then(({ok,status,txt})=>{
+                    debug(`Login HTTP ${status}`);
+                    if(!ok) throw new Error("HTTP "+status);
+                    const data = JSON.parse(txt);
+                    if(!data.success) throw new Error(data.error||"unknown");
+                    Q("AniLibriaSession").value = data.sessionId;
+
+                    return ApiClient.getPluginConfiguration(pluginId)
+                        .then(cfg=>{ cfg.AniLibriaSession=data.sessionId;
+                            return ApiClient.updatePluginConfiguration(pluginId,cfg);});
+                })
+                .then(()=>{
+                    Dashboard.showToast({text:" "});
+                })
+                .catch(e=>{alert(": "+e.message);debug(e);})
+                .finally(()=>{Dashboard.hideLoadingMsg();setTimeout(()=>btn.disabled=false,2500);});
+        }
+
+        /* ---------- LOGS ---------- */
+        function showLogs(){
+            Dashboard.showLoadingMsg();
+            ApiClient.getPluginConfiguration(pluginId)
+                .then(cfg=>{ logBox().textContent = cfg.LastTaskLog||"(no logs)"; })
+                .catch(e=>{alert(e);debug(e);})
+                .finally(()=>Dashboard.hideLoadingMsg());
+        }
+
+        /* ---------- EVENTS ---------- */
+        Q("anilibriaConfigurationPage").addEventListener("pageshow",loadCfg);
+        Q("AniConfigForm").addEventListener("submit",e=>{e.preventDefault();saveCfg();});
+        Q("btnLoginAni").addEventListener("click",doLogin);
+        Q("btnShowLogs").addEventListener("click",showLogs);
+    </script>
+</div>
+</div>
+</body>
+</html>
