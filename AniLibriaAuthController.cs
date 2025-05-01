@@ -4,7 +4,7 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace AniLibriaStrmPlugin;
 
-[Route("AniLibriaAuth")]
+[Route("AniLibriaAuth")]  
 public class AniLibriaAuthController : ControllerBase
 {
     private static readonly string OldPublic = "https://www.anilibria.tv/public/";
