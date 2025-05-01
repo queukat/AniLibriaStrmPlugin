@@ -6,7 +6,6 @@ on:
       - '*'
   workflow_dispatch:
 
-
 permissions:
   contents: write
 
@@ -20,6 +19,24 @@ jobs:
       - uses: actions/setup-dotnet@v3
         with:
           dotnet-version: 9.0.x
+
+      - name: Write NuGet.Config
+        run: |
+          cat <<EOF > NuGet.Config
+          <?xml version="1.0" encoding="utf-8"?>
+          <configuration>
+            <packageSources>
+              <add key="github" value="https://nuget.pkg.github.com/jellyfin/index.json" />
+              <add key="nuget" value="https://api.nuget.org/v3/index.json" />
+            </packageSources>
+            <packageSourceCredentials>
+              <github>
+                <add key="Username" value="queukat" />
+                <add key="ClearTextPassword" value="${{ secrets.GITHUB_TOKEN }}" />
+              </github>
+            </packageSourceCredentials>
+          </configuration>
+          EOF
 
       - name: Publish & pack
         run: |
