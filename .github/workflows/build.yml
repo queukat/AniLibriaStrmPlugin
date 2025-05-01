@@ -32,7 +32,7 @@ jobs:
             <packageSourceCredentials>
               <github>
                 <add key="Username" value="queukat" />
-                <add key="ClearTextPassword" value="${{ secrets.GITHUB_TOKEN }}" />
+                <add key="ClearTextPassword" value="${{ secrets.READ_PACKAGES }}" />
               </github>
             </packageSourceCredentials>
           </configuration>
