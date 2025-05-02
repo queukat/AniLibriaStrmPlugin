@@ -17,11 +17,14 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-    # ────────────────────────────────────────────────
-    - name: Checkout
-      uses: actions/checkout@v4
+    # ───────────────────────────────────────
+    - uses: actions/checkout@v4
 
-    # .NET + авторизация к feed'у Jellyfin
+    # Сносим старые nuget.config, чтобы не перебивали авторизацию
+    - name: Remove local NuGet configs
+      run: find . -iname 'nuget.config' -delete
+
+    # .NET 9 + авторизация к feed'у Jellyfin
     - name: Setup .NET + GitHub Packages auth
       uses: actions/setup-dotnet@v3
       with:
