@@ -11,6 +11,7 @@ permissions:
 
 env:
   JELLYFIN_NUGET_PAT: ${{ secrets.JELLYFIN_NUGET_PAT }}
+  JELLYFIN_NUGET_USER: queukat
 
 jobs:
   build:
@@ -26,7 +27,7 @@ jobs:
       with:
         dotnet-version: 9.0.x
         source-url: https://nuget.pkg.github.com/jellyfin/index.json
-        owner: jellyfin                         # важно: владелец feed'а
+        owner: ${{ env.JELLYFIN_NUGET_USER }}
       env:
         NUGET_AUTH_TOKEN: ${{ env.JELLYFIN_NUGET_PAT }}
 
