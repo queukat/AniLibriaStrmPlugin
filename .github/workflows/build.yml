@@ -2,17 +2,15 @@ name: build-plugin
 
 on:
   push:
-    tags:
-      - '*'
+    tags: ['*']
   workflow_dispatch:
 
 permissions:
-  contents: write   #      GitHub
-  packages: read    #      GitHub Packages (  jellyfin)
+  contents: write
+  packages: read
 
 env:
-  JF_NUGET_PAT: ${{ secrets.JELLYFIN_NUGET_PAT }}   # PAT c read:packages
-  JF_NUGET_USER: ${{ secrets.JELLYFIN_NUGET_USER }} # владелец PAT (например queukat)
+  JELLYFIN_NUGET_PAT: ${{ secrets.JELLYFIN_NUGET_PAT }}
 
 jobs:
   build:
@@ -28,10 +26,12 @@ jobs:
       with:
         dotnet-version: 9.0.x
         source-url: https://nuget.pkg.github.com/jellyfin/index.json
-        nuget-auth-token: ${{ env.JF_NUGET_PAT }}
+        owner: jellyfin                         # важно: владелец feed'а
+      env:
+        NUGET_AUTH_TOKEN: ${{ env.JELLYFIN_NUGET_PAT }}
 
     # ────────────────────────────────────────────────
-    # Сборка плагина + генерация meta.json
+    # Сборка плагина (+ meta.json) через JPRM
     - name: Build Jellyfin plugin  ➜  zip + meta.json
       uses: oddstr13/jellyfin-plugin-repository-manager@v1.1.1
       id: jprm
