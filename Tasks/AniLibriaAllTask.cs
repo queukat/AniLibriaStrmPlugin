@@ -32,36 +32,34 @@ namespace AniLibriaStrmPlugin.Tasks
         {
             yield return new TaskTriggerInfo
             {
-                Type = TaskTriggerInfoType.IntervalTrigger,
-                
+                Type          = TaskTriggerInfoType.IntervalTrigger,
                 IntervalTicks = TimeSpan.FromDays(1).Ticks
             };
         }
 
         public async Task ExecuteAsync(IProgress<double> progress, CancellationToken token)
         {
-            var cfg     = Plugin.Instance.Configuration;
-            var logBuf  = new StringBuilder("=== AniLibriaAllTask started ===\n");
+            var cfg    = Plugin.Instance.Configuration;
+            _log.LogInformation("=== AniLibriaAllTask started ===");
 
             try
             {
                 if (cfg.TrackFavoritesOnly)
                 {
-                    logBuf.AppendLine("TrackFavoritesOnly=true  ➜  skipping AllTitles task.");
+                    _log.LogInformation("TrackFavoritesOnly=true – skipping AllTitles task.");
                     return;
                 }
-
-                if (string.IsNullOrEmpty(cfg.StrmAllPath))
+                if (string.IsNullOrWhiteSpace(cfg.StrmAllPath))
                 {
-                    logBuf.AppendLine("StrmAllPath is empty ➜ nothing to do.");
+                    _log.LogInformation("StrmAllPath is empty – nothing to do.");
                     return;
                 }
 
-                logBuf.AppendLine("Fetching full title list…");
+                _log.LogInformation("Fetching full title list …");
                 var titles = await _client.FetchAllTitlesAsync(cfg.AllTitlesPageSize,
                                                                cfg.AllTitlesMaxPages,
                                                                token);
-                logBuf.AppendLine($"Titles fetched: {titles.Count}");
+                _log.LogInformation("Titles fetched: {Count}", titles.Count);
 
                 await _gen.GenerateTitlesAsync(titles,
                                                cfg.StrmAllPath,
@@ -72,20 +70,13 @@ namespace AniLibriaStrmPlugin.Tasks
             catch (Exception ex)
             {
                 _log.LogError(ex, "AniLibriaAllTask failed");
-                logBuf.AppendLine("ERROR: " + ex);
             }
             finally
             {
-                logBuf.AppendLine("=== AniLibriaAllTask done ===");
-                FlushLog(logBuf.ToString());
+                _log.LogInformation("=== AniLibriaAllTask done ===");
+                // Сохраняем накопленный буфер логов
+                Plugin.Instance.FlushLog();
             }
-        }
-
-        private static void FlushLog(string msg)
-        {
-            var cfg = Plugin.Instance.Configuration;
-            cfg.LastTaskLog = msg;
-            Plugin.Instance.UpdateConfiguration(cfg);
         }
     }
 }

@@ -12,13 +12,12 @@ using MediaBrowser.Model.Serialization;
 namespace AniLibriaStrmPlugin
 {
     /// <summary>
-    ///   .
-    ///     IHasWebPages.
+    /// Точка входа плагина + хранитель конфигурации и буфера логов.
     /// </summary>
-    public class Plugin : BasePlugin<PluginConfiguration>, IHasWebPages
+    public sealed class Plugin : BasePlugin<PluginConfiguration>, IHasWebPages
     {
-        public Plugin(IApplicationPaths applicationPaths, IXmlSerializer xmlSerializer)
-            : base(applicationPaths, xmlSerializer)
+        public Plugin(IApplicationPaths paths, IXmlSerializer xml)
+            : base(paths, xml)
         {
             Instance = this;
         }
@@ -48,23 +47,32 @@ namespace AniLibriaStrmPlugin
             {
                 _logBuffer.AppendLine($"[{DateTime.Now:HH:mm:ss}] {message}");
 
-                if (_logBuffer.ToString().Split('\n').Length % 100 == 0)
-                    FlushLog();
+                // Пишем в конфиг сразу – так «Show Logs» всегда увидит актуальный текст.
+                var cfg               = Configuration;
+                cfg.LastTaskLog       = _logBuffer.ToString();
+                UpdateConfiguration(cfg);                 // включает SaveConfiguration()
             }
         }
 
         public void FlushLog()
         {
-            var cfg = Configuration;
-            cfg.LastTaskLog = _logBuffer.ToString();
-            UpdateConfiguration(cfg);
+            lock (_logBuffer)
+            {
+                var cfg         = Configuration;
+                cfg.LastTaskLog = _logBuffer.ToString();
+                UpdateConfiguration(cfg);
+            }
         }
 
         public void ClearTaskLog()
         {
-            var cfg = Configuration;
-            cfg.LastTaskLog = string.Empty;
-            UpdateConfiguration(cfg);
+            lock (_logBuffer)
+            {
+                _logBuffer.Clear();
+                var cfg         = Configuration;
+                cfg.LastTaskLog = string.Empty;
+                UpdateConfiguration(cfg);
+            }
         }
 
         internal void UpdateConfiguration(PluginConfiguration newConfig)
@@ -76,8 +84,8 @@ namespace AniLibriaStrmPlugin
         // ──────────────────────────  ─────────────────────────────────
         public Stream GetThumbImage()
         {
-            const string resourceName = "AniLibriaStrmPlugin.Resources.icon.png";
-            return GetType().Assembly.GetManifestResourceStream(resourceName)!;
+            const string res = "AniLibriaStrmPlugin.Resources.icon.png";
+            return GetType().Assembly.GetManifestResourceStream(res)!;
         }
 
         public ImageFormat ThumbImageFormat => ImageFormat.Png;

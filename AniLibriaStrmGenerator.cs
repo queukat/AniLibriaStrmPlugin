@@ -1,5 +1,3 @@
-// ========= File: AniLibriaStrmGenerator.cs =========
-
 using AniLibriaStrmPlugin.Models;
 using MediaBrowser.Controller.Library;
 using Microsoft.Extensions.Logging;
@@ -38,9 +36,9 @@ namespace AniLibriaStrmPlugin
         {
             Directory.CreateDirectory(basePath);
 
-            var list = titles.ToList();
-            var total = list.Count;
-            var current = 0;
+            var list   = titles.ToList();
+            var total  = list.Count;
+            var current= 0;
 
             foreach (var t in list)
             {
@@ -64,7 +62,7 @@ namespace AniLibriaStrmPlugin
             // ───────── Skip titles without streams ─────────
             if (title.Player?.List is null || title.Player.List.Count == 0)
             {
-                _log.LogInformation("Skip {Id} –  /HLS", title.Id);
+                _log.LogInformation("Skip {Id} – no streams/HLS", title.Id);
                 return;
             }
 
@@ -72,6 +70,7 @@ namespace AniLibriaStrmPlugin
             var engName = title.Names?.En?.Trim();
             var rusName = title.Names?.Ru?.Trim();
             var safeName = MakeSafe(engName ?? title.Code ?? $"Title_{title.Id}");
+
             var seasonNum = title.Franchises?
                 .SelectMany(f => f.Releases ?? new())
                 .FirstOrDefault(r => r.Id == title.Id)?.Ordinal ?? 1;
@@ -94,9 +93,10 @@ namespace AniLibriaStrmPlugin
                 var plot = MakeSafeXml(title.Description?.Trim() ?? string.Empty);
                 var xml = $@"<?xml version=""1.0"" encoding=""utf-8"" standalone=""yes""?>
 <tvshow>
-  {(rusName is null ? string.Empty : $"<title>{MakeSafeXml(rusName)}</title>")}
-  {(engName is null ? string.Empty : $"<originaltitle>{MakeSafeXml(engName)}</originaltitle>")}
-  {(plot.Length == 0 ? string.Empty : $"<plot>{plot}</plot><outline>{plot}</outline>")}
+  {(rusName is not null ? $"<title>{MakeSafeXml(rusName)}</title>" : string.Empty)}
+  {(engName is not null ? $"<originaltitle>{MakeSafeXml(engName)}</originaltitle>" : string.Empty)}
+  {(plot.Length  > 0    ? $"<plot>{plot}</plot><outline>{plot}</outline>" : string.Empty)}
+  <lockdata>true</lockdata>
 </tvshow>";
                 await File.WriteAllTextAsync(tvshowNfo, xml, Encoding.UTF8, token);
             }
@@ -108,7 +108,7 @@ namespace AniLibriaStrmPlugin
                 token.ThrowIfCancellationRequested();
 
                 var epKey = ep.ToString();
-                var epInfo = title.Player.List.GetValueOrDefault(epKey);
+                if (!title.Player.List.TryGetValue(epKey, out var epInfo)) continue;
 
                 var url = epInfo?.Hls != null
                     ? ChooseHls(epInfo.Hls, resolution, title.Player.Host)
@@ -120,10 +120,9 @@ namespace AniLibriaStrmPlugin
                 if (!File.Exists(strmPath))
                     await File.WriteAllTextAsync(strmPath, url, token);
 
-                // 
                 // preview
                 await DownloadIfAbsentAsync(
-                    "https://www.anilibria.tv" + (epInfo?.Preview ?? string.Empty),
+                    "https://www.anilibria.tv" + (epInfo.Preview ?? string.Empty),
                     Path.Combine(seasonDir, $"{safeName} - S{seasonNum:00}E{ep:00}-preview.jpg"),
                     token);
 
@@ -172,17 +171,16 @@ namespace AniLibriaStrmPlugin
                     }
                 }
 
-
-
-                // episode-nfo  (RU + EN titles)
-                var nfoPath = Path.ChangeExtension(strmPath, ".nfo"); // ⇒ …S01E01… .nfo
+                /* ---- episode‑nfo (RU + EN titles) ---- */
+                var nfoPath = Path.ChangeExtension(strmPath, ".nfo");
                 if (!File.Exists(nfoPath))
                 {
-                    var epRus = epInfo?.Name?.Trim() ?? $"Episode {ep}";
+                    var epRus = epInfo.Name?.Trim() ??
+                                $"Episode {ep}";
                     var xml = $@"<?xml version=""1.0"" encoding=""utf-8"" standalone=""yes""?>
 <episodedetails>
   <title>{MakeSafeXml(epRus)}</title>
-  {(engName is null ? string.Empty : $"<originaltitle>{MakeSafeXml(epRus)}</originaltitle>")}
+  {(engName is not null ? $"<originaltitle>{MakeSafeXml(engName)}</originaltitle>" : string.Empty)}
   <season>{seasonNum}</season>
   <episode>{ep}</episode>
   <showtitle>{MakeSafeXml(engName ?? safeName)}</showtitle>
