@@ -10,7 +10,7 @@ permissions:
   packages: read
 
 env:
-  JELLYFIN_NUGET_PAT: ${{ secrets.JELLYFIN_NUGET_PAT }}
+  JELLYFIN_NUGET_PAT: ${{ secrets.package }}
   JELLYFIN_NUGET_USER: queukat
 
 jobs:
