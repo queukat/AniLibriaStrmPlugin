@@ -1,0 +1,8 @@
+guid: eb5d7894-8eef-4b36-aa6f-5d124e828ce1
+name: AniLibria STRM
+description: Стримит контент с AniLibria.tv
+owner: queukat
+category: Streaming
+version: 1.0.0          # базовый номер; JPRM может его дополнять
+targetAbi: 10.11.0.0
+imageUrl: https://raw.githubusercontent.com/queukat/AniLibriaStrmPlugin/master/Resources/icon.png
