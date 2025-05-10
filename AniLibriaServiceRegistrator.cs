@@ -15,30 +15,39 @@ public class AniLibriaServiceRegistrator : IPluginServiceRegistrator
         IServiceCollection services,
         IServerApplicationHost applicationHost) // ← 2-  
     {
-        // 1)  HttpClientFactory
+        
+        // HttpClient with retry
         services.AddHttpClient("AniLibria", c =>
-        {
-            c.Timeout = TimeSpan.FromSeconds(300);
-            c.DefaultRequestHeaders.UserAgent.ParseAdd(
-                "Jellyfin-AniLibriaStrm/1.0");
-        });
+            {
+                c.Timeout = TimeSpan.FromSeconds(300);
+                c.DefaultRequestHeaders.UserAgent.ParseAdd("Jellyfin-AniLibriaStrm/1.0");
+            })
+            .AddPolicyHandler(PolicyHelpers.GetRetryPolicy());
 
-        // 2)  
+        // AniLibriaClient
         services.AddTransient<IAniLibriaClient>(sp =>
         {
-            var http = sp.GetRequiredService<IHttpClientFactory>()
-                .CreateClient("AniLibria");
+            var http = sp.GetRequiredService<IHttpClientFactory>().CreateClient("AniLibria");
             var log = sp.GetRequiredService<ILogger<AniLibriaClient>>();
             return new AniLibriaClient(http, log);
         });
 
-        // 3)  singletons
-        services.AddSingleton<IAniLibriaStrmGenerator,
-            AniLibriaStrmGenerator>();
-
+        // singletons
+        services.AddSingleton<IAniLibriaStrmGenerator, AniLibriaStrmGenerator>();
         services.AddSingleton<IScheduledTask, AniLibriaAllTask>();
         services.AddSingleton<IScheduledTask, AniLibriaFavoritesTask>();
-
         services.AddHostedService<AniLibriaRealtimeWatcher>();
     }
+}
+
+internal static class PolicyHelpers
+{
+    private static readonly Random _rnd = new();
+
+    public static IAsyncPolicy<HttpResponseMessage> GetRetryPolicy() =>
+        HttpPolicyExtensions
+            .HandleTransientHttpError()
+            .WaitAndRetryAsync(3, attempt =>
+                TimeSpan.FromSeconds(Math.Pow(2, attempt)) +
+                TimeSpan.FromMilliseconds(_rnd.Next(0, 1000)));
 }

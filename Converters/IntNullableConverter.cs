@@ -5,8 +5,8 @@ using System.Text.Json.Serialization;
 namespace AniLibriaStrmPlugin.Converters;
 
 /// <summary>
-///      JSON-  int?,      ( 0.8),
-///          ё    (Math.Floor).    — ё null.
+///     JSON-  int?,      ( 0.8),
+///     ё    (Math.Floor).    — ё null.
 /// </summary>
 public class IntNullableConverter : JsonConverter<int?>
 {

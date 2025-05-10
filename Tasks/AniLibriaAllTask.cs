@@ -1,21 +1,23 @@
 ﻿// ===== File: AniLibriaAllTask.cs =====
-using System.Text;
+using System;
+using System.Collections.Generic;
+using System.Threading;
+using System.Threading.Tasks;
 using MediaBrowser.Model.Tasks;
 using Microsoft.Extensions.Logging;
-using MediaBrowser.Model.Tasks;
-
 
 namespace AniLibriaStrmPlugin.Tasks
 {
     public sealed class AniLibriaAllTask : IScheduledTask
     {
-        private readonly IAniLibriaClient         _client;
-        private readonly IAniLibriaStrmGenerator  _gen;
+        private readonly IAniLibriaClient       _client;
+        private readonly IAniLibriaStrmGenerator _gen;
         private readonly ILogger<AniLibriaAllTask> _log;
 
-        public AniLibriaAllTask(IAniLibriaClient client,
-                                IAniLibriaStrmGenerator gen,
-                                ILogger<AniLibriaAllTask> log)
+        public AniLibriaAllTask(
+            IAniLibriaClient        client,
+            IAniLibriaStrmGenerator gen,
+            ILogger<AniLibriaAllTask> log)
         {
             _client = client;
             _gen    = gen;
@@ -39,16 +41,18 @@ namespace AniLibriaStrmPlugin.Tasks
 
         public async Task ExecuteAsync(IProgress<double> progress, CancellationToken token)
         {
-            var cfg    = Plugin.Instance.Configuration;
+            var cfg = Plugin.Instance.Configuration;
             _log.LogInformation("=== AniLibriaAllTask started ===");
 
             try
             {
-                if (cfg.TrackFavoritesOnly)
+                
+                if (!cfg.EnableAll)   
                 {
-                    _log.LogInformation("TrackFavoritesOnly=true – skipping AllTitles task.");
+                    _log.LogInformation("Global catalogue updates disabled — skipping AllTitles task.");
                     return;
                 }
+
                 if (string.IsNullOrWhiteSpace(cfg.StrmAllPath))
                 {
                     _log.LogInformation("StrmAllPath is empty – nothing to do.");
@@ -56,16 +60,19 @@ namespace AniLibriaStrmPlugin.Tasks
                 }
 
                 _log.LogInformation("Fetching full title list …");
-                var titles = await _client.FetchAllTitlesAsync(cfg.AllTitlesPageSize,
-                                                               cfg.AllTitlesMaxPages,
-                                                               token);
+                var titles = await _client.FetchAllTitlesAsync(
+                    cfg.AllTitlesPageSize,
+                    cfg.AllTitlesMaxPages,
+                    token);
+
                 _log.LogInformation("Titles fetched: {Count}", titles.Count);
 
-                await _gen.GenerateTitlesAsync(titles,
-                                               cfg.StrmAllPath,
-                                               cfg.PreferredResolution,
-                                               progress,
-                                               token);
+                await _gen.GenerateTitlesAsync(
+                    titles,
+                    cfg.StrmAllPath,
+                    cfg.PreferredResolution,
+                    progress,
+                    token);
             }
             catch (Exception ex)
             {
@@ -74,7 +81,6 @@ namespace AniLibriaStrmPlugin.Tasks
             finally
             {
                 _log.LogInformation("=== AniLibriaAllTask done ===");
-                // Сохраняем накопленный буфер логов
                 Plugin.Instance.FlushLog();
             }
         }

@@ -16,3 +16,4 @@ build/
 .DS_Store
 Thumbs.db
 /local-packages/
+/test-nuget.sh

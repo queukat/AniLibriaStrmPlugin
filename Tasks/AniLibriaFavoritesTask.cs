@@ -1,5 +1,5 @@
 ﻿// ===== File: AniLibriaFavoritesTask.cs =====
-using System.Text;
+
 using AniLibriaStrmPlugin.Utils;
 using MediaBrowser.Model.Tasks;
 using Microsoft.Extensions.Logging;
@@ -33,40 +33,47 @@ public sealed class AniLibriaFavoritesTask : IScheduledTask
     }
 
     public async Task ExecuteAsync(IProgress<double> progress, CancellationToken token)
-{
-    var cfg = Plugin.Instance.Configuration;
-    _log.Info("=== AniLibriaFavoritesTask started ===");
-
-    try
     {
-        if (string.IsNullOrWhiteSpace(cfg.AniLibriaSession))
+        var cfg = Plugin.Instance.Configuration;
+        _log.Info("=== AniLibriaFavoritesTask started ===");
+
+        try
         {
-            _log.Warn("No sessionId – aborting.");
-            return;
+            if (!cfg.EnableFavorites)   
+            {
+                _log.LogInformation("Favorites catalogue updates disabled — skipping FavoritesTitles task.");
+                return;
+            }
+            if (string.IsNullOrWhiteSpace(cfg.AniLibriaSession))
+            {
+                _log.Warn("No sessionId – aborting.");
+                return;
+            }
+
+            _log.Info("Fetching favourites pageSize={0} …", cfg.FavoritesPageSize);
+            var titles = await _client.FetchFavoritesAsync(
+                cfg.AniLibriaSession,
+                cfg.FavoritesPageSize,
+                cfg.FavoritesMaxPages,
+                token);
+
+            _log.Info("Total favourites fetched: {0}", titles.Count);
+
+            await _gen.GenerateTitlesAsync(titles, cfg.StrmFavoritesPath,
+                cfg.PreferredResolution, progress, token);
+
+            FavoritesCache.Update(titles.Select(t => t.Id));
         }
-
-        _log.Info("Fetching favourites pageSize={0} …", cfg.FavoritesPageSize);
-        var titles = await _client.FetchFavoritesAsync(
-                         cfg.AniLibriaSession,
-                         cfg.FavoritesPageSize,
-                         cfg.FavoritesMaxPages,
-                         token);
-
-        _log.Info("Total favourites fetched: {0}", titles.Count);
-
-        await _gen.GenerateTitlesAsync(titles, cfg.StrmFavoritesPath,
-                                       cfg.PreferredResolution, progress, token);
+        catch (Exception ex)
+        {
+            _log.Err(ex, "AniLibriaFavoritesTask failed");
+        }
+        finally
+        {
+            _log.Info("=== AniLibriaFavoritesTask done ===");
+            Plugin.Instance.FlushLog();
+        }
     }
-    catch (Exception ex)
-    {
-        _log.Err(ex, "AniLibriaFavoritesTask failed");
-    }
-    finally
-    {
-        _log.Info("=== AniLibriaFavoritesTask done ===");
-        Plugin.Instance.FlushLog();          //     
-    }
-}
 
     private static void FlushLog(string msg)
     {

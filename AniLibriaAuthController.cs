@@ -4,7 +4,7 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace AniLibriaStrmPlugin;
 
-[Route("AniLibriaAuth")]  
+[Route("AniLibriaAuth")]
 public class AniLibriaAuthController : ControllerBase
 {
     private static readonly string OldPublic = "https://www.anilibria.tv/public/";
@@ -23,8 +23,8 @@ public class AniLibriaAuthController : ControllerBase
 
         var dict = new Dictionary<string, string>
         {
-            ["mail"] = req.mail,
-            ["passwd"] = req.passwd
+            ["mail"] = req.mail!,
+            ["passwd"] = req.passwd!
         };
 
         var cookieContainer = new CookieContainer();
@@ -46,20 +46,17 @@ public class AniLibriaAuthController : ControllerBase
             return new { success = false, error = ex.Message };
         }
 
-        //   
         var body = await response.Content.ReadAsStringAsync();
-
-        //     +  body
-        AppendLog(
-            $"Got response. Status={response.StatusCode}, Body[0..1000]={body.Substring(0, Math.Min(body.Length, 1000))}");
+        AppendLog($"Got response. Status={response.StatusCode}, Body[0..1000]={body.Substring(0, Math.Min(body.Length, 1000))}");
 
         //   sessionId
-        string sessionId = null;
+        string? sessionId = null;
         try
         {
             var doc = JsonDocument.Parse(body);
             var root = doc.RootElement;
-            if (root.TryGetProperty("sessionId", out var sidEl)) sessionId = sidEl.GetString();
+            if (root.TryGetProperty("sessionId", out var sidEl))
+                sessionId = sidEl.GetString();
         }
         catch (Exception ex)
         {
@@ -75,27 +72,24 @@ public class AniLibriaAuthController : ControllerBase
                     sessionId = ck.Value;
         }
 
-        //       sessionId:
         AppendLog($"sessionId parsed: {sessionId ?? "null"}");
 
-        //  ё  ...
         if (string.IsNullOrEmpty(sessionId))
             return new { success = false, error = "Cannot find sessionId", serverResponse = body };
 
-        //   
         var config = Plugin.Instance.Configuration;
-        config.AniLibriaSession = sessionId;
+        config.AniLibriaSession = sessionId!;
         Plugin.Instance.UpdateConfiguration(config);
 
-        return new { success = true, sessionId, serverResponse = body };
+        return new { success = true, sessionId = sessionId!, serverResponse = body };
     }
 
-    //  OTP- (  )
     [HttpPost("StartOtp")]
     public async Task<object> StartOtp()
     {
         var config = Plugin.Instance.Configuration;
-        if (string.IsNullOrEmpty(config.AniDeviceId)) config.AniDeviceId = Guid.NewGuid().ToString("N");
+        if (string.IsNullOrEmpty(config.AniDeviceId))
+            config.AniDeviceId = Guid.NewGuid().ToString("N");
         Plugin.Instance.UpdateConfiguration(config);
 
         var dict = new Dictionary<string, string>
@@ -107,9 +101,10 @@ public class AniLibriaAuthController : ControllerBase
         var (respOk, respBody) = await PostForm(ApiUrl, dict);
         Console.WriteLine("[AniLibriaAuthController] StartOtp - " + respBody);
 
-        if (!respOk) return new { success = false, error = respBody };
+        if (!respOk)
+            return new { success = false, error = respBody };
 
-        string otpCode = null;
+        string? otpCode = null;
         try
         {
             var doc = JsonDocument.Parse(respBody);
@@ -123,27 +118,29 @@ public class AniLibriaAuthController : ControllerBase
         if (string.IsNullOrEmpty(otpCode))
             return new { success = false, error = "No otp in response", serverResponse = respBody };
 
-        config.CurrentOtpCode = otpCode;
+        config.CurrentOtpCode = otpCode!;
         Plugin.Instance.UpdateConfiguration(config);
 
-        return new { success = true, otp = otpCode, serverResponse = respBody };
+        return new { success = true, otp = otpCode!, serverResponse = respBody };
     }
 
     [HttpPost("AcceptOtp")]
     public async Task<object> AcceptOtp([FromBody] OtpRequest req)
     {
-        if (req == null || string.IsNullOrEmpty(req.code)) return new { success = false, error = "No code" };
+        if (req == null || string.IsNullOrEmpty(req.code))
+            return new { success = false, error = "No code" };
 
         var dict = new Dictionary<string, string>
         {
             ["query"] = "auth_accept_otp",
-            ["code"] = req.code
+            ["code"] = req.code!
         };
 
         var (respOk, respBody) = await PostForm(ApiUrl, dict);
         Console.WriteLine("[AniLibriaAuthController] AcceptOtp - " + respBody);
 
-        if (!respOk) return new { success = false, error = respBody };
+        if (!respOk)
+            return new { success = false, error = respBody };
 
         return new { success = true, message = "Accepted", serverResponse = respBody };
     }
@@ -152,14 +149,16 @@ public class AniLibriaAuthController : ControllerBase
     public async Task<object> SignInOtp([FromBody] OtpRequest req)
     {
         var config = Plugin.Instance.Configuration;
-        if (req == null || string.IsNullOrEmpty(req.code)) return new { success = false, error = "No code" };
-        if (string.IsNullOrEmpty(config.AniDeviceId)) return new { success = false, error = "No deviceId in config" };
+        if (req == null || string.IsNullOrEmpty(req.code))
+            return new { success = false, error = "No code" };
+        if (string.IsNullOrEmpty(config.AniDeviceId))
+            return new { success = false, error = "No deviceId in config" };
 
         var dict = new Dictionary<string, string>
         {
             ["query"] = "auth_login_otp",
             ["deviceId"] = config.AniDeviceId,
-            ["code"] = req.code
+            ["code"] = req.code!
         };
 
         var cookieContainer = new CookieContainer();
@@ -185,9 +184,10 @@ public class AniLibriaAuthController : ControllerBase
         Console.WriteLine("[AniLibriaAuthController] SignInOtp - Status: " + response.StatusCode);
         Console.WriteLine("[AniLibriaAuthController] SignInOtp - Body: " + body);
 
-        if (!response.IsSuccessStatusCode) return new { success = false, error = body, serverResponse = body };
+        if (!response.IsSuccessStatusCode)
+            return new { success = false, error = body, serverResponse = body };
 
-        string sessionId = null;
+        string? sessionId = null;
         var cookies = cookieContainer.GetCookies(new Uri(ApiUrl));
         foreach (Cookie ck in cookies)
             if (ck.Name == "PHPSESSID")
@@ -196,10 +196,10 @@ public class AniLibriaAuthController : ControllerBase
         if (string.IsNullOrEmpty(sessionId))
             return new { success = false, error = "Cannot find PHPSESSID", serverResponse = body };
 
-        config.AniLibriaSession = sessionId;
+        config.AniLibriaSession = sessionId!;
         Plugin.Instance.UpdateConfiguration(config);
 
-        return new { success = true, sessionId, serverResponse = body };
+        return new { success = true, sessionId = sessionId!, serverResponse = body };
     }
 
     private static async Task<(bool ok, string body)> PostForm(string url, Dictionary<string, string> data)
@@ -229,11 +229,11 @@ public class AniLibriaAuthController : ControllerBase
 
 public class OtpRequest
 {
-    public string code { get; set; }
+    public string? code { get; set; }
 }
 
 public class LoginRequest
 {
-    public string mail { get; set; }
-    public string passwd { get; set; }
+    public string? mail { get; set; }
+    public string? passwd { get; set; }
 }

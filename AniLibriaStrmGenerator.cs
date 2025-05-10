@@ -3,6 +3,7 @@ using MediaBrowser.Controller.Library;
 using Microsoft.Extensions.Logging;
 using System.Security;
 using System.Text;
+using System.Text.RegularExpressions;
 using MediaBrowser.Model.Entities;
 using MediaBrowser.Controller.Entities;
 using MediaBrowser.Controller.Chapters;
@@ -26,11 +27,45 @@ namespace AniLibriaStrmPlugin
             ILibraryManager library,
             IChapterManager chapters)
         {
-            _log = log;
-            _library = library;
+            _log      = log;
+            _library  = library;
             _chapters = chapters;
         }
 
+        // ────────────────────── 1. очистка названия ──────────────────────
+        private static readonly Regex[] _suffixRules =
+        {
+            //  ❶  … Season 2 / 2nd Season / 3rd Season …
+            new(@"\s*(Season)\s*\d+\b.*$", RegexOptions.IgnoreCase),
+
+            //  ❷  … 2nd Season / 2‑nd Season (с числом перед Season)
+            new(@"\s*\d+(?:st|nd|rd|th)?\s*Season\b.*$", RegexOptions.IgnoreCase),
+
+            //  ❸  Part X / Cour Y
+            new(@"\s*(?:Part|Cour)\s*\d+\b.*$", RegexOptions.IgnoreCase),
+
+            //  ❹  “… II / III / IV”  (римские, ≤ 8)
+            new(@"\s*[-._ ]+(?:I{2,3}|IV|VI{0,2}|VII?)$", RegexOptions.IgnoreCase),
+
+            //  ❺  одиночная 2 / 3 / 4 в конце
+            new(@"\s+([2-4])$", RegexOptions.IgnoreCase),
+
+            //  ❻  OAD / OVA / Special / Movie
+            new(@"\s+(?:OAD|OVA|OAV|Special|Movie)$", RegexOptions.IgnoreCase)
+        };
+
+
+        private static string CleanShowName(string name)
+        {
+            if (string.IsNullOrWhiteSpace(name))
+                return name;
+
+            var cleaned = _suffixRules.Aggregate(name, (current, rx) => rx.Replace(current, ""));
+            cleaned = Regex.Replace(cleaned, @"[\s\.\-_()]+$", "");
+            return cleaned.Trim();
+        }
+
+        // ───────────────────────── 2. публичный API ───────────────────────
         public async Task GenerateTitlesAsync(IEnumerable<TitleResponse> titles, string basePath, string resolution,
             IProgress<double>? progress, CancellationToken token)
         {
@@ -38,128 +73,152 @@ namespace AniLibriaStrmPlugin
 
             var list   = titles.ToList();
             var total  = list.Count;
-            var current= 0;
+            var current = 0;
 
             foreach (var t in list)
             {
                 token.ThrowIfCancellationRequested();
                 current++;
 
-                var name = t.Names?.En ?? t.Code;
-                _log.LogInformation("({Cur}/{Tot}) {Name}", current, total, name);
+                _log.LogInformation("({Cur}/{Tot}) {Name}", current, total, t.Names?.En ?? t.Code);
                 await GenerateStrmForTitle(t, basePath, resolution, token);
                 progress?.Report(current / (double)total * 100);
             }
         }
 
-        // ---------------------------------------------------------------------
+        // ─────────────────────── 3. один релиз → файлы ─────────────────────
         private async Task GenerateStrmForTitle(
             TitleResponse title,
             string basePath,
             string resolution,
             CancellationToken token)
         {
-            // ───────── Skip titles without streams ─────────
             if (title.Player?.List is null || title.Player.List.Count == 0)
             {
                 _log.LogInformation("Skip {Id} – no streams/HLS", title.Id);
                 return;
             }
 
-            // ───────── Names ─────────
-            var engName = title.Names?.En?.Trim();
-            var rusName = title.Names?.Ru?.Trim();
-            var safeName = MakeSafe(engName ?? title.Code ?? $"Title_{title.Id}");
+            // ---- имена -----------------------------------------------------
+            var engName  = title.Names?.En?.Trim();
+            var jpName   = title.Names?.Alternative?.Trim();      // японский (если есть)
+            var ruName   = title.Names?.Ru?.Trim();
+            var rawName  = engName ?? title.Code ?? $"Title_{title.Id}";
+            var safeName = MakeSafe(CleanShowName(rawName));
 
             var seasonNum = title.Franchises?
                 .SelectMany(f => f.Releases ?? new())
                 .FirstOrDefault(r => r.Id == title.Id)?.Ordinal ?? 1;
 
-            // ───────── Directories ─────────
-            var showDir = Path.Combine(basePath, safeName);
+            // ---- директории ------------------------------------------------
+            var showDir   = Path.Combine(basePath, safeName);
             var seasonDir = Path.Combine(showDir, $"Season {seasonNum}");
             Directory.CreateDirectory(seasonDir);
 
-            // ───────── Poster ─────────
-            await DownloadIfAbsentAsync(
-                "https://www.anilibria.tv" + (title.Posters?.Original?.Url ?? string.Empty),
-                Path.Combine(showDir, "folder.jpg"),
-                token);
+            // ---- постеры ---------------------------------------------------
+            var posterUrl = "https://www.anilibria.tv" + (title.Posters?.Original?.Url ?? string.Empty);
 
-            // ───────── tvshow.nfo (RU title, EN original, plot) ─────────
+            // • постер сериала (folder.jpg)
+            await DownloadIfAbsentAsync(posterUrl, Path.Combine(showDir, "folder.jpg"), token);
+
+            // • постер сезона (seasonXX-poster.jpg)
+            var seasonPoster = $"season{seasonNum:00}-poster.jpg";
+            await DownloadIfAbsentAsync(posterUrl, Path.Combine(showDir, seasonPoster), token);
+
+            // ---- tvshow.nfo -----------------------------------------------
             var tvshowNfo = Path.Combine(showDir, "tvshow.nfo");
             if (!File.Exists(tvshowNfo))
             {
                 var plot = MakeSafeXml(title.Description?.Trim() ?? string.Empty);
-                var xml = $@"<?xml version=""1.0"" encoding=""utf-8"" standalone=""yes""?>
+                var xml  = $@"<?xml version=""1.0"" encoding=""utf-8"" standalone=""yes""?>
 <tvshow>
-  {(rusName is not null ? $"<title>{MakeSafeXml(rusName)}</title>" : string.Empty)}
-  {(engName is not null ? $"<originaltitle>{MakeSafeXml(engName)}</originaltitle>" : string.Empty)}
-  {(plot.Length  > 0    ? $"<plot>{plot}</plot><outline>{plot}</outline>" : string.Empty)}
-  <lockdata>true</lockdata>
+  {(engName is not null ? $"<title>{MakeSafeXml(engName)}</title>" : string.Empty)}
+  {(jpName  is not null ? $"<originaltitle>{MakeSafeXml(jpName)}</originaltitle>" : string.Empty)}
+  {(ruName  is not null ? $"<sorttitle>{MakeSafeXml(ruName)}</sorttitle>" : string.Empty)}
+  {(plot.Length > 0 ? $"<plot>{plot}</plot><outline>{plot}</outline>" : string.Empty)}
+  <lockdata>false</lockdata>
 </tvshow>";
                 await File.WriteAllTextAsync(tvshowNfo, xml, Encoding.UTF8, token);
             }
 
-            // ───────── Episodes ─────────
+            // ---- season.nfo -----------------------------------------------
+            var seasonNfo = Path.Combine(seasonDir, "season.nfo");
+            if (!File.Exists(seasonNfo))
+            {
+                var seasonXml = $@"<?xml version=""1.0"" encoding=""utf-8"" standalone=""yes""?>
+<season>
+  <title>Season {seasonNum}</title>
+  <seasonnumber>{seasonNum}</seasonnumber>
+  <lockdata>false</lockdata>
+</season>";
+                await File.WriteAllTextAsync(seasonNfo, seasonXml, Encoding.UTF8, token);
+            }
+
+            // ---- эпизоды ---------------------------------------------------
             var lastEp = title.Player.Episodes?.Last ?? 1;
-            for (int ep = 1; ep <= lastEp; ep++)
+
+            for (var ep = 1; ep <= lastEp; ep++)
             {
                 token.ThrowIfCancellationRequested();
 
-                var epKey = ep.ToString();
-                if (!title.Player.List.TryGetValue(epKey, out var epInfo)) continue;
+                if (!title.Player.List.TryGetValue(ep.ToString(), out var epInfo))
+                    continue;
 
                 var url = epInfo?.Hls != null
                     ? ChooseHls(epInfo.Hls, resolution, title.Player.Host)
                     : null;
-                if (url is null) continue;
+                if (url is null)
+                    continue;
 
-                var strmFile = $"{safeName} - S{seasonNum:00}E{ep:00}.strm";
+                var strmFile = $"S{seasonNum:00}E{ep:00}.strm";
                 var strmPath = Path.Combine(seasonDir, strmFile);
                 if (!File.Exists(strmPath))
                     await File.WriteAllTextAsync(strmPath, url, token);
 
-                // preview
-                await DownloadIfAbsentAsync(
-                    "https://www.anilibria.tv" + (epInfo.Preview ?? string.Empty),
-                    Path.Combine(seasonDir, $"{safeName} - S{seasonNum:00}E{ep:00}-preview.jpg"),
-                    token);
+                // миниатюра серии
+                if (!string.IsNullOrWhiteSpace(epInfo.Preview))
+                {
+                    var ext       = Path.GetExtension(epInfo.Preview);
+                    if (string.IsNullOrEmpty(ext)) ext = ".jpg";
+                    var thumbPath = Path.Combine(seasonDir, $"S{seasonNum:00}E{ep:00}-thumb{ext}");
+                    await DownloadIfAbsentAsync("https://www.anilibria.tv" + epInfo.Preview, thumbPath, token);
+                }
 
-                // edl + intro-chapter
+                // EDL + главы для Skip-Intro
                 if (epInfo?.Skips is { Opening: { Count: >= 2 } op })
                 {
                     var startSec = op[0];
                     var endSec   = op[1];
-                
-                    // 1) EDL ─ Kodi- side-car
+
+                    // .edl
                     var edlPath = Path.ChangeExtension(strmPath, ".edl");
                     if (!File.Exists(edlPath))
                         await File.WriteAllLinesAsync(edlPath,
-                            new[] { $"{startSec} {endSec} 0" },   //  
-                            token);
-                
-                    // 2)   «Intro» (Jellyfin ≥ 10.11)
+                            new[] { $"{startSec} {endSec} 0" }, token);
+
+                    // главы
                     try
                     {
-                        // FindByPath → BaseItem → Video
                         if (_library.FindByPath(strmPath, isFolder: false) is Video item)
                         {
                             var chapters = new[]
                             {
                                 new ChapterInfo
                                 {
-                                    Name               = "Intro",
+                                    Name = "Intro",
                                     StartPositionTicks = TimeSpan.FromSeconds(startSec).Ticks
-                                    // EndPositionTicks   –    / 
+                                },
+                                new ChapterInfo
+                                {
+                                    Name = "Post-Intro",
+                                    StartPositionTicks = TimeSpan.FromSeconds(endSec).Ticks
                                 }
                             };
-                
-                            // !!  : ё Guid,    
+
                             var existing = _chapters.GetChapters(item.Id);
-                
-                            if (existing.Count == 0 ||
-                                existing[0].StartPositionTicks != chapters[0].StartPositionTicks)
+                            if (existing.Count < 2 ||
+                                existing[0].StartPositionTicks != chapters[0].StartPositionTicks ||
+                                existing[1].StartPositionTicks != chapters[1].StartPositionTicks)
                             {
                                 _chapters.SaveChapters(item, chapters);
                             }
@@ -171,16 +230,14 @@ namespace AniLibriaStrmPlugin
                     }
                 }
 
-                /* ---- episode‑nfo (RU + EN titles) ---- */
+                // episode.nfo (только базовое)
                 var nfoPath = Path.ChangeExtension(strmPath, ".nfo");
                 if (!File.Exists(nfoPath))
                 {
-                    var epRus = epInfo.Name?.Trim() ??
-                                $"Episode {ep}";
-                    var xml = $@"<?xml version=""1.0"" encoding=""utf-8"" standalone=""yes""?>
+                    var epRu = epInfo.Name?.Trim() ?? $"Episode {ep}";
+                    var xml  = $@"<?xml version=""1.0"" encoding=""utf-8"" standalone=""yes""?>
 <episodedetails>
-  <title>{MakeSafeXml(epRus)}</title>
-  {(engName is not null ? $"<originaltitle>{MakeSafeXml(engName)}</originaltitle>" : string.Empty)}
+  <title>{MakeSafeXml(epRu)}</title>
   <season>{seasonNum}</season>
   <episode>{ep}</episode>
   <showtitle>{MakeSafeXml(engName ?? safeName)}</showtitle>
@@ -190,11 +247,11 @@ namespace AniLibriaStrmPlugin
             }
         }
 
-
-        // ---------------------------------------------------------------------
+        // ──────────────────────── helpers ─────────────────────────────
         private static async Task DownloadIfAbsentAsync(string url, string path, CancellationToken ct)
         {
-            if (string.IsNullOrEmpty(url) || File.Exists(path)) return;
+            if (string.IsNullOrEmpty(url) || File.Exists(path))
+                return;
 
             try
             {
@@ -208,26 +265,27 @@ namespace AniLibriaStrmPlugin
             }
         }
 
-        // helpers --------------------------------------------------------------
         private static string? ChooseHls(HlsBlock? hls, string pref, string? host)
         {
-            if (hls == null || string.IsNullOrEmpty(host)) return null;
+            if (hls == null || string.IsNullOrEmpty(host))
+                return null;
+
             var link = pref switch
             {
                 "1080" => hls.Fhd ?? hls.Hd ?? hls.Sd,
-                "720" => hls.Hd ?? hls.Fhd ?? hls.Sd,
-                "480" => hls.Sd ?? hls.Hd ?? hls.Fhd,
-                _ => hls.Hd ?? hls.Sd ?? hls.Fhd
+                "720"  => hls.Hd  ?? hls.Fhd ?? hls.Sd,
+                "480"  => hls.Sd  ?? hls.Hd  ?? hls.Fhd,
+                _      => hls.Hd  ?? hls.Sd  ?? hls.Fhd
             };
             return link is null ? null : $"https://{host}{link}";
         }
 
-        private static string MakeSafe(string s)
-        {
-            foreach (var c in Path.GetInvalidFileNameChars()) s = s.Replace(c, '_');
-            return s.Trim();
-        }
+        private static string MakeSafe(string s) =>
+            Path.GetInvalidFileNameChars()
+                .Aggregate(s, (current, c) => current.Replace(c, '_'))
+                .Trim();
 
-        private static string MakeSafeXml(string? text) => SecurityElement.Escape(text) ?? "";
+        private static string MakeSafeXml(string? text) =>
+            SecurityElement.Escape(text) ?? string.Empty;
     }
 }

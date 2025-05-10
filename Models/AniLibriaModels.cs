@@ -5,86 +5,65 @@ namespace AniLibriaStrmPlugin.Models;
 
 public class FavoritesResponse
 {
-    public List<TitleResponse> List { get; set; }
+    public List<TitleResponse> List { get; set; } = new();
 }
 
 public class TitleResponse
 {
     public int Id { get; set; }
-    public string Code { get; set; }
-
-    //     "names": {...}
-    public NameBlock Names { get; set; }
-
-    // "posters": {...}
-    public PosterBlock Posters { get; set; }
-
-    // "player": {...}
-    public PlayerBlock Player { get; set; }
-
-    // "description": "..."
-    public string Description { get; set; }
-
-    //   :
-    // "franchises":[{ "franchise":{...}, "releases":[{id=.., ordinal=..},...] }, ... ]
-    public List<FranchiseBlock> Franchises { get; set; }
+    public string Code { get; set; } = null!;
+    public NameBlock Names { get; set; } = null!;
+    public PosterBlock Posters { get; set; } = null!;
+    public PlayerBlock Player { get; set; } = null!;
+    public string Description { get; set; } = null!;
+    public List<FranchiseBlock> Franchises { get; set; } = new();
 }
 
-// ===  franchsies ===
 public class FranchiseBlock
 {
-    // "franchise":{"id":"2cdaa1..","name":" ..."}
-    public FranchiseItem Franchise { get; set; }
-
-    // "releases":[ {id=..., code=..., ordinal=..., names=...}, ... ]
-    public List<ReleaseItem> Releases { get; set; }
+    public FranchiseItem Franchise { get; set; } = null!;
+    public List<ReleaseItem> Releases { get; set; } = new();
 }
 
 public class FranchiseItem
 {
-    public string Id { get; set; }
-    public string Name { get; set; }
+    public string Id { get; set; } = null!;
+    public string Name { get; set; } = null!;
 }
 
-// "id": 8875, "code": "...", "ordinal":1, "names": {...}
 public class ReleaseItem
 {
-    // : "id":9555, "code":"kusuriya-no-hitorigoto", "ordinal":1, "names":{...}
     public int Id { get; set; }
-    public string Code { get; set; }
+    public string Code { get; set; } = null!;
     public int Ordinal { get; set; }
-    public NameBlock Names { get; set; }
+    public NameBlock Names { get; set; } = null!;
 }
-
-// ===   ===
 
 public class NameBlock
 {
-    public string Ru { get; set; }
-    public string En { get; set; }
-    public string Alternative { get; set; }
+    public string Ru { get; set; } = null!;
+    public string En { get; set; } = null!;
+    public string Alternative { get; set; } = null!;
 }
 
 public class PosterBlock
 {
-    public PosterUrl Small { get; set; }
-    public PosterUrl Medium { get; set; }
-    public PosterUrl Original { get; set; }
+    public PosterUrl Small { get; set; } = null!;
+    public PosterUrl Medium { get; set; } = null!;
+    public PosterUrl Original { get; set; } = null!;
 }
 
 public class PosterUrl
 {
-    public string Url { get; set; }
+    public string Url { get; set; } = null!;
 }
 
 public class PlayerBlock
 {
-    public string Host { get; set; }
+    public string Host { get; set; } = null!;
     public bool Is_rutube { get; set; }
-    public EpisodesBlock Episodes { get; set; }
-
-    // "list": { "1": {episode=1, ...}, "2": {...} }
-    public Dictionary<string, EpisodeItem> List { get; set; }
+    public EpisodesBlock Episodes { get; set; } = null!;
+    public Dictionary<string, EpisodeItem> List { get; set; } = new();
 }
 
 public class EpisodesBlock
@@ -95,31 +74,29 @@ public class EpisodesBlock
     [JsonConverter(typeof(IntNullableConverter))]
     public int? Last { get; set; }
 
-    public string String { get; set; }
+    public string String { get; set; } = null!;
 }
 
 public class EpisodeItem
 {
     public double Episode { get; set; }
-    public string Name { get; set; }
-    public string Uuid { get; set; }
+    public string Name { get; set; } = null!;
+    public string Uuid { get; set; } = null!;
     public int Created_timestamp { get; set; }
-
-    public string Preview { get; set; }
-
-    public SkipsBlock Skips { get; set; }
-    public HlsBlock Hls { get; set; }
+    public string Preview { get; set; } = null!;
+    public SkipsBlock Skips { get; set; } = null!;
+    public HlsBlock Hls { get; set; } = null!;
 }
 
 public class SkipsBlock
 {
-    public List<int> Opening { get; set; }
-    public List<int> Ending { get; set; }
+    public List<int> Opening { get; set; } = new();
+    public List<int> Ending { get; set; } = new();
 }
 
 public class HlsBlock
 {
-    public string Fhd { get; set; }
-    public string Hd { get; set; }
-    public string Sd { get; set; }
+    public string Fhd { get; set; } = null!;
+    public string Hd { get; set; } = null!;
+    public string Sd { get; set; } = null!;
 }

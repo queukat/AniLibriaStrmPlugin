@@ -1,7 +1,6 @@
-namespace AniLibriaStrmPlugin.Utils;
-
-using AniLibriaStrmPlugin;
 using Microsoft.Extensions.Logging;
+
+namespace AniLibriaStrmPlugin.Utils;
 
 internal static class LogHelper
 {
@@ -9,7 +8,7 @@ internal static class LogHelper
     {
         var msg = string.Format(fmt, args);
         log.LogInformation(msg);
-        Plugin.Instance.AppendTaskLog(msg);      //    «Last Task Logs»
+        Plugin.Instance.AppendTaskLog(msg); //    «Last Task Logs»
     }
 
     public static void Warn(this ILogger log, string fmt, params object?[] args)
