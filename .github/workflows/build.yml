@@ -19,49 +19,39 @@ jobs:
     steps:
       # ───────────────────────────────────────
       - uses: actions/checkout@v4
-      
+
       # Сносим старые nuget.config, чтобы не перебивали авторизацию
       - name: Remove local NuGet configs
         run: find . -iname 'nuget.config' -delete
-      
-      # .NET 9 + авторизация к feed'у Jellyfin
+
+      # .NET 8 + авторизация к feed'у Jellyfin
       - name: Setup .NET + GitHub Packages auth
         uses: actions/setup-dotnet@v3
         with:
-          dotnet-version: 9.0.x
+          dotnet-version: 8.0.x                   # SDK-8 собирает проекты net8.0
           source-url: https://nuget.pkg.github.com/jellyfin/index.json
           owner: ${{ env.JELLYFIN_NUGET_USER }}
         env:
           NUGET_AUTH_TOKEN: ${{ env.JELLYFIN_NUGET_PAT }}
 
-      - name: Add Jellyfin feed with PAT
-        run: |
-          dotnet nuget add source https://nuget.pkg.github.com/jellyfin/index.json \
-            --name jellyfin \
-            --username ${{ env.JELLYFIN_NUGET_USER }} \
-            --password ${{ env.JELLYFIN_NUGET_PAT }} \
-            --store-password-in-clear-text
-
+      # Проверяем итоговый список NuGet-источников
       - name: Show effective NuGet sources
         run: dotnet nuget list source
-      
-      
-      # Сборка JPRM
+
+      # ────────────────────────────────────────────────
+      # Сборка JPRM (сам формирует zip и meta.json)
       - name: Build Jellyfin plugin ➜ zip + meta.json
         uses: oddstr13/jellyfin-plugin-repository-manager@v1.1.1
         id: jprm
         with:
-          dotnet-target: net9.0                     # TFM вашего плагина
-          # Берём версию из тега (без префикса «v»)
-          version: ${{ github.ref_name }}
-      
-      # ────────────────────────────────────────────────
+          dotnet-target: net8.0                  # соответствует TargetFramework в .csproj
+
       # Контрольные суммы (по желанию)
       - name: Generate checksums
         run: |
           md5sum    "${{ steps.jprm.outputs.artifact }}" > "${{ steps.jprm.outputs.artifact }}.md5"
           sha256sum "${{ steps.jprm.outputs.artifact }}" > "${{ steps.jprm.outputs.artifact }}.sha256"
-      
+
       # ────────────────────────────────────────────────
       # Релиз
       - name: Release on GitHub
