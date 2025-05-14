@@ -11,16 +11,19 @@ namespace AniLibriaStrmPlugin;
 
 public class AniLibriaServiceRegistrator : IPluginServiceRegistrator
 {
-    public void RegisterServices(
-        IServiceCollection services,
-        IServerApplicationHost applicationHost) // ← 2-  
+    // универсальная реализация (работает и в 10.10, и в 10.11+)
+    void IPluginServiceRegistrator.RegisterServices(IServiceCollection services,
+                                                    IServerApplicationHost _) // '_' = не используем
+        => Register(services);
+
+    private static void Register(IServiceCollection services)
     {
-        
         // HttpClient with retry
         services.AddHttpClient("AniLibria", c =>
             {
                 c.Timeout = TimeSpan.FromSeconds(300);
-                c.DefaultRequestHeaders.UserAgent.ParseAdd("Jellyfin-AniLibriaStrm/1.0");
+                c.DefaultRequestHeaders.UserAgent
+                       .ParseAdd("Jellyfin-AniLibriaStrm/1.0");
             })
             .AddPolicyHandler(PolicyHelpers.GetRetryPolicy());
 

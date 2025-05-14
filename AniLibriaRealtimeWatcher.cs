@@ -112,9 +112,31 @@ namespace AniLibriaStrmPlugin
                 }
 
                 var type = typeEl.GetString();
-                if (type is not ("playlist_update" or "title_update")) return;
+                if (type is not ("playlist_update" or "title_update"))
+                    return;
 
-                var id = doc.RootElement.GetProperty("data").GetProperty("id").GetInt32();
+                // playlist_update → id лежит прямо в data.id
+                // title_update    → id лежит в data.title.id
+                int id = type switch
+                {
+                    "playlist_update" => doc.RootElement
+                        .GetProperty("data")
+                        .GetProperty("id")
+                        .GetInt32(),
+                    "title_update" => doc.RootElement
+                        .GetProperty("data")
+                        .GetProperty("title")
+                        .GetProperty("id")
+                        .GetInt32(),
+                    _ => 0
+                };
+
+                if (id == 0)
+                {
+                    _log.LogDebug("WS {Type} without id → ignore", type);
+                    return;
+                }
+
                 _log.LogInformation("WS {Type} → titleId={Id}", type, id);
 
                 var api = $"https://api.anilibria.tv/v3/title?id={id}";

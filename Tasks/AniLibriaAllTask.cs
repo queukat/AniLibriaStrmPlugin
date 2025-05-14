@@ -1,4 +1,5 @@
 ﻿// ===== File: AniLibriaAllTask.cs =====
+
 using System;
 using System.Collections.Generic;
 using System.Threading;
@@ -10,34 +11,41 @@ namespace AniLibriaStrmPlugin.Tasks
 {
     public sealed class AniLibriaAllTask : IScheduledTask
     {
-        private readonly IAniLibriaClient       _client;
+        private readonly IAniLibriaClient _client;
         private readonly IAniLibriaStrmGenerator _gen;
         private readonly ILogger<AniLibriaAllTask> _log;
 
         public AniLibriaAllTask(
-            IAniLibriaClient        client,
+            IAniLibriaClient client,
             IAniLibriaStrmGenerator gen,
             ILogger<AniLibriaAllTask> log)
         {
             _client = client;
-            _gen    = gen;
-            _log    = log;
+            _gen = gen;
+            _log = log;
         }
 
-        public bool   IsHidden    => false;
-        public string Name        => "Generate AniLibria STRM library";
-        public string Category    => "AniLibria";
+        public bool IsHidden => false;
+        public string Name => "Generate AniLibria STRM library";
+        public string Category => "AniLibria";
         public string Description => "Fetches *all* AniLibria titles and generates .strm + .edl + .nfo.";
-        public string Key         => "AniLibriaStrmTask";
+        public string Key => "AniLibriaStrmTask";
 
-        public IEnumerable<TaskTriggerInfo> GetDefaultTriggers()
-        {
-            yield return new TaskTriggerInfo
-            {
-                Type          = TaskTriggerInfoType.IntervalTrigger,
-                IntervalTicks = TimeSpan.FromDays(1).Ticks
-            };
-        }
+#if JF_10_10
+// Jellyfin 10.10 не поддерживает TaskTriggerInfoType — не возвращаем расписание
+        public IEnumerable<TaskTriggerInfo> GetDefaultTriggers() => Array.Empty<TaskTriggerInfo>();
+#else
+// Начиная с 10.11+ — возвращаем расписание с триггером раз в сутки
+public IEnumerable<TaskTriggerInfo> GetDefaultTriggers()
+{
+    yield return new TaskTriggerInfo
+    {
+        Type = TaskTriggerInfoType.IntervalTrigger,
+        IntervalTicks = TimeSpan.FromDays(1).Ticks
+    };
+}
+#endif
+
 
         public async Task ExecuteAsync(IProgress<double> progress, CancellationToken token)
         {
@@ -46,8 +54,7 @@ namespace AniLibriaStrmPlugin.Tasks
 
             try
             {
-                
-                if (!cfg.EnableAll)   
+                if (!cfg.EnableAll)
                 {
                     _log.LogInformation("Global catalogue updates disabled — skipping AllTitles task.");
                     return;
