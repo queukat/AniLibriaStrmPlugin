@@ -1,5 +1,8 @@
 ﻿name: 🚀 Publish plugin to GitHub Pages
 
+permissions:
+  contents: write
+
 on:
   # запуск при создании релиза-tag («Publish release» в UI
   release:
