@@ -12,8 +12,8 @@
         "changelog": "• Removed Jellyfin core DLLs from the bundle\n• Added Polly retry logic only (Polly.*, Microsoft.Extensions.Http.Polly)\n• Target ABI bumped to 10.10.0.0\n",
         "targetAbi": "10.10.0.0",
         "sourceUrl": "https://queukat.github.io/AniLibriaStrmPlugin/plugins//anilibria-strm-plugin/anilibria-strm-plugin_1.0.0.0.zip",
-        "checksum": "e749cb4c5e8ccc9f5c015f4444826001",
-        "timestamp": "2025-05-15T20:00:58Z"
+        "checksum": "2754382a4a4be6f070674a9227fc0087",
+        "timestamp": "2025-05-15T20:19:02Z"
       }
     ],
     "image": "icon.png",
