@@ -31,4 +31,4 @@ targetAbi: "10.10.0.0"
 # JPRM перепишет version тегом, если вы запускаете workflow по push-тегу.
 version: "0.0.0.0"
 
-image: icon.png
+image: Resources/icon.png
