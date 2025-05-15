@@ -1,8 +1,31 @@
-guid: eb5d7894-8eef-4b36-aa6f-5d124e828ce1
-name: AniLibria STRM
-description: Стримит контент с AniLibria.tv
-owner: queukat
-category: Streaming
-version: 1.0.0          # базовый номер; JPRM может его дополнять
-targetAbi: 10.11.0.0
-imageUrl: https://raw.githubusercontent.com/queukat/AniLibriaStrmPlugin/master/Resources/icon.png
+﻿# Jellyfin • AniLibria STRM  – конфигурация для JPRM
+# (build.yaml должен лежать рядом с .csproj)
+
+category: "Metadata"
+
+artifacts:                     # DLL-ы, которые попадут в ZIP
+  - "AniLibriaStrmPlugin.dll"
+  - "Polly.dll"
+  - "Polly.Core.dll"
+  - "Polly.Extensions.Http.dll"
+  - "Microsoft.Extensions.Http.Polly.dll"
+
+changelog: |
+  • Removed Jellyfin core DLLs from the bundle
+  • Added Polly retry logic only (Polly.*, Microsoft.Extensions.Http.Polly)
+  • Target ABI bumped to 10.10.0.0
+
+description: >
+  Creates .strm / .edl / .nfo files for AniLibria titles and favourites.
+
+guid: "cce0798d-c8b7-4265-b08c-dc9e7bd3fc0f"
+name: "AniLibria STRM Plugin"
+overview: >
+  Generates STRM libraries for the full catalogue and/or user favourites,
+  with EDL intro-skip and proper NFO metadata.
+owner: "queukat"
+
+targetAbi: "10.10.0.0"
+
+# JPRM перепишет version тегом, если вы запускаете workflow по push-тегу.
+version: "0.0.0.0"
