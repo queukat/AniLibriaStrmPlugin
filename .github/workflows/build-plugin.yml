@@ -39,12 +39,13 @@ jobs:
         run: dotnet nuget list source
 
       # ────────────────────────────────────────────────
-      # Сборка JPRM (сам формирует zip и meta.json)
+      # Сборка JPRM
       - name: Build Jellyfin plugin ➜ zip + meta.json
         uses: oddstr13/jellyfin-plugin-repository-manager@v1.1.1
         id: jprm
         with:
-          dotnet-target: net8.0                  # соответствует TargetFramework в .csproj
+          dotnet-target: net8.0            # как и раньше
+          version: ${{ github.ref_name }}  # ← передаём версию из тега
 
       # Контрольные суммы (по желанию)
       - name: Generate checksums

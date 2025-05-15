@@ -9,6 +9,7 @@ artifacts:                     # DLL-ы, которые попадут в ZIP
   - "Polly.Core.dll"
   - "Polly.Extensions.Http.dll"
   - "Microsoft.Extensions.Http.Polly.dll"
+  - "icon.png"
 
 changelog: |
   • Removed Jellyfin core DLLs from the bundle
