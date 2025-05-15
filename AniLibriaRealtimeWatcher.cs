@@ -41,6 +41,8 @@ namespace AniLibriaStrmPlugin
 
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
         {
+            var pingInterval = TimeSpan.FromSeconds(30);
+            
             if (!Plugin.Instance.Configuration.EnableRealtimeUpdates)
             {
                 _log.LogInformation("Real‑time updates disabled.");
@@ -55,6 +57,11 @@ namespace AniLibriaStrmPlugin
                 try
                 {
                     using var ws = new ClientWebSocket();
+                    ws.Options.KeepAliveInterval = pingInterval;
+                    ws.Options.SetRequestHeader("Origin", "https://www.anilibria.tv");
+                    ws.Options.SetRequestHeader("User-Agent",
+                        "Mozilla/5.0 (Jellyfin AniLibriaSTRM; +https://github.com/queukat)");
+
                     await ws.ConnectAsync(uri, stoppingToken);
                     _log.LogInformation("WS connected → {Uri}", uri);
                     attempt = 0; // reset back‑off
@@ -69,13 +76,8 @@ namespace AniLibriaStrmPlugin
                             break; // graceful close
 
                         var json = Encoding.UTF8.GetString(buffer, 0, result.Count);
-
                         if (json.Equals("ping", StringComparison.OrdinalIgnoreCase))
-                        {
-                            await ws.SendAsync(Encoding.UTF8.GetBytes("pong"), WebSocketMessageType.Text, true,
-                                stoppingToken);
                             continue;
-                        }
 
                         if (json.Contains("\"connection\":\"success\""))
                             continue; // ignore first service packet
