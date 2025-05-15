@@ -1,0 +1,20 @@
+[
+  {
+    "guid": "cce0798d-c8b7-4265-b08c-dc9e7bd3fc0f",
+    "name": "AniLibria STRM Plugin",
+    "description": "Creates .strm / .edl / .nfo files for AniLibria titles and favourites.\n",
+    "overview": "Generates STRM libraries for the full catalogue and/or user favourites, with EDL intro-skip and proper NFO metadata.\n",
+    "owner": "queukat",
+    "category": "Metadata",
+    "versions": [
+      {
+        "version": "1.0.0.8",
+        "changelog": "• Removed Jellyfin core DLLs from the bundle\n• Added Polly retry logic only (Polly.*, Microsoft.Extensions.Http.Polly)\n• Target ABI bumped to 10.10.0.0\n",
+        "targetAbi": "10.10.0.0",
+        "sourceUrl": "https://queukat.github.io/AniLibriaStrmPlugin/plugins//anilibria-strm-plugin/anilibria-strm-plugin_1.0.0.8.zip",
+        "checksum": "3c2a5f84b14b0820610daeb6f44a0a6b",
+        "timestamp": "2025-05-15T18:56:50Z"
+      }
+    ]
+  }
+]
