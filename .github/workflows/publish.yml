@@ -3,7 +3,7 @@
 on:
   # запуск при создании релиза-tag («Publish release» в UI
   release:
-    types: [released]
+    types: [ released ]
 
   # возможность вручную из вкладки Actions
   workflow_dispatch:
@@ -44,26 +44,25 @@ jobs:
       - name: Install jprm CLI
         run: |
           python -m pip install --quiet \
-            "git+https://github.com/oddstr13/jellyfin-plugin-repository-manager@v1.1.1"
+            "git+https://github.com/oddstr13/jellyfin-plugin-repository-manager@master"
 
       - name: Prepare publish directory + update manifest
         run: |
           mkdir -p publish/plugins
           cp "${{ steps.jprm.outputs.artifact }}" publish/plugins/
-      
+
           pushd publish/plugins
-      
-          # ── manifest.json: если отсутствует — создаём пустой массив ──
-          if [ ! -f manifest.json ]; then
-            echo "[]" > manifest.json
-          fi
-      
-          # ── добавляем/обновляем запись о плагине ────────────────────
-          jprm repo add manifest.json --url "${BASE_URL}" ./*.zip
+
+          # manifest.json: если нет — создаём пустой массив
+          [ -f manifest.json ] || echo "[]" > manifest.json
+
+          # добавляем / обновляем
+          jprm repo add manifest.json ./*.zip
           popd
-
-
-
+      
+      
+      
+      
       # ─────────────────────────────────────────────────────────
       # Деплой в ветку gh-pages  ➜  GitHub Pages
       # ─────────────────────────────────────────────────────────
