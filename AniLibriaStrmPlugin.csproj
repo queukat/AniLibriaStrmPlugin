@@ -29,6 +29,7 @@
     <ItemGroup>
         <None Include="Resources\icon.png">
             <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+            <TargetPath>icon.png</TargetPath>
         </None>
     </ItemGroup>
 
