@@ -50,17 +50,19 @@ jobs:
         run: |
           mkdir -p publish/plugins
           cp "${{ steps.jprm.outputs.artifact }}" publish/plugins/
-
+      
           pushd publish/plugins
-
-          # ── если manifest.json ещё отсутствует — инициализируем ─────────
+      
+          # ── manifest.json: если отсутствует — создаём пустой массив ──
           if [ ! -f manifest.json ]; then
-            jprm repo init manifest.json --url "${BASE_URL}"
+            echo "[]" > manifest.json
           fi
-
-          # ── добавляем/обновляем запись о плагине ───────────────────────
+      
+          # ── добавляем/обновляем запись о плагине ────────────────────
           jprm repo add manifest.json --url "${BASE_URL}" ./*.zip
           popd
+
+
 
       # ─────────────────────────────────────────────────────────
       # Деплой в ветку gh-pages  ➜  GitHub Pages
