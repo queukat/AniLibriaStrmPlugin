@@ -46,14 +46,20 @@ jobs:
           python -m pip install --quiet \
             "git+https://github.com/oddstr13/jellyfin-plugin-repository-manager@v1.1.1"
 
-      - name: Prepare publish directory
+      - name: Prepare publish directory + update manifest
         run: |
           mkdir -p publish/plugins
           cp "${{ steps.jprm.outputs.artifact }}" publish/plugins/
 
-          # Обновляем (или создаём) manifest.json
           pushd publish/plugins
-          jprm repo add --url "${BASE_URL}" manifest.json ./*.zip
+
+          # ── если manifest.json ещё отсутствует — инициализируем ─────────
+          if [ ! -f manifest.json ]; then
+            jprm repo init manifest.json --url "${BASE_URL}"
+          fi
+
+          # ── добавляем/обновляем запись о плагине ───────────────────────
+          jprm repo add manifest.json --url "${BASE_URL}" ./*.zip
           popd
 
       # ─────────────────────────────────────────────────────────
