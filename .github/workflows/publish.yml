@@ -56,30 +56,38 @@ jobs:
           cp "${{ steps.jprm.outputs.artifact }}" publish/plugins/
 
           pushd publish/plugins
-
-          MANIFEST=./manifest.json
+      
+          MANIFEST=manifest.json
           BASE_URL="https://queukat.github.io/AniLibriaStrmPlugin/plugins/"
-
-          # если файла ещё нет — создаём «[]»
+          ICON_URL="${BASE_URL}images/anilibria-strm.png"
+      
           [ -f "${MANIFEST}" ] || echo "[]" > "${MANIFEST}"
-
-          # ▸ добавляем (или обновляем) запись о ZIP
+      
+          # 1) добавляем/обновляем запись о плагине
           jprm repo add "${MANIFEST}" ./*.zip
-
-          # ▸ дописываем полный sourceUrl, если он относительный
-          #    (jq добавляет BASE_URL только тем версиям, где его ещё нет)
-          jq --arg base "${BASE_URL}" \
-             'map(.versions |= map(
-                  .sourceUrl |= (startswith("http") as $h | if $h then . else ($base + .) end)
-                ))' \
-             "${MANIFEST}" > manifest.tmp && mv manifest.tmp "${MANIFEST}"
-
+      
+          # 2) нормализуем sourceUrl и imageUrl
+          jq --arg base "${BASE_URL}" --arg icon "${ICON_URL}" '
+            map(
+              # imageUrl
+              (.imageUrl //= $icon)          # если поля нет – добавить
+              | .imageUrl |= (
+                  if startswith("http")      # уже абсолютный → оставить
+                  then .
+                  else ($base + ltrimstr("./") | ltrimstr("/"))
+                  end)
+      
+              # sourceUrl (во всех версиях)
+              | .versions |= map(
+                  .sourceUrl |= (
+                    if startswith("http") 
+                    then .
+                    else ($base + ltrimstr("./") | ltrimstr("/"))
+                    end))
+            )
+          ' "${MANIFEST}" > manifest.tmp && mv manifest.tmp "${MANIFEST}"
           popd
-          
-          jq --arg icon "${ICON_URL}" \
-          'map(if has("imageUrl") then . else . + {imageUrl:$icon} end)' \
-          publish/plugins/manifest.json > manifest.tmp && \
-          mv manifest.tmp publish/plugins/manifest.json
+
           
       - name: Copy plugin icon to pages
         run: |
