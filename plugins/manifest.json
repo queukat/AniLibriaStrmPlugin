@@ -8,12 +8,12 @@
     "category": "Metadata",
     "versions": [
       {
-        "version": "1.0.0.12",
+        "version": "1.0.0.0",
         "changelog": "• Removed Jellyfin core DLLs from the bundle\n• Added Polly retry logic only (Polly.*, Microsoft.Extensions.Http.Polly)\n• Target ABI bumped to 10.10.0.0\n",
         "targetAbi": "10.10.0.0",
-        "sourceUrl": "https://queukat.github.io/AniLibriaStrmPlugin/plugins//anilibria-strm-plugin/anilibria-strm-plugin_1.0.0.12.zip",
-        "checksum": "91ae2a11e78ae5f67ca425a2c6b9d2f9",
-        "timestamp": "2025-05-15T19:36:34Z"
+        "sourceUrl": "https://queukat.github.io/AniLibriaStrmPlugin/plugins//anilibria-strm-plugin/anilibria-strm-plugin_1.0.0.0.zip",
+        "checksum": "a21e811d561b7ab8ca4ae2f7f730a01a",
+        "timestamp": "2025-05-15T19:59:51Z"
       }
     ],
     "image": "icon.png",
