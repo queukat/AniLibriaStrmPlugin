@@ -75,6 +75,15 @@ jobs:
              "${MANIFEST}" > manifest.tmp && mv manifest.tmp "${MANIFEST}"
 
           popd
+          ICON_URL="${BASE_URL}images/anilibria-strm.png"
+          jq --arg icon "${ICON_URL}" '
+          map(if has("imageUrl") then . else . + {imageUrl:$icon} end)
+          ' "${MANIFEST}" > manifest.tmp && mv manifest.tmp "${MANIFEST}"
+          
+      - name: Copy plugin icon to pages
+        run: |
+          mkdir -p publish/plugins/images
+          cp Resources/icon.png publish/plugins/images/anilibria-strm.png
       
       
       # ─────────────────────────────────────────────────────────
