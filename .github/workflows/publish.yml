@@ -56,8 +56,8 @@ jobs:
           cp "${{ steps.jprm.outputs.artifact }}" publish/plugins/
 
           pushd publish/plugins
-      
-          MANIFEST=manifest.json
+          
+          MANIFEST=./manifest.json
           BASE_URL="https://queukat.github.io/AniLibriaStrmPlugin/plugins/"
           ICON_URL="${BASE_URL}images/anilibria-strm.png"
       
