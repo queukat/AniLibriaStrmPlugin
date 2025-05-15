@@ -39,10 +39,11 @@ jobs:
           version: ${{ env.VERSION }}
   
       # ─── ставим jprm из master ───────────────────────────────────────────
-      - name: Install jprm CLI (latest master)
+      - name: Install jprm CLI
         run: |
           python -m pip install --quiet \
-            "git+https://github.com/oddstr13/jellyfin-plugin-repository-manager@master"
+            "git+https://github.com/oddstr13/jellyfin-plugin-repository-manager@v1.1.1"
+      
       
       # ─── готовим publish-dir и обновляем manifest ────────────────────────
       - name: Prepare publish directory + update manifest
@@ -50,19 +51,28 @@ jobs:
           set -e
           mkdir -p publish/plugins
           cp "${{ steps.jprm.outputs.artifact }}" publish/plugins/
-          
+
           pushd publish/plugins
-          
-          MANIFEST="./manifest.json"
-          
-          # если репозиторий ещё не создан — инициализируем
-          if [ ! -f "${MANIFEST}" ]; then
-            jprm repo init --url "${BASE_URL}" "${MANIFEST}"
-          fi
-          
-          # добавляем / обновляем запись о плагине
-          jprm repo add --url "${BASE_URL}" "${MANIFEST}" ./*.zip
+
+          MANIFEST=./manifest.json
+          BASE_URL="https://queukat.github.io/AniLibriaStrmPlugin/plugins/"
+
+          # если файла ещё нет — создаём «[]»
+          [ -f "${MANIFEST}" ] || echo "[]" > "${MANIFEST}"
+
+          # ▸ добавляем (или обновляем) запись о ZIP
+          jprm repo add "${MANIFEST}" ./*.zip
+
+          # ▸ дописываем полный sourceUrl, если он относительный
+          #    (jq добавляет BASE_URL только тем версиям, где его ещё нет)
+          jq --arg base "${BASE_URL}" \
+             'map(.versions |= map(
+                  .sourceUrl |= (startswith("http") as $h | if $h then . else ($base + .) end)
+                ))' \
+             "${MANIFEST}" > manifest.tmp && mv manifest.tmp "${MANIFEST}"
+
           popd
+      
       
       # ─────────────────────────────────────────────────────────
       # Деплой в ветку gh-pages  ➜  GitHub Pages
