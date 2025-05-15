@@ -1,0 +1,66 @@
+﻿name: 🚀 Publish plugin to GitHub Pages
+
+on:
+  # запуск при создании релиза-tag («Publish release» в UI
+  release:
+    types: [released]
+
+  # возможность вручную из вкладки Actions
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to publish (leave empty to use latest tag)"
+        required: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    env:
+      # версия берётся из релиза либо из ручного ввода
+      VERSION: ${{ github.event.inputs.version || github.event.release.tag_name }}
+
+      # базовый URL вашего каталога (без manifest.json в конце!)
+      BASE_URL: "https://queukat.github.io/AniLibriaStrmPlugin/plugins/"
+
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v3
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Build plugin (JPRM)
+        uses: oddstr13/jellyfin-plugin-repository-manager@v1.1.1
+        id: jprm
+        with:
+          dotnet-target: net8.0
+          version: ${{ env.VERSION }}
+
+      # ─────────────────────────────────────────────────────────
+      # Шаги ниже готовят структуру  plugins/*  и обновляют manifest
+      # ─────────────────────────────────────────────────────────
+      - name: Install jprm CLI for manifest update
+        run: pip install --quiet "jellyfin-plugin-repository-manager==1.1.1"
+
+      - name: Prepare publish directory
+        run: |
+          mkdir -p publish/plugins
+          cp "${{ steps.jprm.outputs.artifact }}" publish/plugins/
+
+          # Обновляем (или создаём) manifest.json
+          pushd publish/plugins
+          jprm repo add --url "${BASE_URL}" manifest.json ./*.zip
+          popd
+
+      # ─────────────────────────────────────────────────────────
+      # Деплой в ветку gh-pages  ➜  GitHub Pages
+      # ─────────────────────────────────────────────────────────
+      - name: Deploy to gh-pages
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./publish
+          publish_branch: gh-pages
+          commit_message: "chore(publish): release ${{ env.VERSION }}"
