@@ -17,3 +17,9 @@ build/
 Thumbs.db
 /local-packages/
 /test-nuget.sh
+
+# build/test artefacts
+*.log
+*.xml
+nuget.*.config
+
