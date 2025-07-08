@@ -1,4 +1,4 @@
-﻿using System;
+﻿﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Net.Http;
@@ -14,13 +14,11 @@ using MediaBrowser.Model.Tasks;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-using Polly;
-using Polly.Extensions.Http;
 
 namespace AniLibriaStrmPlugin
 {
     // =====================================================================
-    // 1)  AniLibriaRealtimeWatcher – exponential back‑off & injected client
+    //  AniLibriaRealtimeWatcher – exponential back-off и обновление STRM
     // =====================================================================
     public sealed class AniLibriaRealtimeWatcher : BackgroundService
     {
@@ -34,22 +32,22 @@ namespace AniLibriaStrmPlugin
             IAniLibriaStrmGenerator gen,
             IAniLibriaClient client)
         {
-            _log = log;
-            _gen = gen;
+            _log   = log;
+            _gen   = gen;
             _client = client;
         }
 
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
         {
             var pingInterval = TimeSpan.FromSeconds(30);
-            
+
             if (!Plugin.Instance.Configuration.EnableRealtimeUpdates)
             {
-                _log.LogInformation("Real‑time updates disabled.");
+                _log.LogInformation("Real-time updates disabled.");
                 return;
             }
 
-            var uri = new Uri("wss://api.anilibria.tv/v3/ws/");
+            var uri     = new Uri("wss://api.anilibria.app/api/v1/ws/");
             var attempt = 0;
 
             while (!stoppingToken.IsCancellationRequested)
@@ -58,27 +56,28 @@ namespace AniLibriaStrmPlugin
                 {
                     using var ws = new ClientWebSocket();
                     ws.Options.KeepAliveInterval = pingInterval;
-                    ws.Options.SetRequestHeader("Origin", "https://www.anilibria.tv");
+                    ws.Options.SetRequestHeader("Origin", "https://www.anilibria.app");
                     ws.Options.SetRequestHeader("User-Agent",
                         "Mozilla/5.0 (Jellyfin AniLibriaSTRM; +https://github.com/queukat)");
 
                     await ws.ConnectAsync(uri, stoppingToken);
                     _log.LogInformation("WS connected → {Uri}", uri);
-                    attempt = 0; // reset back‑off
+                    attempt = 0; // reset back-off
 
                     var buffer = new byte[16 * 1024];
 
-                    while (ws.State == WebSocketState.Open && !stoppingToken.IsCancellationRequested)
+                    while (ws.State == WebSocketState.Open &&
+                           !stoppingToken.IsCancellationRequested)
                     {
                         var result = await ws.ReceiveAsync(buffer, stoppingToken);
 
-                        if (result.Count == 0 && result.MessageType == WebSocketMessageType.Close)
+                        if (result.Count == 0 &&
+                            result.MessageType == WebSocketMessageType.Close)
                             break; // graceful close
 
                         var json = Encoding.UTF8.GetString(buffer, 0, result.Count);
                         if (json.Equals("ping", StringComparison.OrdinalIgnoreCase))
                             continue;
-
                         if (json.Contains("\"connection\":\"success\""))
                             continue; // ignore first service packet
 
@@ -87,21 +86,23 @@ namespace AniLibriaStrmPlugin
                 }
                 catch (OperationCanceledException)
                 {
-                    // normal shut‑down
+                    // normal shutdown
                 }
                 catch (Exception ex)
                 {
                     attempt++;
-                    var delay = TimeSpan.FromSeconds(Math.Min(30 * Math.Pow(2, attempt - 1), 300)) +
+                    var delay = TimeSpan.FromSeconds(
+                                    Math.Min(30 * Math.Pow(2, attempt - 1), 300)) +
                                 TimeSpan.FromMilliseconds(_rnd.Next(0, 1000)); // jitter
-                    _log.LogWarning(ex, "WS loop error, reconnect in {Delay}s (attempt {Attempt}) …",
+                    _log.LogWarning(ex,
+                        "WS loop error, reconnect in {Delay}s (attempt {Attempt}) …",
                         delay.TotalSeconds, attempt);
                     await Task.Delay(delay, stoppingToken);
                 }
             }
         }
 
-        // --------------------------------------------------------------
+        // -----------------------------------------------------------------
         private async Task HandleMessage(string json, CancellationToken ct)
         {
             try
@@ -117,19 +118,15 @@ namespace AniLibriaStrmPlugin
                 if (type is not ("playlist_update" or "title_update"))
                     return;
 
-                // playlist_update → id лежит прямо в data.id
-                // title_update    → id лежит в data.title.id
-                int id = type switch
+                var id = type switch
                 {
-                    "playlist_update" => doc.RootElement
-                        .GetProperty("data")
-                        .GetProperty("id")
-                        .GetInt32(),
-                    "title_update" => doc.RootElement
-                        .GetProperty("data")
-                        .GetProperty("title")
-                        .GetProperty("id")
-                        .GetInt32(),
+                    "playlist_update" => doc.RootElement.GetProperty("data")
+                                                      .GetProperty("id")
+                                                      .GetInt32(),
+                    "title_update"    => doc.RootElement.GetProperty("data")
+                                                      .GetProperty("title")
+                                                      .GetProperty("id")
+                                                      .GetInt32(),
                     _ => 0
                 };
 
@@ -141,39 +138,41 @@ namespace AniLibriaStrmPlugin
 
                 _log.LogInformation("WS {Type} → titleId={Id}", type, id);
 
-                var api = $"https://api.anilibria.tv/v3/title?id={id}";
-                var raw = await _client.GetStringWithLoggingAsync(api, ct);
+                var api  = $"https://api.anilibria.app/api/v1/titles/{id}";
+                var raw  = await _client.GetStringWithLoggingAsync(api, ct);
 
-                var opts = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+                var opts  = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
                 var title = JsonSerializer.Deserialize<TitleResponse>(raw, opts);
                 if (title is null) return;
 
-                var cfg = Plugin.Instance.Configuration;
+                var cfg           = Plugin.Instance.Configuration;
                 var pathsToUpdate = new List<string>();
 
                 if (cfg.EnableAll)
                     pathsToUpdate.Add(cfg.StrmAllPath);
-
-                if (cfg.EnableFavorites &&
-                    FavoritesCache.IsFavorite(title.Id))
+                if (cfg.EnableFavorites && FavoritesCache.IsFavorite(title.Id))
                     pathsToUpdate.Add(cfg.StrmFavoritesPath);
 
                 foreach (var path in pathsToUpdate.Distinct())
                 {
-                    await _gen.GenerateTitlesAsync(new[] { title },
-                        path,
-                        cfg.PreferredResolution,
-                        null, ct);
-                    _log.LogInformation("STRM regenerated for {Code} at {Path}", title.Code, path);
+                    await _gen.GenerateTitlesAsync(new[] { title }, path,
+                        cfg.PreferredResolution, null, ct);
+                    _log.LogInformation("STRM regenerated for {Code} at {Path}",
+                        title.Code, path);
                 }
             }
             catch (Exception ex)
             {
-                _log.LogWarning(ex, "HandleMessage failed: {Json}", json[..Math.Min(json.Length, 300)]);
+                _log.LogWarning(ex,
+                    "HandleMessage failed: {Json}",
+                    json[..Math.Min(json.Length, 300)]);
             }
         }
     }
 
+    // ================================================================
+    //                    FavoritesCache  (общий)
+    // ================================================================
     internal static class FavoritesCache
     {
         private static readonly HashSet<int> _ids = new();

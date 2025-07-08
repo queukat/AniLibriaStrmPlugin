@@ -8,6 +8,7 @@
         <IncludeAllContentForSelfExtract>true</IncludeAllContentForSelfExtract>
         <CopyLocalLockFileAssemblies>True</CopyLocalLockFileAssemblies>
         <DefineConstants>$(DefineConstants);JF_10_10</DefineConstants>
+        <GenerateTargetFrameworkAttribute>false</GenerateTargetFrameworkAttribute>
     </PropertyGroup>
 
     <ItemGroup>
@@ -25,6 +26,8 @@
         </PackageReference>
         <PackageReference Include="Microsoft.Extensions.Hosting" Version="8.0.0" PrivateAssets="all"/>
 
+        <Compile Remove="AniLibriaStrmPlugin.Tests\**\*.cs" />
+
     </ItemGroup>
     <ItemGroup>
         <None Include="Resources\icon.png">
@@ -39,6 +42,13 @@
         </EmbeddedResource>
 
         <EmbeddedResource Include="Resources\icon.png"/>
+    </ItemGroup>
+
+
+
+    <ItemGroup>
+      <Folder Include="AniLibriaStrmPlugin.Tests\bin\Debug\" />
+      <Folder Include="AniLibriaStrmPlugin.Tests\obj\Debug\" />
     </ItemGroup>
     <Target Name="ShowPluginOutputPath" AfterTargets="Build">
         <Message Text="Plugin DLL built at: $(TargetDir)$(TargetFileName)" Importance="high"/>

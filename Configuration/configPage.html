@@ -44,6 +44,11 @@
                         <input id="AniLibriaSession" is="emby-input" type="text">
                     </div>
 
+                    <div class="inputContainer">
+                        <label for="AniLibriaToken">AniLibria JWT Token:</label>
+                        <input id="AniLibriaToken" is="emby-input" type="text">
+                    </div>
+
                     <label class="checkboxContainer">
                         <input id="EnableFavorites" is="emby-checkbox" type="checkbox">
                         <span>Update favourites folder</span>
@@ -191,18 +196,15 @@
                 $("StrmFavoritesPath").value = cfg.StrmFavoritesPath || "";
                 $("PreferredResolution").value = cfg.PreferredResolution || "1080";
                 $("AniLibriaSession").value = cfg.AniLibriaSession || "";
+                $("AniLibriaToken").value      = cfg.AniLibriaToken || "";
                 $("EnableRealtime").checked = !!cfg.EnableRealtimeUpdates;
                 $("AllTitlesPageSize").value = cfg.AllTitlesPageSize || 50;
                 $("AllTitlesMaxPages").value = cfg.AllTitlesMaxPages || 100;
                 $("FavoritesPageSize").value = cfg.FavoritesPageSize || 50;
                 $("FavoritesMaxPages").value = cfg.FavoritesMaxPages || 50;
                 $("EnableFavorites").checked = cfg.EnableFavorites ?? true;
-                $("EnableAll").checked       = cfg.EnableAll       ?? true;
-            } catch (e) {
-                debug(e);
-            } finally {
-                Dashboard.hideLoadingMsg();
-            }
+                $("EnableAll").checked       = cfg.EnableAll ?? true;
+            } finally { Dashboard.hideLoadingMsg(); }
         }
 
         async function saveCfg() {
@@ -213,6 +215,7 @@
                 cfg.StrmFavoritesPath = $("StrmFavoritesPath").value;
                 cfg.PreferredResolution = $("PreferredResolution").value;
                 cfg.AniLibriaSession = $("AniLibriaSession").value;
+                cfg.AniLibriaToken      = $("AniLibriaToken").value;
                 cfg.EnableRealtimeUpdates = $("EnableRealtime").checked;
                 cfg.AllTitlesPageSize = +$("AllTitlesPageSize").value || 50;
                 cfg.AllTitlesMaxPages = +$("AllTitlesMaxPages").value || 100;
@@ -221,13 +224,8 @@
                 cfg.EnableFavorites = $("EnableFavorites").checked;
                 cfg.EnableAll       = $("EnableAll").checked;
                 await ApiClient.updatePluginConfiguration(pluginId, cfg);
-                notify("Settings saved");
-            } catch (e) {
-                debug(e);
-                notify(`Error: ${e.message}`);
-            } finally {
-                Dashboard.hideLoadingMsg();
-            }
+                Dashboard.showToast({text:"Settings saved"});
+            } finally { Dashboard.hideLoadingMsg(); }
         }
 
         /* ---------- LOGIN ---------- */
@@ -292,7 +290,6 @@
         $("btnLoginAni").addEventListener("click", doLogin);
         $("btnShowLogs").addEventListener("click", showLogs);
     </script>
-</div>
 </div>
 </body>
 </html>

@@ -4,6 +4,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Net.Http;
+using System.Net.Http.Headers;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
@@ -13,17 +14,17 @@ using Microsoft.Extensions.Logging;
 namespace AniLibriaStrmPlugin
 {
     /// <summary>
-    ///   HTTP‑обёртка над API AniLibria с логированием ошибок.
+    ///   HTTP-обёртка над API AniLibria v1 с логированием.
     /// </summary>
     public interface IAniLibriaClient
     {
-        /// <summary> Универсальный GET c логированием тела при ошибке. </summary>
         Task<string> GetStringWithLoggingAsync(string url, CancellationToken ct);
+        Task<string> GetStringAuthAsync(string url, string bearer, CancellationToken ct);
 
         Task<List<TitleResponse>> FetchAllTitlesAsync(int pageSize, int maxPages, CancellationToken ct);
 
         Task<List<TitleResponse>> FetchFavoritesAsync(
-            string session,
+            string bearerToken,
             int pageSize,
             int maxPages,
             CancellationToken ct);
@@ -31,6 +32,8 @@ namespace AniLibriaStrmPlugin
 
     public sealed class AniLibriaClient : IAniLibriaClient
     {
+        private const string ApiBase = "https://api.anilibria.app/api/v1";
+
         private readonly HttpClient _http;
         private readonly ILogger<AniLibriaClient> _log;
 
@@ -40,9 +43,8 @@ namespace AniLibriaStrmPlugin
             _log = log;
         }
 
-        // ──────────────────────────────────────────────────────────────
-
-        #region universal GET with body‑aware error logging
+        // ──────────────────────────────────────────────
+        #region universal GET with body-aware error logging
 
         public async Task<string> GetStringWithLoggingAsync(string url, CancellationToken ct)
         {
@@ -61,9 +63,29 @@ namespace AniLibriaStrmPlugin
             return await resp.Content.ReadAsStringAsync(ct);
         }
 
+        public async Task<string> GetStringAuthAsync(string url, string bearer, CancellationToken ct)
+        {
+            using var req = new HttpRequestMessage(HttpMethod.Get, url);
+            req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", bearer);
+
+            var resp = await _http.SendAsync(req, ct);
+
+            if (!resp.IsSuccessStatusCode)
+            {
+                var body = await SafeReadAsync(resp, ct);
+                _log.LogError("HTTP {Code} for {Url}: {Body}",
+                    (int)resp.StatusCode,
+                    url,
+                    Truncate(body, 300));
+            }
+
+            resp.EnsureSuccessStatusCode();
+            return await resp.Content.ReadAsStringAsync(ct);
+        }
+
         #endregion
 
-        // ──────────────────────────────────────────────────────────────
+        // ──────────────────────────────────────────────
 
         private static readonly JsonSerializerOptions _jsonOpts = new()
         {
@@ -78,7 +100,7 @@ namespace AniLibriaStrmPlugin
 
             for (var page = 1; page <= maxPages; page++)
             {
-                var url = $"https://api.anilibria.tv/v3/title/changes?limit={pageSize}&page={page}";
+                var url = $"{ApiBase}/titles/updates?limit={pageSize}&page={page}";
                 _log.LogDebug("GET {Url}", url);
 
                 try
@@ -89,9 +111,9 @@ namespace AniLibriaStrmPlugin
                     if (parsed?.List is { Count: > 0 })
                     {
                         result.AddRange(parsed.List);
-                        if (parsed.List.Count < pageSize) break; // последних меньше чем limit
+                        if (parsed.List.Count < pageSize) break;
                     }
-                    else break; // пусто → конец
+                    else break;
                 }
                 catch (Exception ex)
                 {
@@ -105,32 +127,31 @@ namespace AniLibriaStrmPlugin
 
         // --------------------------------------------------------------
         public async Task<List<TitleResponse>> FetchFavoritesAsync(
-            string session, int pageSize, int maxPages, CancellationToken ct)
+            string bearerToken, int pageSize, int maxPages, CancellationToken ct)
         {
             var result = new List<TitleResponse>();
 
             for (var page = 1; page <= maxPages; page++)
             {
                 var url =
-                    $"https://api.anilibria.tv/v3/user/favorites?session={session}" +
-                    $"&page={page}&items_per_page={pageSize}";
+                    $"{ApiBase}/users/me/favorites?page={page}&items_per_page={pageSize}";
 
                 var sw = Stopwatch.StartNew();
                 try
                 {
-                    var raw = await GetStringWithLoggingAsync(url, ct);
+                    var raw = await GetStringAuthAsync(url, bearerToken, ct);
                     sw.Stop();
 
                     var parsed = JsonSerializer.Deserialize<FavoritesResponse>(raw, _jsonOpts);
                     var got = parsed?.List?.Count ?? 0;
 
-                    _log.LogInformation("FAV page {Page}: OK, {Items} items, {Ms} ms",
+                    _log.LogInformation("FAV page {Page}: OK, {Items} items, {Ms} ms",
                         page, got, sw.ElapsedMilliseconds);
 
                     if (got == 0)
                     {
                         if (page == 1)
-                            _log.LogWarning("API вернуло 0 избранного — проверьте sessionId");
+                            _log.LogWarning("API вернуло 0 избранного — проверьте токен");
                         break;
                     }
 
@@ -139,7 +160,7 @@ namespace AniLibriaStrmPlugin
                 catch (Exception ex)
                 {
                     sw.Stop();
-                    _log.LogError(ex, "FAV page {Page} failed after {Ms} ms",
+                    _log.LogError(ex, "FAV page {Page} failed after {Ms} ms",
                         page, sw.ElapsedMilliseconds);
                     break;
                 }
@@ -148,8 +169,7 @@ namespace AniLibriaStrmPlugin
             return result;
         }
 
-        // ──────────────────────────────────────────────────────────────
-
+        // ──────────────────────────────────────────────
         #region helpers
 
         private static async Task<string> SafeReadAsync(HttpResponseMessage resp, CancellationToken ct)

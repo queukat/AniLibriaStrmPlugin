@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <IsPackable>false</IsPackable>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <!-- необходимые NuGet-пакеты -->
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk"                            Version="17.12.0" />
+    <PackageReference Include="xunit"                                             Version="2.8.0" />
+    <PackageReference Include="xunit.runner.visualstudio"                         Version="2.8.0" PrivateAssets="all" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions"         Version="8.0.0" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="8.0.0" />
+  </ItemGroup>
+
+  <!-- ссылка на основной плагин (он лежит на уровень выше) -->
+  <ItemGroup>
+    <ProjectReference Include="..\AniLibriaStrmPlugin.csproj" />
+  </ItemGroup>
+
+</Project>
