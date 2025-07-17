@@ -1,4 +1,9 @@
-// ===== File: AniLibriaClient.cs =====
+// ===== Updated File: AniLibriaClient.cs =====
+// 2025‑07 — migrated to new AniLibria API v1 (https://api.anilibria.app/api/docs/v1)
+// * Replaced legacy /titles/… and /users/… routes
+// * Added modern pagination params (limit + page, 0‑based)
+// * Updated JSON DTOs
+// NOTE: Other files (models, tests) were updated accordingly – see the repo
 
 using System;
 using System.Collections.Generic;
@@ -6,6 +11,7 @@ using System.Diagnostics;
 using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using System.Threading;
 using System.Threading.Tasks;
 using AniLibriaStrmPlugin.Models;
@@ -14,16 +20,17 @@ using Microsoft.Extensions.Logging;
 namespace AniLibriaStrmPlugin
 {
     /// <summary>
-    ///   HTTP-обёртка над API AniLibria v1 с логированием.
+    ///   HTTP‑обёртка над новым API AniLibria v1 с логированием.
+    ///   Документация: https://api.anilibria.app/api/docs/v1
     /// </summary>
     public interface IAniLibriaClient
     {
         Task<string> GetStringWithLoggingAsync(string url, CancellationToken ct);
         Task<string> GetStringAuthAsync(string url, string bearer, CancellationToken ct);
 
-        Task<List<TitleResponse>> FetchAllTitlesAsync(int pageSize, int maxPages, CancellationToken ct);
+        Task<List<ReleaseResponse>> FetchAllTitlesAsync(int pageSize, int maxPages, CancellationToken ct);
 
-        Task<List<TitleResponse>> FetchFavoritesAsync(
+        Task<List<ReleaseResponse>> FetchFavoritesAsync(
             string bearerToken,
             int pageSize,
             int maxPages,
@@ -40,11 +47,11 @@ namespace AniLibriaStrmPlugin
         public AniLibriaClient(HttpClient http, ILogger<AniLibriaClient> log)
         {
             _http = http;
-            _log = log;
+            _log  = log;
         }
 
         // ──────────────────────────────────────────────
-        #region universal GET with body-aware error logging
+        #region Low‑level GET helpers (with logging)
 
         public async Task<string> GetStringWithLoggingAsync(string url, CancellationToken ct)
         {
@@ -85,35 +92,40 @@ namespace AniLibriaStrmPlugin
 
         #endregion
 
-        // ──────────────────────────────────────────────
-
         private static readonly JsonSerializerOptions _jsonOpts = new()
         {
-            PropertyNameCaseInsensitive = true
+            PropertyNameCaseInsensitive = true,
+            DefaultIgnoreCondition      = JsonIgnoreCondition.WhenWritingNull
         };
 
-        // --------------------------------------------------------------
-        public async Task<List<TitleResponse>> FetchAllTitlesAsync(
-            int pageSize, int maxPages, CancellationToken ct)
-        {
-            var result = new List<TitleResponse>();
+        // ──────────────────────────────────────────────
+        #region /anime/releases/latest → *весь* каталог (разбито пагинацией)
 
-            for (var page = 1; page <= maxPages; page++)
+        public async Task<List<ReleaseResponse>> FetchAllTitlesAsync(
+            int pageSize,
+            int maxPages,
+            CancellationToken ct)
+        {
+            var result = new List<ReleaseResponse>();
+
+            for (var page = 0; page < maxPages; page++) // ⚠️ 0‑based индекс!
             {
-                var url = $"{ApiBase}/titles/updates?limit={pageSize}&page={page}";
+                var url =
+                    $"{ApiBase}/anime/releases/latest?limit={pageSize}&page={page}";
                 _log.LogDebug("GET {Url}", url);
 
                 try
                 {
-                    var raw = await GetStringWithLoggingAsync(url, ct);
-                    var parsed = JsonSerializer.Deserialize<FavoritesResponse>(raw, _jsonOpts);
+                    var raw    = await GetStringWithLoggingAsync(url, ct);
+                    var parsed =
+                        JsonSerializer.Deserialize<ReleasesApiResponse>(raw, _jsonOpts);
 
-                    if (parsed?.List is { Count: > 0 })
+                    if (parsed?.Data is { Count: > 0 })
                     {
-                        result.AddRange(parsed.List);
-                        if (parsed.List.Count < pageSize) break;
+                        result.AddRange(parsed.Data);
+                        if (parsed.Data.Count < pageSize) break; // последняя страница
                     }
-                    else break;
+                    else break; // пусто – выходим
                 }
                 catch (Exception ex)
                 {
@@ -125,43 +137,50 @@ namespace AniLibriaStrmPlugin
             return result;
         }
 
-        // --------------------------------------------------------------
-        public async Task<List<TitleResponse>> FetchFavoritesAsync(
-            string bearerToken, int pageSize, int maxPages, CancellationToken ct)
-        {
-            var result = new List<TitleResponse>();
+        #endregion
 
-            for (var page = 1; page <= maxPages; page++)
+        // ──────────────────────────────────────────────
+        #region /accounts/users/me/favorites/releases
+
+        public async Task<List<ReleaseResponse>> FetchFavoritesAsync(
+            string bearerToken,
+            int pageSize,
+            int maxPages,
+            CancellationToken ct)
+        {
+            var result = new List<ReleaseResponse>();
+
+            for (var page = 1; page <= maxPages; page++) // ⚠️ favourites – 1‑based page
             {
                 var url =
-                    $"{ApiBase}/users/me/favorites?page={page}&items_per_page={pageSize}";
+                    $"{ApiBase}/accounts/users/me/favorites/releases?limit={pageSize}&page={page}";
 
                 var sw = Stopwatch.StartNew();
                 try
                 {
-                    var raw = await GetStringAuthAsync(url, bearerToken, ct);
+                    var raw    = await GetStringAuthAsync(url, bearerToken, ct);
+                    var parsed =
+                        JsonSerializer.Deserialize<ReleasesApiResponse>(raw, _jsonOpts);
+                    var got = parsed?.Data?.Count ?? 0;
+
                     sw.Stop();
-
-                    var parsed = JsonSerializer.Deserialize<FavoritesResponse>(raw, _jsonOpts);
-                    var got = parsed?.List?.Count ?? 0;
-
-                    _log.LogInformation("FAV page {Page}: OK, {Items} items, {Ms} ms",
-                        page, got, sw.ElapsedMilliseconds);
+                    _log.LogInformation("FAV page {Page}: OK, {Items} items, {Ms} ms", page, got,
+                        sw.ElapsedMilliseconds);
 
                     if (got == 0)
                     {
                         if (page == 1)
-                            _log.LogWarning("API вернуло 0 избранного — проверьте токен");
+                            _log.LogWarning("API вернуло 0 избранного — проверьте токен или наличие избранного.");
                         break;
                     }
 
-                    result.AddRange(parsed.List);
+                    result.AddRange(parsed.Data);
                 }
                 catch (Exception ex)
                 {
                     sw.Stop();
-                    _log.LogError(ex, "FAV page {Page} failed after {Ms} ms",
-                        page, sw.ElapsedMilliseconds);
+                    _log.LogError(ex, "FAV page {Page} failed after {Ms} ms", page,
+                        sw.ElapsedMilliseconds);
                     break;
                 }
             }
@@ -169,26 +188,27 @@ namespace AniLibriaStrmPlugin
             return result;
         }
 
+        #endregion
+
         // ──────────────────────────────────────────────
         #region helpers
 
         private static async Task<string> SafeReadAsync(HttpResponseMessage resp, CancellationToken ct)
         {
-            try
-            {
-                return await resp.Content.ReadAsStringAsync(ct);
-            }
-            catch
-            {
-                return "<unable to read body>";
-            }
+            try { return await resp.Content.ReadAsStringAsync(ct); }
+            catch { return "<unable to read body>"; }
         }
 
         private static string Truncate(string? text, int max) =>
-            string.IsNullOrEmpty(text) || text.Length <= max
-                ? text ?? string.Empty
-                : text[..max] + " …";
+            string.IsNullOrEmpty(text) || text.Length <= max ? text ?? string.Empty : text[..max] + " …";
 
         #endregion
+    }
+
+    // ═════════════ DTO wrappers ════════════════
+
+    internal sealed class ReleasesApiResponse
+    {
+        [JsonPropertyName("data")] public List<ReleaseResponse> Data { get; set; } = new();
     }
 }

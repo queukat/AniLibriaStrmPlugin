@@ -1,102 +1,81 @@
-﻿using System.Text.Json.Serialization;
+﻿// ===== UPDATED FILE: Models/AniLibriaModels.cs =====
+// 2025-07-14 — добавлено поле Season (year+value) из API v1
+
+using System.Text.Json.Serialization;
 using AniLibriaStrmPlugin.Converters;
 
 namespace AniLibriaStrmPlugin.Models;
 
-public class FavoritesResponse
+// ──────────────────────────────────────────────────────────────────────────
+public class ReleaseResponse
 {
-    public List<TitleResponse> List { get; set; } = new();
+    [JsonPropertyName("id")]      public int    Id          { get; set; }
+    [JsonPropertyName("alias")]   public string Alias       { get; set; } = string.Empty;
+
+    [JsonPropertyName("name")]    public NameBlock   Name   { get; set; } = null!;
+    [JsonPropertyName("poster")]  public PosterBlock Poster { get; set; } = null!;
+    [JsonPropertyName("description")] public string Description { get; set; } = string.Empty;
+
+    // <-- НОВОЕ
+    [JsonPropertyName("season")]  public SeasonBlock? Season { get; set; }
+    // ———
+
+    [JsonPropertyName("episodes")] public List<EpisodeItem> Episodes { get; set; } = new();
 }
 
-public class TitleResponse
+// ──────────────────────────────────────────────────────────────────────────
+public class SeasonBlock
 {
-    public int Id { get; set; }
-    public string Code { get; set; } = null!;
-    public NameBlock Names { get; set; } = null!;
-    public PosterBlock Posters { get; set; } = null!;
-    public PlayerBlock Player { get; set; } = null!;
-    public string Description { get; set; } = null!;
-    public List<FranchiseBlock> Franchises { get; set; } = new();
+    // winter / spring / summer / autumn  (см. /anime/catalog/references/seasons)
+    [JsonPropertyName("value")] public string Value { get; set; } = string.Empty;
+    [JsonPropertyName("year")]  public int    Year  { get; set; }
 }
 
-public class FranchiseBlock
-{
-    public FranchiseItem Franchise { get; set; } = null!;
-    public List<ReleaseItem> Releases { get; set; } = new();
-}
-
-public class FranchiseItem
-{
-    public string Id { get; set; } = null!;
-    public string Name { get; set; } = null!;
-}
-
-public class ReleaseItem
-{
-    public int Id { get; set; }
-    public string Code { get; set; } = null!;
-    public int Ordinal { get; set; }
-    public NameBlock Names { get; set; } = null!;
-}
-
+// ──────────────────────────────────────────────────────────────────────────
 public class NameBlock
 {
-    public string Ru { get; set; } = null!;
-    public string En { get; set; } = null!;
-    public string Alternative { get; set; } = null!;
+    [JsonPropertyName("main")]        public string Main        { get; set; } = string.Empty;
+    [JsonPropertyName("english")]     public string English     { get; set; } = string.Empty;
+    [JsonPropertyName("alternative")] public string Alternative { get; set; } = string.Empty;
 }
 
+// ──────────────────────────────────────────────────────────────────────────
 public class PosterBlock
 {
-    public PosterUrl Small { get; set; } = null!;
-    public PosterUrl Medium { get; set; } = null!;
-    public PosterUrl Original { get; set; } = null!;
+    [JsonPropertyName("src")]        public string Src       { get; set; } = string.Empty;
+    [JsonPropertyName("preview")]    public string Preview   { get; set; } = string.Empty;
+    [JsonPropertyName("thumbnail")]  public string Thumbnail { get; set; } = string.Empty;
 }
 
-public class PosterUrl
-{
-    public string Url { get; set; } = null!;
-}
-
-public class PlayerBlock
-{
-    public string Host { get; set; } = null!;
-    public bool Is_rutube { get; set; }
-    public EpisodesBlock Episodes { get; set; } = null!;
-    public Dictionary<string, EpisodeItem> List { get; set; } = new();
-}
-
-public class EpisodesBlock
-{
-    [JsonConverter(typeof(IntNullableConverter))]
-    public int? First { get; set; }
-
-    [JsonConverter(typeof(IntNullableConverter))]
-    public int? Last { get; set; }
-
-    public string String { get; set; } = null!;
-}
-
+// ──────────────────────────────────────────────────────────────────────────
 public class EpisodeItem
 {
-    public double Episode { get; set; }
-    public string Name { get; set; } = null!;
-    public string Uuid { get; set; } = null!;
-    public int Created_timestamp { get; set; }
-    public string Preview { get; set; } = null!;
-    public SkipsBlock Skips { get; set; } = null!;
-    public HlsBlock Hls { get; set; } = null!;
+    // 🔸 Ordinal иногда приходит как строка ("OP") или вовсе отсутствует.
+    //    Делаем его nullable int + конвертер, чтоб JSON-ошибок не было.
+    [JsonPropertyName("ordinal")]
+    [JsonConverter(typeof(IntNullableConverter))]
+    public int? Ordinal { get; set; }
+
+    [JsonPropertyName("hls_1080")] public string? Hls1080 { get; set; }
+    [JsonPropertyName("hls_720")]  public string? Hls720  { get; set; }
+    [JsonPropertyName("hls_480")]  public string? Hls480  { get; set; }
+
+    [JsonPropertyName("duration")] public int Duration { get; set; }
+
+    // 🔹 добавляем блок `ending`
+    [JsonPropertyName("opening")] public OpeningBlock? Opening { get; set; }
+    [JsonPropertyName("ending")]  public OpeningBlock? Ending  { get; set; }
+
+    [JsonPropertyName("preview")] public PreviewBlock? Preview { get; set; }
 }
 
-public class SkipsBlock
+public class OpeningBlock
 {
-    public List<int> Opening { get; set; } = new();
-    public List<int> Ending { get; set; } = new();
+    [JsonPropertyName("start")] public int? Start { get; set; }
+    [JsonPropertyName("stop")]  public int? Stop  { get; set; }
 }
 
-public class HlsBlock
+public class PreviewBlock
 {
-    public string Fhd { get; set; } = null!;
-    public string Hd { get; set; } = null!;
-    public string Sd { get; set; } = null!;
+    [JsonPropertyName("src")] public string Src { get; set; } = string.Empty;
 }

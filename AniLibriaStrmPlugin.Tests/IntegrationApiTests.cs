@@ -1,4 +1,9 @@
-﻿using System;
+﻿// ===== UPDATED FILE: IntegrationApiTests.cs =====
+// 2025-07-15 — приведено в соответствие с API v1
+// * Тесты используют /anime/releases/latest и /anime/releases/{id}
+// * Проверяем наличие поля Alias вместо устаревшего Code
+
+using System;
 using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
@@ -10,7 +15,7 @@ namespace AniLibriaStrmPlugin.Tests;
 
 /// <summary>
 ///  Лёгкий интеграционный тест: минимум запросов к прод-API,
-///  чтобы убедиться, что /titles/updates и /titles/{id} живы.
+///  чтобы убедиться, что /anime/releases/latest и /anime/releases/{id} живы.
 /// </summary>
 public class IntegrationApiTests
 {
@@ -21,30 +26,31 @@ public class IntegrationApiTests
         return new AniLibriaClient(http, log);
     }
 
-[Fact(DisplayName = "GET /titles/updates отвечает 200 и JSON десериализуется")]
-public async Task TitlesUpdates_Alive()
-{
-    var client = NewClient();
-    var list   = await client.FetchAllTitlesAsync(5, 1, CancellationToken.None);
+    [Fact(DisplayName = "GET /anime/releases/latest отвечает 200 и JSON десериализуется")]
+    public async Task ReleasesLatest_Alive()
+    {
+        var client = NewClient();
+        var list   = await client.FetchAllTitlesAsync(5, 1, CancellationToken.None);
 
-    // Проверяем только, что запрос не упал и вернулся валидный объект
-    Assert.NotNull(list);
-}
+        // Проверяем только, что запрос не упал и вернулся валидный объект
+        Assert.NotNull(list);
+        Assert.NotEmpty(list);
+    }
 
-[Fact(DisplayName = "GET /titles/{id} отвечает 200")]
-public async Task TitleById_Alive()
-{
-    var client = NewClient();
+    [Fact(DisplayName = "GET /anime/releases/{id} отвечает 200")]
+    public async Task ReleaseById_Alive()
+    {
+        var client = NewClient();
 
-    // если список пуст, считаем тест пройденным — API живо
-    var list = await client.FetchAllTitlesAsync(1, 1, CancellationToken.None);
-    if (list.Count == 0) return;
+        var list = await client.FetchAllTitlesAsync(1, 1, CancellationToken.None);
+        if (list.Count == 0) return;   // API живо, но пусто — считаем ок
 
-    var first = list[0];
-    var raw   = await client.GetStringWithLoggingAsync(
-        $"https://api.anilibria.app/api/v1/titles/{first.Id}", CancellationToken.None);
+        var first = list[0];
+        var raw   = await client.GetStringWithLoggingAsync(
+            $"https://api.anilibria.app/api/v1/anime/releases/{first.Id}",
+            CancellationToken.None);
 
-    Assert.Contains(first.Code, raw);
-}
-
+        // В ответе должен присутствовать alias релиза
+        Assert.Contains(first.Alias, raw, StringComparison.OrdinalIgnoreCase);
+    }
 }

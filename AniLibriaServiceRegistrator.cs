@@ -9,44 +9,42 @@ using Polly.Extensions.Http;
 
 namespace AniLibriaStrmPlugin;
 
+/// <summary>DI-регистрация сервисов для Jellyfin 10.11.</summary>
 public class AniLibriaServiceRegistrator : IPluginServiceRegistrator
 {
-    // универсальная реализация (работает и в 10.10, и в 10.11+)
-    void IPluginServiceRegistrator.RegisterServices(IServiceCollection services,
-                                                    IServerApplicationHost _) // '_' = не используем
+    void IPluginServiceRegistrator.RegisterServices(IServiceCollection services, IServerApplicationHost _)
         => Register(services);
 
     private static void Register(IServiceCollection services)
     {
-        // HttpClient with retry
-        services.AddHttpClient("AniLibria", c =>
+        /* ---- HttpClient с retry + UA ---- */
+        services.AddHttpClient("AniLiberty", c =>
             {
                 c.Timeout = TimeSpan.FromSeconds(300);
                 c.DefaultRequestHeaders.UserAgent
-                       .ParseAdd("Jellyfin-AniLibriaStrm/1.0");
+                       .ParseAdd("Jellyfin-AniLibertyStrm/1.0");      
             })
             .AddPolicyHandler(PolicyHelpers.GetRetryPolicy());
 
-        // AniLibriaClient
+        /* ---- AniLibriaClient ---- */
         services.AddTransient<IAniLibriaClient>(sp =>
         {
-            var http = sp.GetRequiredService<IHttpClientFactory>().CreateClient("AniLibria");
-            var log = sp.GetRequiredService<ILogger<AniLibriaClient>>();
-            return new AniLibriaClient(http, log);
+            var http = sp.GetRequiredService<IHttpClientFactory>().CreateClient("AniLiberty");
+            var log  = sp.GetRequiredService<ILogger<AniLibriaClient>>();
+            return new AniLibriaClient(http, log);                      
         });
 
-        // singletons
+        /* ---- singletons / tasks ---- */
         services.AddSingleton<IAniLibriaStrmGenerator, AniLibriaStrmGenerator>();
         services.AddSingleton<IScheduledTask, AniLibriaAllTask>();
         services.AddSingleton<IScheduledTask, AniLibriaFavoritesTask>();
-        services.AddHostedService<AniLibriaRealtimeWatcher>();
+        
     }
 }
 
 internal static class PolicyHelpers
 {
     private static readonly Random _rnd = new();
-
     public static IAsyncPolicy<HttpResponseMessage> GetRetryPolicy() =>
         HttpPolicyExtensions
             .HandleTransientHttpError()
