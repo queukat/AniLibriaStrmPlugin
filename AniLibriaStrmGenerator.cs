@@ -314,7 +314,7 @@ namespace AniLibriaStrmPlugin
             try
             {
                 using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(20) };
-                http.DefaultRequestHeaders.UserAgent.ParseAdd("Jellyfin-AniLibertyStrm/1.0 (+https://github.com)");
+                http.DefaultRequestHeaders.UserAgent.ParseAdd("Jellyfin-AniLibertyStrm/1.0 (+https://github.com/queukat/AniLibriaStrmPlugin)");
 
 
                 var resp = await http.GetAsync(url, ct);
