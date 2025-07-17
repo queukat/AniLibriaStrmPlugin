@@ -1,9 +1,3 @@
-// ===== Updated File: AniLibriaClient.cs =====
-// 2025‑07 — migrated to new AniLibria API v1 (https://api.anilibria.app/api/docs/v1)
-// * Replaced legacy /titles/… and /users/… routes
-// * Added modern pagination params (limit + page, 0‑based)
-// * Updated JSON DTOs
-// NOTE: Other files (models, tests) were updated accordingly – see the repo
 
 using System;
 using System.Collections.Generic;

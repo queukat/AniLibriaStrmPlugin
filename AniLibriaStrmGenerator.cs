@@ -1,8 +1,3 @@
-// ===== UPDATED FILE: AniLibriaStrmGenerator.cs =====
-// 2025-07-15 — устранено «спам»-404/429: вместо загрузки .m3u8 для
-//              расчёта длины эпизода используем поле Duration,
-//              а к HLS-плейлисту обращаемся ТОЛЬКО если Duration==0.
-//              Это в разы уменьшает количество запросов и убирает 429.
 
 using AniLibriaStrmPlugin.Models;
 using MediaBrowser.Controller.Library;
