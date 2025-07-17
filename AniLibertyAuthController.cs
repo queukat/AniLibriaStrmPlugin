@@ -3,13 +3,13 @@ using System.Net.Http.Headers;
 using System.Text.Json;
 using Microsoft.AspNetCore.Mvc;
 
-namespace AniLibriaStrmPlugin;
+namespace AniLibertyStrmPlugin;
 
 /// <summary>
-///  REST-контроллер для авторизации и OTP-входа через новый AniLibria API v1.
+///  REST-контроллер для авторизации и OTP-входа через новый AniLiberty API v1.
 /// </summary>
-[Route("AniLibriaAuth")]
-public class AniLibriaAuthController : ControllerBase
+[Route("AniLibertyAuth")]
+public class AniLibertyAuthController : ControllerBase
 {
     private const string ApiBase = "https://api.anilibria.app/api/v1";
 
@@ -43,7 +43,7 @@ public class AniLibriaAuthController : ControllerBase
             return new { success = false, error = "No token in response", serverResponse = resp.body };
 
         var cfg = Plugin.Instance.Configuration;
-        cfg.AniLibriaToken = token;
+        cfg.AniLibertyToken = token;
         Plugin.Instance.UpdateConfiguration(cfg);
 
         return new { success = true, token, serverResponse = resp.body };
@@ -86,7 +86,7 @@ public class AniLibriaAuthController : ControllerBase
 
         var body = JsonSerializer.Serialize(new { code = req.code });
         var resp = await PostJson(ApiBase + "/accounts/otp/accept", body,
-            bearer: Plugin.Instance.Configuration.AniLibriaToken);
+            bearer: Plugin.Instance.Configuration.AniLibertyToken);
 
         return resp.ok
             ? new { success = true, serverResponse = resp.body }
@@ -115,7 +115,7 @@ public class AniLibriaAuthController : ControllerBase
         if (string.IsNullOrEmpty(token))
             return new { success = false, error = "No token in response", serverResponse = resp.body };
 
-        cfg.AniLibriaToken = token;
+        cfg.AniLibertyToken = token;
         Plugin.Instance.UpdateConfiguration(cfg);
 
         return new { success = true, token, serverResponse = resp.body };
@@ -146,7 +146,7 @@ public class AniLibriaAuthController : ControllerBase
     private static void AppendLog(string msg)
     {
         var timestamped = $"{DateTime.Now:HH:mm:ss} {msg}";
-        Console.WriteLine("[AniLibriaAuth] " + timestamped);
+        Console.WriteLine("[AniLibertyAuth] " + timestamped);
         Plugin.Instance.AppendTaskLog(timestamped);
     }
 }

@@ -2,7 +2,7 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
-namespace AniLibriaStrmPlugin.Converters;
+namespace AniLibertyStrmPlugin.Converters;
 
 /// <summary>
 ///     JSON-  int?,      ( 0.8),

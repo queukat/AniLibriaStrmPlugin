@@ -7,11 +7,11 @@ using System;
 using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
-using AniLibriaStrmPlugin;
+using AniLibertyStrmPlugin;
 using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 
-namespace AniLibriaStrmPlugin.Tests;
+namespace AniLibertyStrmPlugin.Tests;
 
 /// <summary>
 ///  Лёгкий интеграционный тест: минимум запросов к прод-API,
@@ -19,11 +19,11 @@ namespace AniLibriaStrmPlugin.Tests;
 /// </summary>
 public class IntegrationApiTests
 {
-    private static AniLibriaClient NewClient()
+    private static AniLibertyClient NewClient()
     {
         var http = new HttpClient { Timeout = TimeSpan.FromSeconds(15) };
-        var log  = NullLogger<AniLibriaClient>.Instance;
-        return new AniLibriaClient(http, log);
+        var log  = NullLogger<AniLibertyClient>.Instance;
+        return new AniLibertyClient(http, log);
     }
 
     [Fact(DisplayName = "GET /anime/releases/latest отвечает 200 и JSON десериализуется")]

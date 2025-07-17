@@ -1,6 +1,6 @@
 using MediaBrowser.Model.Plugins;
 
-namespace AniLibriaStrmPlugin.Configuration;
+namespace AniLibertyStrmPlugin.Configuration;
 
 /// <summary>Конфигурация плагина (AniLiberty STRM v2).</summary>
 public class PluginConfiguration : BasePluginConfiguration
@@ -10,7 +10,7 @@ public class PluginConfiguration : BasePluginConfiguration
     public string PreferredResolution { get; set; } = "1080";
 
     /// <summary>JWT-токен авторизации AniLiberty API v1.</summary>
-    public string AniLibriaToken { get; set; } = string.Empty;
+    public string AniLibertyToken { get; set; } = string.Empty;
 
     public bool EnableFavorites { get; set; } = true;
     public bool EnableAll       { get; set; } = true;

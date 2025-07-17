@@ -42,8 +42,8 @@
 
           <!-- auth token -->
           <div class="inputContainer">
-            <label for="AniLibriaToken">AniLiberty JWT Token:</label>
-            <input id="AniLibriaToken" is="emby-input" type="text">
+            <label for="AniLibertyToken">AniLiberty JWT Token:</label>
+            <input id="AniLibertyToken" is="emby-input" type="text">
           </div>
 
           <!-- checkboxes -->
@@ -174,7 +174,7 @@ async function loadCfg () {
     $("StrmAllPath").value       = cfg.StrmAllPath       || "";
     $("StrmFavoritesPath").value = cfg.StrmFavoritesPath || "";
     $("PreferredResolution").value = cfg.PreferredResolution || "1080";
-    $("AniLibriaToken").value      = cfg.AniLibriaToken || "";
+    $("AniLibertyToken").value      = cfg.AniLibertyToken || "";
     $("AllTitlesPageSize").value   = cfg.AllTitlesPageSize || 50;
     $("AllTitlesMaxPages").value   = cfg.AllTitlesMaxPages || 100;
     $("FavoritesPageSize").value   = cfg.FavoritesPageSize || 50;
@@ -191,7 +191,7 @@ async function saveCfg () {
     cfg.StrmAllPath       = $("StrmAllPath").value;
     cfg.StrmFavoritesPath = $("StrmFavoritesPath").value;
     cfg.PreferredResolution = $("PreferredResolution").value;
-    cfg.AniLibriaToken    = $("AniLibriaToken").value;
+    cfg.AniLibertyToken    = $("AniLibertyToken").value;
     cfg.AllTitlesPageSize = +$("AllTitlesPageSize").value || 50;
     cfg.AllTitlesMaxPages = +$("AllTitlesMaxPages").value || 100;
     cfg.FavoritesPageSize = +$("FavoritesPageSize").value || 50;
@@ -213,7 +213,7 @@ async function doLogin () {
   Dashboard.showLoadingMsg();
   try {
     const resp = await fetch(
-      ApiClient.getUrl("AniLibriaAuth/SignInLoginPass", {api: false}),
+      ApiClient.getUrl("AniLibertyAuth/SignInLoginPass", {api: false}),
       {
         method : "POST",
         headers: {"Content-Type": "application/json"},
@@ -222,10 +222,10 @@ async function doLogin () {
     const data = await resp.json();
     if (!data.success) throw new Error(data.error || `HTTP ${resp.status}`);
 
-    $("AniLibriaToken").value = data.token;
+    $("AniLibertyToken").value = data.token;
     /* сразу сохраняем в конфиг */
     const cfg = await ApiClient.getPluginConfiguration(pluginId);
-    cfg.AniLibriaToken = data.token;
+    cfg.AniLibertyToken = data.token;
     await ApiClient.updatePluginConfiguration(pluginId, cfg);
     notify("Токен получен и сохранён.");
   } catch (e) { notify(`Ошибка: ${e.message}`); debug(e); }

@@ -2,14 +2,14 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Text;
-using AniLibriaStrmPlugin.Configuration;
+using AniLibertyStrmPlugin.Configuration;
 using MediaBrowser.Common.Configuration;
 using MediaBrowser.Common.Plugins;
 using MediaBrowser.Model.Drawing;
 using MediaBrowser.Model.Plugins;
 using MediaBrowser.Model.Serialization;
 
-namespace AniLibriaStrmPlugin
+namespace AniLibertyStrmPlugin
 {
     /// <summary>
     /// Точка входа плагина + хранитель конфигурации и буфера логов.
@@ -84,7 +84,7 @@ namespace AniLibriaStrmPlugin
         // ──────────────────────────  ─────────────────────────────────
         public Stream GetThumbImage()
         {
-            const string res = "AniLibriaStrmPlugin.Resources.icon.png";
+            const string res = "AniLibertyStrmPlugin.Resources.icon.png";
             return GetType().Assembly.GetManifestResourceStream(res)!;
         }
 

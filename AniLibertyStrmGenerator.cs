@@ -1,5 +1,5 @@
 
-using AniLibriaStrmPlugin.Models;
+using AniLibertyStrmPlugin.Models;
 using MediaBrowser.Controller.Library;
 using Microsoft.Extensions.Logging;
 using System.Globalization;
@@ -10,9 +10,9 @@ using MediaBrowser.Controller.Entities;
 using MediaBrowser.Controller.Chapters;
 using MediaBrowser.Model.Entities;
 
-namespace AniLibriaStrmPlugin
+namespace AniLibertyStrmPlugin
 {
-    public interface IAniLibriaStrmGenerator
+    public interface IAniLibertyStrmGenerator
     {
         Task GenerateTitlesAsync(IEnumerable<ReleaseResponse> titles,
             string basePath,
@@ -21,14 +21,14 @@ namespace AniLibriaStrmPlugin
             CancellationToken token);
     }
 
-    public sealed class AniLibriaStrmGenerator : IAniLibriaStrmGenerator
+    public sealed class AniLibertyStrmGenerator : IAniLibertyStrmGenerator
     {
-        private readonly ILogger<AniLibriaStrmGenerator> _log;
+        private readonly ILogger<AniLibertyStrmGenerator> _log;
         private readonly ILibraryManager _library;
         private readonly IChapterManager _chapters;
 
-        public AniLibriaStrmGenerator(
-            ILogger<AniLibriaStrmGenerator> log,
+        public AniLibertyStrmGenerator(
+            ILogger<AniLibertyStrmGenerator> log,
             ILibraryManager library,
             IChapterManager chapters)
         {
@@ -309,7 +309,7 @@ namespace AniLibriaStrmPlugin
             try
             {
                 using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(20) };
-                http.DefaultRequestHeaders.UserAgent.ParseAdd("Jellyfin-AniLibertyStrm/1.0 (+https://github.com/queukat/AniLibriaStrmPlugin)");
+                http.DefaultRequestHeaders.UserAgent.ParseAdd("Jellyfin-AniLibertyStrm/1.0 (+https://github.com/queukat/AniLibertyStrmPlugin)");
 
 
                 var resp = await http.GetAsync(url, ct);

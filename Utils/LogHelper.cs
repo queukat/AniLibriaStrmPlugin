@@ -1,6 +1,6 @@
 using Microsoft.Extensions.Logging;
 
-namespace AniLibriaStrmPlugin.Utils;
+namespace AniLibertyStrmPlugin.Utils;
 
 internal static class LogHelper
 {

@@ -8,16 +8,16 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Threading;
 using System.Threading.Tasks;
-using AniLibriaStrmPlugin.Models;
+using AniLibertyStrmPlugin.Models;
 using Microsoft.Extensions.Logging;
 
-namespace AniLibriaStrmPlugin
+namespace AniLibertyStrmPlugin
 {
     /// <summary>
-    ///   HTTP‑обёртка над новым API AniLibria v1 с логированием.
+    ///   HTTP‑обёртка над новым API AniLiberty v1 с логированием.
     ///   Документация: https://api.anilibria.app/api/docs/v1
     /// </summary>
-    public interface IAniLibriaClient
+    public interface IAniLibertyClient
     {
         Task<string> GetStringWithLoggingAsync(string url, CancellationToken ct);
         Task<string> GetStringAuthAsync(string url, string bearer, CancellationToken ct);
@@ -31,14 +31,14 @@ namespace AniLibriaStrmPlugin
             CancellationToken ct);
     }
 
-    public sealed class AniLibriaClient : IAniLibriaClient
+    public sealed class AniLibertyClient : IAniLibertyClient
     {
         private const string ApiBase = "https://api.anilibria.app/api/v1";
 
         private readonly HttpClient _http;
-        private readonly ILogger<AniLibriaClient> _log;
+        private readonly ILogger<AniLibertyClient> _log;
 
-        public AniLibriaClient(HttpClient http, ILogger<AniLibriaClient> log)
+        public AniLibertyClient(HttpClient http, ILogger<AniLibertyClient> log)
         {
             _http = http;
             _log  = log;

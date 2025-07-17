@@ -1,10 +1,10 @@
-﻿// ===== UPDATED FILE: Models/AniLibriaModels.cs =====
+﻿// ===== UPDATED FILE: Models/AniLibertyModels.cs =====
 // 2025-07-14 — добавлено поле Season (year+value) из API v1
 
 using System.Text.Json.Serialization;
-using AniLibriaStrmPlugin.Converters;
+using AniLibertyStrmPlugin.Converters;
 
-namespace AniLibriaStrmPlugin.Models;
+namespace AniLibertyStrmPlugin.Models;
 
 // ──────────────────────────────────────────────────────────────────────────
 public class ReleaseResponse

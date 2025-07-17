@@ -1,4 +1,4 @@
-﻿// ===== File: AniLibriaAllTask.cs =====
+﻿// ===== File: AniLibertyAllTask.cs =====
 
 using System;
 using System.Collections.Generic;
@@ -7,18 +7,18 @@ using System.Threading.Tasks;
 using MediaBrowser.Model.Tasks;
 using Microsoft.Extensions.Logging;
 
-namespace AniLibriaStrmPlugin.Tasks
+namespace AniLibertyStrmPlugin.Tasks
 {
-    public sealed class AniLibriaAllTask : IScheduledTask
+    public sealed class AniLibertyAllTask : IScheduledTask
     {
-        private readonly IAniLibriaClient _client;
-        private readonly IAniLibriaStrmGenerator _gen;
-        private readonly ILogger<AniLibriaAllTask> _log;
+        private readonly IAniLibertyClient _client;
+        private readonly IAniLibertyStrmGenerator _gen;
+        private readonly ILogger<AniLibertyAllTask> _log;
 
-        public AniLibriaAllTask(
-            IAniLibriaClient client,
-            IAniLibriaStrmGenerator gen,
-            ILogger<AniLibriaAllTask> log)
+        public AniLibertyAllTask(
+            IAniLibertyClient client,
+            IAniLibertyStrmGenerator gen,
+            ILogger<AniLibertyAllTask> log)
         {
             _client = client;
             _gen = gen;
@@ -26,10 +26,10 @@ namespace AniLibriaStrmPlugin.Tasks
         }
 
         public bool IsHidden => false;
-        public string Name => "Generate AniLibria STRM library";
-        public string Category => "AniLibria";
-        public string Description => "Fetches *all* AniLibria titles and generates .strm + .edl + .nfo.";
-        public string Key => "AniLibriaStrmTask";
+        public string Name => "Generate AniLiberty STRM library";
+        public string Category => "AniLiberty";
+        public string Description => "Fetches *all* AniLiberty titles and generates .strm + .edl + .nfo.";
+        public string Key => "AniLibertyStrmTask";
 
 #if JF_10_10
 // Jellyfin 10.10 не поддерживает TaskTriggerInfoType — не возвращаем расписание
@@ -50,7 +50,7 @@ public IEnumerable<TaskTriggerInfo> GetDefaultTriggers()
         public async Task ExecuteAsync(IProgress<double> progress, CancellationToken token)
         {
             var cfg = Plugin.Instance.Configuration;
-            _log.LogInformation("=== AniLibriaAllTask started ===");
+            _log.LogInformation("=== AniLibertyAllTask started ===");
 
             try
             {
@@ -83,11 +83,11 @@ public IEnumerable<TaskTriggerInfo> GetDefaultTriggers()
             }
             catch (Exception ex)
             {
-                _log.LogError(ex, "AniLibriaAllTask failed");
+                _log.LogError(ex, "AniLibertyAllTask failed");
             }
             finally
             {
-                _log.LogInformation("=== AniLibriaAllTask done ===");
+                _log.LogInformation("=== AniLibertyAllTask done ===");
                 Plugin.Instance.FlushLog();
             }
         }

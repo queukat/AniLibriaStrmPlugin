@@ -8,6 +8,7 @@
         <IncludeAllContentForSelfExtract>true</IncludeAllContentForSelfExtract>
         <CopyLocalLockFileAssemblies>True</CopyLocalLockFileAssemblies>
         <GenerateTargetFrameworkAttribute>false</GenerateTargetFrameworkAttribute>
+        <RootNamespace>AniLibriaStrmPlugin</RootNamespace>
     </PropertyGroup>
 
     <ItemGroup>
@@ -32,7 +33,7 @@
         </PackageReference>
         <PackageReference Include="Microsoft.Extensions.Hosting" Version="9.0.0" PrivateAssets="all"/>
 
-        <Compile Remove="AniLibriaStrmPlugin.Tests\**\*.cs" />
+        <Compile Remove="AniLibertyStrmPlugin.Tests\**\*.cs" />
 
     </ItemGroup>
     <ItemGroup>
@@ -44,7 +45,7 @@
 
     <ItemGroup>
         <EmbeddedResource Include="Configuration\configPage.html">
-            <LogicalName>AniLibriaStrmPlugin.Configuration.configPage.html</LogicalName>
+            <LogicalName>AniLibertyStrmPlugin.Configuration.configPage.html</LogicalName>
         </EmbeddedResource>
 
         <EmbeddedResource Include="Resources\icon.png"/>
@@ -53,8 +54,8 @@
 
 
     <ItemGroup>
-      <Folder Include="AniLibriaStrmPlugin.Tests\bin\Debug\" />
-      <Folder Include="AniLibriaStrmPlugin.Tests\obj\Debug\" />
+      <Folder Include="AniLibertyStrmPlugin.Tests\bin\Debug\" />
+      <Folder Include="AniLibertyStrmPlugin.Tests\obj\Debug\" />
     </ItemGroup>
     <Target Name="ShowPluginOutputPath" AfterTargets="Build">
         <Message Text="Plugin DLL built at: $(TargetDir)$(TargetFileName)" Importance="high"/>

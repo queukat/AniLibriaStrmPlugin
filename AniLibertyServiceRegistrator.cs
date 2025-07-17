@@ -1,4 +1,4 @@
-﻿using AniLibriaStrmPlugin.Tasks;
+﻿using AniLibertyStrmPlugin.Tasks;
 using MediaBrowser.Controller.Plugins;
 using MediaBrowser.Model.Tasks;
 using MediaBrowser.Controller;
@@ -7,10 +7,10 @@ using Microsoft.Extensions.Logging;
 using Polly;
 using Polly.Extensions.Http;
 
-namespace AniLibriaStrmPlugin;
+namespace AniLibertyStrmPlugin;
 
 /// <summary>DI-регистрация сервисов для Jellyfin 10.11.</summary>
-public class AniLibriaServiceRegistrator : IPluginServiceRegistrator
+public class AniLibertyServiceRegistrator : IPluginServiceRegistrator
 {
     void IPluginServiceRegistrator.RegisterServices(IServiceCollection services, IServerApplicationHost _)
         => Register(services);
@@ -22,22 +22,22 @@ public class AniLibriaServiceRegistrator : IPluginServiceRegistrator
             {
                 c.Timeout = TimeSpan.FromSeconds(300);
                 c.DefaultRequestHeaders.UserAgent
-                       .ParseAdd("Jellyfin-AniLibertyStrm/1.0");      
+                    .ParseAdd("Jellyfin-AniLibertyStrm/2.0 (+https://github.com/queukat/AniLibertyStrmPlugin)");      
             })
             .AddPolicyHandler(PolicyHelpers.GetRetryPolicy());
 
-        /* ---- AniLibriaClient ---- */
-        services.AddTransient<IAniLibriaClient>(sp =>
+        /* ---- AniLibertyClient ---- */
+        services.AddTransient<IAniLibertyClient>(sp =>
         {
             var http = sp.GetRequiredService<IHttpClientFactory>().CreateClient("AniLiberty");
-            var log  = sp.GetRequiredService<ILogger<AniLibriaClient>>();
-            return new AniLibriaClient(http, log);                      
+            var log  = sp.GetRequiredService<ILogger<AniLibertyClient>>();
+            return new AniLibertyClient(http, log);                      
         });
 
         /* ---- singletons / tasks ---- */
-        services.AddSingleton<IAniLibriaStrmGenerator, AniLibriaStrmGenerator>();
-        services.AddSingleton<IScheduledTask, AniLibriaAllTask>();
-        services.AddSingleton<IScheduledTask, AniLibriaFavoritesTask>();
+        services.AddSingleton<IAniLibertyStrmGenerator, AniLibertyStrmGenerator>();
+        services.AddSingleton<IScheduledTask, AniLibertyAllTask>();
+        services.AddSingleton<IScheduledTask, AniLibertyFavoritesTask>();
         
     }
 }

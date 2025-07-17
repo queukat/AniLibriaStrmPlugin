@@ -17,7 +17,7 @@
 
   <!-- ссылка на основной плагин (он лежит на уровень выше) -->
   <ItemGroup>
-    <ProjectReference Include="..\AniLibriaStrmPlugin.csproj" />
+    <ProjectReference Include="..\AniLibertyStrmPlugin.csproj" />
   </ItemGroup>
 
 </Project>
