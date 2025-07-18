@@ -54,34 +54,40 @@ jobs:
           set -e
           mkdir -p publish/plugins
           cp "${{ steps.jprm.outputs.artifact }}" publish/plugins/
-
-          pushd publish/plugins
-          
-          MANIFEST=./manifest.json
-          BASE_URL="https://queukat.github.io/AniLibertyStrmPlugin/plugins"
-          ICON_URL="${BASE_URL}/images/anilibria-strm.png"
       
+          pushd publish/plugins
+      
+          # ─── пути ─────────────────────────────────────────────
+          BASE_URL="https://queukat.github.io/AniLibertyStrmPlugin/plugins"   # ← без хвостового /
+          ICON_PATH="aniliberty-strm-plugin/icon.png"
+          ICON_URL="${BASE_URL}/${ICON_PATH}"
+      
+          MANIFEST=manifest.json
           [ -f "${MANIFEST}" ] || echo "[]" > "${MANIFEST}"
-
-          # 1) add / update plugin entry
+      
+          # 1) jprm добавляет/обновляет запись о плагине
           jprm repo add "${MANIFEST}" ./*.zip
-
-          # 2) normalise URLs in manifest
+      
+          # 2) правим ссылки, убираем двойной слеш
           jq --arg base "${BASE_URL}" --arg icon "${ICON_URL}" '
             map(
-              (.imageUrl //= $icon)
-              | .imageUrl |= ( if startswith("http") then . else ($base + "/" + ltrimstr("./") | ltrimstr("/")) end )
-              | .versions |= map(
-                  .sourceUrl |= ( if startswith("http") then . else ($base + "/" + ltrimstr("./") | ltrimstr("/")) end )
-                )
+              .imageUrl |= (startswith("http")  # imageUrl
+                  //= $icon | if startswith("http") then . else ($base+"/"+ltrimstr("./")) end)
+              | .versions |= map(               # sourceUrl
+                  .sourceUrl |= (
+                    if startswith("http")
+                    then .
+                    else ($base+"/"+ltrimstr("./"))
+                    end))
             )
           ' "${MANIFEST}" > manifest.tmp && mv manifest.tmp "${MANIFEST}"
           popd
-
+      
       - name: Copy plugin icon to pages
         run: |
-          mkdir -p publish/plugins/images
-          cp Resources/icon.png publish/plugins/images/anilibria-strm.png
+          mkdir -p publish/plugins/aniliberty-strm-plugin
+          cp Resources/icon.png publish/plugins/aniliberty-strm-plugin/icon.png
+
       
       
       # ─────────────────────────────────────────────────────────
