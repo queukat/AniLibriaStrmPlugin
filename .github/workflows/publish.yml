@@ -23,7 +23,7 @@ jobs:
       VERSION: ${{ github.event.inputs.version || github.event.release.tag_name }}
 
       # базовый URL вашего каталога (без manifest.json в конце!)
-      BASE_URL: "https://queukat.github.io/AniLibertyStrmPlugin/plugins"
+      BASE_URL: "https://queukat.github.io/AniLibriaStrmPlugin/plugins"
 
     steps:
       - name: Checkout sources
