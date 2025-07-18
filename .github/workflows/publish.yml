@@ -69,12 +69,13 @@ jobs:
           # 2) правим ссылки
           jq --arg base "${BASE_URL}" --arg icon "${ICON_URL}" '
             map(
-              .imageUrl |= (if startswith("http") then . else $icon end)
-              | .versions |= map(
-                  .sourceUrl |= (
-                    if startswith("http") then .
-                    else ($base + "/" + ltrimstr("./"))
-                    end)
+              .imageUrl |= (if startswith("http") then . else $icon end) |
+              .versions |= map(
+                .sourceUrl |= (
+                  if startswith("http") then .
+                  else ($base + "/" + (ltrimstr("./") | ltrimstr("/")))
+                  end
+                )
               )
             )
           ' manifest.json > manifest.tmp && mv manifest.tmp manifest.json
