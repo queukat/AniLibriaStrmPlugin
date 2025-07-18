@@ -23,7 +23,7 @@ jobs:
       VERSION: ${{ github.event.inputs.version || github.event.release.tag_name }}
 
       # базовый URL вашего каталога (без manifest.json в конце!)
-      BASE_URL: "https://queukat.github.io/AniLibertyStrmPlugin/plugins/"
+      BASE_URL: "https://queukat.github.io/AniLibertyStrmPlugin/plugins"
 
     steps:
       - name: Checkout sources
@@ -58,8 +58,8 @@ jobs:
           pushd publish/plugins
           
           MANIFEST=./manifest.json
-          BASE_URL="https://queukat.github.io/AniLibertyStrmPlugin/plugins/"
-          ICON_URL="${BASE_URL}images/anilibria-strm.png"
+          BASE_URL="https://queukat.github.io/AniLibertyStrmPlugin/plugins"
+          ICON_URL="${BASE_URL}/images/anilibria-strm.png"
       
           [ -f "${MANIFEST}" ] || echo "[]" > "${MANIFEST}"
 
@@ -70,9 +70,9 @@ jobs:
           jq --arg base "${BASE_URL}" --arg icon "${ICON_URL}" '
             map(
               (.imageUrl //= $icon)
-              | .imageUrl |= ( if startswith("http") then . else ($base + ltrimstr("./") | ltrimstr("/")) end )
+              | .imageUrl |= ( if startswith("http") then . else ($base + "/" + ltrimstr("./") | ltrimstr("/")) end )
               | .versions |= map(
-                  .sourceUrl |= ( if startswith("http") then . else ($base + ltrimstr("./") | ltrimstr("/")) end )
+                  .sourceUrl |= ( if startswith("http") then . else ($base + "/" + ltrimstr("./") | ltrimstr("/")) end )
                 )
             )
           ' "${MANIFEST}" > manifest.tmp && mv manifest.tmp "${MANIFEST}"
