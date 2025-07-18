@@ -29,16 +29,16 @@ jobs:
       - name: Checkout sources
         uses: actions/checkout@v4
 
-      - name: Setup .NET
+      - name: Setup .NET 9 SDK
         uses: actions/setup-dotnet@v3
         with:
-          dotnet-version: 8.0.x
+          dotnet-version: 9.0.x
 
       - name: Build plugin (JPRM)
         uses: oddstr13/jellyfin-plugin-repository-manager@v1.1.1
         id: jprm
         with:
-          dotnet-target: net8.0
+          dotnet-target: net9.0
           version: ${{ env.VERSION }}
   
       # ─── ставим jprm из master ───────────────────────────────────────────
@@ -62,33 +62,22 @@ jobs:
           ICON_URL="${BASE_URL}images/anilibria-strm.png"
       
           [ -f "${MANIFEST}" ] || echo "[]" > "${MANIFEST}"
-      
-          # 1) добавляем/обновляем запись о плагине
+
+          # 1) add / update plugin entry
           jprm repo add "${MANIFEST}" ./*.zip
-      
-          # 2) нормализуем sourceUrl и imageUrl
+
+          # 2) normalise URLs in manifest
           jq --arg base "${BASE_URL}" --arg icon "${ICON_URL}" '
             map(
-              # imageUrl
-              (.imageUrl //= $icon)          # если поля нет – добавить
-              | .imageUrl |= (
-                  if startswith("http")      # уже абсолютный → оставить
-                  then .
-                  else ($base + ltrimstr("./") | ltrimstr("/"))
-                  end)
-      
-              # sourceUrl (во всех версиях)
+              (.imageUrl //= $icon)
+              | .imageUrl |= ( if startswith("http") then . else ($base + ltrimstr("./") | ltrimstr("/")) end )
               | .versions |= map(
-                  .sourceUrl |= (
-                    if startswith("http") 
-                    then .
-                    else ($base + ltrimstr("./") | ltrimstr("/"))
-                    end))
+                  .sourceUrl |= ( if startswith("http") then . else ($base + ltrimstr("./") | ltrimstr("/")) end )
+                )
             )
           ' "${MANIFEST}" > manifest.tmp && mv manifest.tmp "${MANIFEST}"
           popd
 
-          
       - name: Copy plugin icon to pages
         run: |
           mkdir -p publish/plugins/images

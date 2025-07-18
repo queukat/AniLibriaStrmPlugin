@@ -2,8 +2,11 @@ name: build-plugin
 
 on:
   push:
-    tags: ['*']
-  workflow_dispatch:
+    branches:
+      - aniLiberty-v2          # CI запускается на прямые коммиты в ветку ребрендинга
+    tags:
+      - '*'                    # и по-прежнему на все теги
+  workflow_dispatch:           # ручной запуск из UI
 
 permissions:
   contents: write
@@ -16,19 +19,18 @@ env:
 jobs:
   build:
     runs-on: ubuntu-latest
+
     steps:
-      # ───────────────────────────────────────
       - uses: actions/checkout@v4
 
       # Сносим старые nuget.config, чтобы не перебивали авторизацию
       - name: Remove local NuGet configs
         run: find . -iname 'nuget.config' -delete
 
-      # .NET 8 + авторизация к feed'у Jellyfin
-      - name: Setup .NET + GitHub Packages auth
+      - name: Setup .NET 9 + GitHub Packages auth
         uses: actions/setup-dotnet@v3
         with:
-          dotnet-version: 8.0.x                   # SDK-8 собирает проекты net8.0
+          dotnet-version: 9.0.x
           source-url: https://nuget.pkg.github.com/jellyfin/index.json
           owner: ${{ env.JELLYFIN_NUGET_USER }}
         env:
@@ -44,8 +46,8 @@ jobs:
         uses: oddstr13/jellyfin-plugin-repository-manager@v1.1.1
         id: jprm
         with:
-          dotnet-target: net8.0            # как и раньше
-          version: ${{ github.ref_name }}  # ← передаём версию из тега
+          dotnet-target: net9.0          # ← теперь совпадает с TargetFramework проекта
+          version: ${{ github.ref_name }}
 
       # Контрольные суммы (по желанию)
       - name: Generate checksums

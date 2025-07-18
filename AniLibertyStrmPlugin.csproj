@@ -8,7 +8,7 @@
         <IncludeAllContentForSelfExtract>true</IncludeAllContentForSelfExtract>
         <CopyLocalLockFileAssemblies>True</CopyLocalLockFileAssemblies>
         <GenerateTargetFrameworkAttribute>false</GenerateTargetFrameworkAttribute>
-        <RootNamespace>AniLibriaStrmPlugin</RootNamespace>
+        <RootNamespace>AniLibertyStrmPlugin</RootNamespace>
     </PropertyGroup>
 
     <ItemGroup>
@@ -33,7 +33,7 @@
         </PackageReference>
         <PackageReference Include="Microsoft.Extensions.Hosting" Version="9.0.0" PrivateAssets="all"/>
 
-        <Compile Remove="AniLibertyStrmPlugin.Tests\**\*.cs" />
+        <Compile Remove="AniLibertyStrmPlugin.Tests\**\*.cs;Tests\**\*.cs" />
 
     </ItemGroup>
     <ItemGroup>
