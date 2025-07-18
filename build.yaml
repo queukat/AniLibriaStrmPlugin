@@ -26,7 +26,7 @@ overview: >
   with EDL intro-skip and proper NFO metadata.
 owner: "queukat"
 
-targetAbi: "10.10.0.0"
+targetAbi: "10.11.0.0"
 
 # JPRM перепишет version тегом, если вы запускаете workflow по push-тегу.
 version: "0.0.0.0"
