@@ -31,8 +31,7 @@ jobs:
         uses: actions/setup-dotnet@v3
         with:
           dotnet-version: 9.0.x
-          source-url: https://nuget.pkg.github.com/jellyfin/index.json
-          owner: ${{ env.JELLYFIN_NUGET_USER }}
+
         env:
           NUGET_AUTH_TOKEN: ${{ env.JELLYFIN_NUGET_PAT }}
 
