@@ -40,7 +40,7 @@ jobs:
         with:
           dotnet-target: net9.0
           version: ${{ env.VERSION }}
-  
+      
       # ─── ставим jprm из master ───────────────────────────────────────────
       - name: Install jprm CLI
         run: |
@@ -54,42 +54,40 @@ jobs:
           set -e
           mkdir -p publish/plugins
           cp "${{ steps.jprm.outputs.artifact }}" publish/plugins/
-      
+          
           pushd publish/plugins
-      
-          # ─── пути ─────────────────────────────────────────────
-          BASE_URL="https://queukat.github.io/AniLibertyStrmPlugin/plugins"   # ← без хвостового /
+          
+          # базовые пути
+          BASE_URL="https://queukat.github.io/AniLibertyStrmPlugin/plugins"  # без хвостового /
+          ZIPNAME=$(basename "${{ steps.jprm.outputs.artifact }}")
           ICON_PATH="aniliberty-strm-plugin/icon.png"
           ICON_URL="${BASE_URL}/${ICON_PATH}"
-      
-          MANIFEST=manifest.json
-          [ -f "${MANIFEST}" ] || echo "[]" > "${MANIFEST}"
-      
-          # 1) jprm добавляет/обновляет запись о плагине
-          jprm repo add "${MANIFEST}" ./*.zip
-      
-          # 2) правим ссылки, убираем двойной слеш
+          
+          # ─── 1. Обновляем repo (jprm создаст/обновит manifest.json) ───
+          jprm repo add . "./${ZIPNAME}"
+          
+          # ─── 2. Фиксим двойные // и ставим правильный icon/source URL ───
           jq --arg base "${BASE_URL}" --arg icon "${ICON_URL}" '
             map(
-              .imageUrl |= (startswith("http")  # imageUrl
-                  //= $icon | if startswith("http") then . else ($base+"/"+ltrimstr("./")) end)
-              | .versions |= map(               # sourceUrl
+              .imageUrl |= (
+                if startswith("http") then . else ($icon) end
+              )
+              | .versions |= map(
                   .sourceUrl |= (
-                    if startswith("http")
-                    then .
-                    else ($base+"/"+ltrimstr("./"))
-                    end))
+                    if startswith("http") then .
+                    else ($base + "/" + ltrimstr("./"))
+                    end
+                  )
+              )
             )
-          ' "${MANIFEST}" > manifest.tmp && mv manifest.tmp "${MANIFEST}"
+          ' manifest.json > manifest.tmp && mv manifest.tmp manifest.json
           popd
-      
+
       - name: Copy plugin icon to pages
         run: |
           mkdir -p publish/plugins/aniliberty-strm-plugin
           cp Resources/icon.png publish/plugins/aniliberty-strm-plugin/icon.png
 
-      
-      
       # ─────────────────────────────────────────────────────────
       # Деплой в ветку gh-pages  ➜  GitHub Pages
       # ─────────────────────────────────────────────────────────
