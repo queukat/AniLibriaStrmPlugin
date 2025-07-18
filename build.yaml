@@ -14,7 +14,7 @@ artifacts:                     # DLL-ы, которые попадут в ZIP
 changelog: |
   • Removed Jellyfin core DLLs from the bundle
   • Added Polly retry logic only (Polly.*, Microsoft.Extensions.Http.Polly)
-  • Target ABI bumped to 10.10.0.0
+  • Target ABI bumped to 10.11.0.0
 
 description: >
   Creates .strm / .edl / .nfo files for AniLiberty titles and favourites.

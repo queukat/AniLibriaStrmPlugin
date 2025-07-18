@@ -57,7 +57,7 @@ jobs:
       
           pushd publish/plugins
       
-          BASE_URL="https://queukat.github.io/AniLibertyStrmPlugin/plugins"
+          BASE_URL="https://queukat.github.io/AniLibriaStrmPlugin/plugins"
           ZIPNAME=$(basename "${{ steps.jprm.outputs.artifact }}")
           ICON_PATH="aniliberty-strm-plugin/icon.png"
           ICON_URL="${BASE_URL}/${ICON_PATH}"
