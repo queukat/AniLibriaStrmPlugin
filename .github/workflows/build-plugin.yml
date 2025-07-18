@@ -47,7 +47,7 @@ jobs:
         id: jprm
         with:
           dotnet-target: net9.0          # ← теперь совпадает с TargetFramework проекта
-          version: ${{ github.ref_name }}
+          version: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || '' }}
 
       # Контрольные суммы (по желанию)
       - name: Generate checksums
