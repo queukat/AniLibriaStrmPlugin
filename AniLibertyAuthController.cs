@@ -8,6 +8,7 @@ namespace AniLibertyStrmPlugin;
 /// <summary>
 ///  REST-контроллер для авторизации и OTP-входа через новый AniLiberty API v1.
 /// </summary>
+[ApiController] 
 [Route("AniLibertyAuth")]
 public class AniLibertyAuthController : ControllerBase
 {

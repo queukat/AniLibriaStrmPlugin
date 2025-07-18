@@ -29,6 +29,6 @@ owner: "queukat"
 targetAbi: "10.11.0.0"
 
 # JPRM перепишет version тегом, если вы запускаете workflow по push-тегу.
-version: "0.0.0.0"
+version: "2.0.0.6"
 
 image: Resources/icon.png

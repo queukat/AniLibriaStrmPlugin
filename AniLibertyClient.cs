@@ -31,30 +31,21 @@ namespace AniLibertyStrmPlugin
             CancellationToken ct);
     }
 
-    public sealed class AniLibertyClient : IAniLibertyClient
+    public sealed record AniLibertyClient(HttpClient http, ILogger<AniLibertyClient> log) : IAniLibertyClient
     {
         private const string ApiBase = "https://api.anilibria.app/api/v1";
-
-        private readonly HttpClient _http;
-        private readonly ILogger<AniLibertyClient> _log;
-
-        public AniLibertyClient(HttpClient http, ILogger<AniLibertyClient> log)
-        {
-            _http = http;
-            _log  = log;
-        }
 
         // ──────────────────────────────────────────────
         #region Low‑level GET helpers (with logging)
 
         public async Task<string> GetStringWithLoggingAsync(string url, CancellationToken ct)
         {
-            var resp = await _http.GetAsync(url, ct);
+            var resp = await http.GetAsync(url, ct);
 
             if (!resp.IsSuccessStatusCode)
             {
                 var body = await SafeReadAsync(resp, ct);
-                _log.LogError("HTTP {Code} for {Url}: {Body}",
+                log.LogError("HTTP {Code} for {Url}: {Body}",
                     (int)resp.StatusCode,
                     url,
                     Truncate(body, 300));
@@ -69,12 +60,12 @@ namespace AniLibertyStrmPlugin
             using var req = new HttpRequestMessage(HttpMethod.Get, url);
             req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", bearer);
 
-            var resp = await _http.SendAsync(req, ct);
+            var resp = await http.SendAsync(req, ct);
 
             if (!resp.IsSuccessStatusCode)
             {
                 var body = await SafeReadAsync(resp, ct);
-                _log.LogError("HTTP {Code} for {Url}: {Body}",
+                log.LogError("HTTP {Code} for {Url}: {Body}",
                     (int)resp.StatusCode,
                     url,
                     Truncate(body, 300));
@@ -105,31 +96,60 @@ namespace AniLibertyStrmPlugin
             for (var page = 0; page < maxPages; page++) // ⚠️ 0‑based индекс!
             {
                 var url =
-                    $"{ApiBase}/anime/releases/latest?limit={pageSize}&page={page}";
-                _log.LogDebug("GET {Url}", url);
+                    $"{ApiBase}/anime/catalog/releases?limit={pageSize}&page={page}";
 
+                log.LogDebug("GET {Url}", url);
+                log.LogTrace("⌚ request started {Url}", url);
+        
+                // объявляем raw заранее, чтобы его видеть и в try, и в catch
+                string raw = string.Empty;
+        
                 try
                 {
-                    var raw    = await GetStringWithLoggingAsync(url, ct);
-                    var parsed =
-                        JsonSerializer.Deserialize<ReleasesApiResponse>(raw, _jsonOpts);
-
-                    if (parsed?.Data is { Count: > 0 })
+                    // присваиваем в пределах try
+                    raw = await GetStringWithLoggingAsync(url, ct);
+        
+                    List<ReleaseResponse>? pageData = null;
+        
+                    try
                     {
-                        result.AddRange(parsed.Data);
-                        if (parsed.Data.Count < pageSize) break; // последняя страница
+                        // 1) пытаемся десериализовать новый формат
+                        pageData = JsonSerializer.Deserialize<List<ReleaseResponse>>(raw, _jsonOpts);
                     }
-                    else break; // пусто – выходим
+                    catch (JsonException)
+                    {
+                        // 2) если не массив — пробуем старый формат с объектом { data: […] }
+                        var old = JsonSerializer.Deserialize<ReleasesApiResponse>(raw, _jsonOpts);
+                        pageData = old?.Data;
+                    }
+        
+                    if (pageData is { Count: > 0 })
+                    {
+                        result.AddRange(pageData);
+                        if (pageData.Count < pageSize)
+                            break; // последняя страница
+                    }
+                    else
+                    {
+                        break; // пусто — выходим
+                    }
                 }
                 catch (Exception ex)
                 {
-                    _log.LogWarning(ex, "Request error (ALL/page={Page})", page);
+                    // теперь raw доступен здесь
+                    log.LogError(ex,
+                        "❌ Deserialization failed (page {Page}). Raw length={Len}. First 300 bytes:\n{Raw}",
+                        page,
+                        raw?.Length ?? 0,
+                        Truncate(raw, 300));
+        
                     break;
                 }
             }
-
+        
             return result;
         }
+
 
         #endregion
 
@@ -158,13 +178,13 @@ namespace AniLibertyStrmPlugin
                     var got = parsed?.Data?.Count ?? 0;
 
                     sw.Stop();
-                    _log.LogInformation("FAV page {Page}: OK, {Items} items, {Ms} ms", page, got,
+                    log.LogInformation("FAV page {Page}: OK, {Items} items, {Ms} ms", page, got,
                         sw.ElapsedMilliseconds);
 
                     if (got == 0)
                     {
                         if (page == 1)
-                            _log.LogWarning("API вернуло 0 избранного — проверьте токен или наличие избранного.");
+                            log.LogWarning("API вернуло 0 избранного — проверьте токен или наличие избранного.");
                         break;
                     }
 
@@ -173,7 +193,7 @@ namespace AniLibertyStrmPlugin
                 catch (Exception ex)
                 {
                     sw.Stop();
-                    _log.LogError(ex, "FAV page {Page} failed after {Ms} ms", page,
+                    log.LogError(ex, "FAV page {Page} failed after {Ms} ms", page,
                         sw.ElapsedMilliseconds);
                     break;
                 }

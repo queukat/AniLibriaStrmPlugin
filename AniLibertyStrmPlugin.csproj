@@ -44,14 +44,12 @@
     </ItemGroup>
 
     <ItemGroup>
-        <EmbeddedResource Include="Configuration\configPage.html">
-            <LogicalName>AniLibertyStrmPlugin.Configuration.configPage.html</LogicalName>
-        </EmbeddedResource>
+        <EmbeddedResource Include="Configuration\configPage.html" LogicalName="AniLibertyStrmPlugin.Configuration.configPage.html" />
+
 
         <EmbeddedResource Include="Resources\icon.png"/>
     </ItemGroup>
-
-
+    
 
     <ItemGroup>
       <Folder Include="AniLibertyStrmPlugin.Tests\bin\Debug\" />

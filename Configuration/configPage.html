@@ -1,8 +1,28 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="ru">
 <head>
-  <meta charset="utf-8">
-  <title>AniLiberty STRM Plugin</title>
+    <meta charset="utf-8">
+    <title>AniLiberty STRM Plugin</title>
+    <style>
+        .two-col {display:flex;flex-wrap:wrap;gap:1.25rem}
+        .two-col .col {flex:1 1 320px;min-width:280px}
+        .token-box{font-family:monospace;font-size:.85em;padding:.5em;border:1px solid #666;
+            background:#111;word-break:break-all;max-height:110px;overflow:auto}
+        .mini-note{font-size:.75em;opacity:.8;margin:.35em 0 .75em}
+        fieldset.verticalSection legend{padding:0 .4em}
+        .danger-btn{background:#822 !important;border-color:#a44 !important}
+        .inline-btns button{margin-right:.5em;margin-top:.35em}
+        .otp-grid{display:flex;flex-wrap:wrap;gap:.75rem;margin-top:.5rem}
+        .otp-grid .cell{flex:1 1 180px;min-width:160px}
+        .dim{opacity:.55}
+        .log-box{white-space:pre-wrap;max-height:360px;overflow-y:auto;border:1px solid #666;
+            padding:.5em;font-family:monospace;font-size:.8em;background:#111}
+        .badge{display:inline-block;background:#444;border-radius:4px;padding:0 .5em;font-size:.7em;
+            margin-left:.5em;vertical-align:middle}
+        .warn-box{border:1px solid #a55;background:#220;padding:.75em;font-size:.8em;line-height:1.35}
+        .ok{color:#6d6}
+        .err{color:#e88}
+    </style>
 </head>
 
 <body>
@@ -10,246 +30,566 @@
      data-role="page"
      id="aniLibertyConfigurationPage">
 
-  <div data-role="content">
-    <div class="content-primary">
+    <div data-role="content">
+        <div class="content-primary">
 
-      <!-- ───────── SETTINGS ───────── -->
-      <form id="AniConfigForm">
-        <div class="verticalSection verticalSection-extrabottompadding">
-          <div class="sectionTitleContainer flex align-items-center">
-            <h2 class="sectionTitle">AniLiberty STRM Plugin Settings</h2>
-          </div>
+            <!-- ────────── ОСНОВНЫЕ НАСТРОЙКИ ────────── -->
+            <form class="aniLibertyConfigurationForm" id="CfgForm">
+                <div class="verticalSection verticalSection-extrabottompadding">
+                    <div class="sectionTitleContainer flex align-items-center">
+                        <h2 class="sectionTitle">
+                            AniLiberty STRM Plugin Settings
+                            <span class="badge">v2</span>
+                        </h2>
+                    </div>
 
-          <!-- paths -->
-          <div class="inputContainer">
-            <label for="StrmAllPath">All Titles STRM Path:</label>
-            <input id="StrmAllPath" is="emby-input" type="text">
-          </div>
-          <div class="inputContainer">
-            <label for="StrmFavoritesPath">Favorites STRM Path:</label>
-            <input id="StrmFavoritesPath" is="emby-input" type="text">
-          </div>
+                    <div class="two-col">
+                        <div class="col">
+                            <div class="inputContainer">
+                                <label for="StrmAllPath">Путь для *всего каталога* (.strm):</label>
+                                <input id="StrmAllPath" is="emby-input" type="text" autocomplete="off">
+                            </div>
 
-          <!-- resolution -->
-          <div class="inputContainer">
-            <label for="PreferredResolution">Preferred resolution:</label>
-            <select id="PreferredResolution" is="emby-select">
-              <option value="1080">1080p</option>
-              <option value="720">720p</option>
-              <option value="480">480p</option>
-            </select>
-          </div>
+                            <label class="checkboxContainer">
+                                <input id="EnableAll" is="emby-checkbox" type="checkbox">
+                                <span>Генерировать папку полного каталога</span>
+                            </label>
 
-          <!-- auth token -->
-          <div class="inputContainer">
-            <label for="AniLibertyToken">AniLiberty JWT Token:</label>
-            <input id="AniLibertyToken" is="emby-input" type="text">
-          </div>
+                            <fieldset class="verticalSection" style="border:1px solid #555;padding:1em">
+                                <legend>All Titles Fetch</legend>
+                                <div class="inputContainer">
+                                    <label for="AllTitlesPageSize">Items/page:</label>
+                                    <input id="AllTitlesPageSize" is="emby-input" min="1" type="number">
+                                </div>
+                                <div class="inputContainer">
+                                    <label for="AllTitlesMaxPages">Max pages:</label>
+                                    <input id="AllTitlesMaxPages" is="emby-input" min="1" type="number">
+                                </div>
+                                <div class="fieldDescription" style="color:#e88;font-style:italic;margin-top:.25em">
+                                    ⚠️ Не завышайте! 50×100 ≈ 5000 записей — обычно достаточно.
+                                </div>
+                            </fieldset>
+                        </div>
 
-          <!-- checkboxes -->
-          <label class="checkboxContainer">
-            <input id="EnableFavorites" is="emby-checkbox" type="checkbox">
-            <span>Update favourites folder</span>
-          </label>
-          <label class="checkboxContainer">
-            <input id="EnableAll" is="emby-checkbox" type="checkbox">
-            <span>Update full catalogue folder</span>
-          </label>
+                        <div class="col">
+                            <div class="inputContainer">
+                                <label for="StrmFavoritesPath">Путь для избранного (.strm):</label>
+                                <input id="StrmFavoritesPath" is="emby-input" type="text" autocomplete="off">
+                            </div>
 
-          <!-- limits -->
-          <fieldset class="verticalSection" style="border:1px solid #555;padding:1em">
-            <legend>All-titles fetch</legend>
-            <div class="inputContainer">
-              <label for="AllTitlesPageSize">Items/page:</label>
-              <input id="AllTitlesPageSize" is="emby-input" min="1" type="number">
+                            <label class="checkboxContainer">
+                                <input id="EnableFavorites" is="emby-checkbox" type="checkbox">
+                                <span>Генерировать папку избранного</span>
+                            </label>
+
+                            <fieldset class="verticalSection" style="border:1px solid #555;padding:1em">
+                                <legend>Favorites Fetch</legend>
+                                <div class="inputContainer">
+                                    <label for="FavoritesPageSize">Items/page:</label>
+                                    <input id="FavoritesPageSize" is="emby-input" min="1" type="number">
+                                </div>
+                                <div class="inputContainer">
+                                    <label for="FavoritesMaxPages">Max pages:</label>
+                                    <input id="FavoritesMaxPages" is="emby-input" min="1" type="number">
+                                </div>
+                                <div class="fieldDescription" style="color:#e88;font-style:italic;margin-top:.25em">
+                                    ⚠️ Тоже не раздувайте — избыточно нагружает API.
+                                </div>
+                            </fieldset>
+                        </div>
+                    </div>
+
+                    <div class="inputContainer" style="max-width:380px">
+                        <label for="PreferredResolution">Предпочитаемое качество (HLS):</label>
+                        <select id="PreferredResolution" is="emby-select">
+                            <option value="1080">1080p</option>
+                            <option value="720">720p</option>
+                            <option value="480">480p</option>
+                        </select>
+                    </div>
+
+                    <div class="warn-box">
+                        <b>Пояснение:</b><br>
+                        Плагин периодически создаёт .strm / .nfo / .edl для релизов AniLiberty.
+                        На стороне Jellyfin эти папки можно добавить как отдельные библиотеки (Тип: Series / Anime).
+                    </div>
+
+                    <div class="inline-btns">
+                        <button class="raised button-submit"
+                                data-theme="b"
+                                is="emby-button"
+                                type="submit">
+                            <span>💾 Сохранить настройки</span>
+                        </button>
+                        <button class="raised"
+                                id="BtnReloadCfg"
+                                is="emby-button"
+                                type="button">
+                            <span>⟳ Перезагрузить</span>
+                        </button>
+                    </div>
+                    <div class="mini-note dim">
+                        * «Перезагрузить» откатит несохранённые изменения.
+                    </div>
+                </div>
+            </form>
+
+            <hr>
+
+            <!-- ────────── АВТОРИЗАЦИЯ AniLiberty (JWT) ────────── -->
+            <div class="verticalSection verticalSection-extrabottompadding">
+                <div class="sectionTitleContainer flex align-items-center">
+                    <h2 class="sectionTitle">Авторизация AniLiberty API</h2>
+                </div>
+
+                <p style="margin-top:0">
+                    Есть два варианта: <b>Login/Password</b> (получить токен сразу) и <b>OTP</b> (двухшаговый, устройство + код).
+                    После успешного входа токен сохраняется в конфигурацию (<code>AniLibertyToken</code>).
+                </p>
+
+                <details open style="margin-bottom:1.2em">
+                    <summary><b>1. Вход по логину и паролю</b></summary>
+                    <div class="two-col" style="margin-top:.75em">
+                        <div class="col">
+                            <div class="inputContainer">
+                                <label for="loginMail">E-mail:</label>
+                                <input id="loginMail" is="emby-input" type="text" autocomplete="off">
+                            </div>
+                            <div class="inputContainer">
+                                <label for="loginPass">Пароль:</label>
+                                <input id="loginPass" is="emby-input" type="password" autocomplete="off">
+                            </div>
+                            <button class="raised"
+                                    id="BtnLoginPass"
+                                    is="emby-button"
+                                    type="button">
+                                <span>🔐 Войти (Login+Password)</span>
+                            </button>
+                        </div>
+                        <div class="col" style="font-size:.8em;line-height:1.3;opacity:.85">
+                            Будет вызван <code>POST /accounts/users/auth/login</code>.
+                            Ответ должен содержать поле <code>token</code>.
+                            Токен сразу сохранится; перезапуск Jellyfin не требуется.
+                        </div>
+                    </div>
+                </details>
+
+                <details>
+                    <summary><b>2. OTP (устройство + код)</b></summary>
+                    <div style="margin-top:.75em">
+                        <div>
+                            Поток:<br>
+                            <ol style="margin:.3em 0 .6em;padding-left:1.2em">
+                                <li><b>Start OTP</b> – генерирует DeviceId (если пуст) и получает <code>otp</code>.</li>
+                                <li>Вы вводите / подтверждаете код на стороне AniLiberty (если требуется).</li>
+                                <li><b>Sign In OTP</b> – обмен кода и DeviceId на токен (JWT).</li>
+                                <li>(Опционально) <b>Accept OTP</b> если нужен финальный handshake с токеном.</li>
+                            </ol>
+                        </div>
+
+                        <div class="otp-grid">
+                            <div class="cell">
+                                <button class="raised" id="BtnStartOtp" is="emby-button" type="button">
+                                    <span>➡️ Start OTP</span>
+                                </button>
+                            </div>
+                            <div class="cell">
+                                <input id="OtpCodeInput" is="emby-input" type="text" placeholder="Код OTP"
+                                       style="width:100%;min-width:120px">
+                            </div>
+                            <div class="cell">
+                                <button class="raised" id="BtnSignInOtp" is="emby-button" type="button">
+                                    <span>✅ Sign In OTP</span>
+                                </button>
+                            </div>
+                            <div class="cell">
+                                <button class="raised" id="BtnAcceptOtp" is="emby-button" type="button">
+                                    <span>☑ Accept OTP</span>
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="mini-note">
+                            <b>DeviceId:</b> <code id="LblDeviceId" style="word-break:break-all">—</code><br>
+                            <b>Last OTP (CurrentOtpCode):</b> <code id="LblCurrentOtp">—</code>
+                        </div>
+                    </div>
+                </details>
+
+                <div style="margin-top:1em">
+                    <label for="AniLibertyToken"><b>Текущий JWT-токен:</b></label>
+                    <div id="AniLibertyToken" class="token-box">(не получен)</div>
+                    <div class="inline-btns">
+                        <button class="raised" id="BtnCopyToken" is="emby-button" type="button">
+                            <span>📋 Copy</span>
+                        </button>
+                        <button class="raised danger-btn" id="BtnClearToken" is="emby-button" type="button">
+                            <span>🧨 Clear Token</span>
+                        </button>
+                        <button class="raised" id="BtnRefreshCfgToken" is="emby-button" type="button">
+                            <span>⟳ Refresh</span>
+                        </button>
+                    </div>
+                    <div class="mini-note dim">
+                        Очистка токена не удаляет DeviceId / OTP коды. Можно затем повторно пройти вход.
+                    </div>
+                </div>
+
+                <div id="AuthStatus" class="mini-note dim"></div>
             </div>
-            <div class="fieldDescription" style="color:#e88;font-style:italic;margin:-0.5em 0 1em">
-              ⚠️ Do not touch this unless you really know what you're doing! Setting this too high<br>
-                may cause the server to hang forever, return nothing, crash scheduled tasks,<br>
-                eat all your RAM, and possibly summon an ancient evil from the depths of the void.<br>
-                50 is a safe value. You have been warned.
-            </div>
-            <div class="inputContainer">
-              <label for="AllTitlesMaxPages">Max pages:</label>
-              <input id="AllTitlesMaxPages" is="emby-input" min="1" type="number">
-            </div>
-          </fieldset>
 
-          <fieldset class="verticalSection" style="border:1px solid #555;padding:1em">
-            <legend>Favorites fetch</legend>
-            <div class="inputContainer">
-              <label for="FavoritesPageSize">Items/page:</label>
-              <input id="FavoritesPageSize" is="emby-input" min="1" type="number">
-            </div>
-            <div class="fieldDescription" style="color:#e88;font-style:italic;margin:-0.5em 0 1em">
-              ⚠️ Increasing this without good reason is a fast track to misery.<br>
-                The server may choke, your tasks may fail silently, or worse — flood you with empty files.<br>
-                Stick to 50 unless you enjoy chaos.
-            </div>
-            <div class="inputContainer">
-              <label for="FavoritesMaxPages">Max pages:</label>
-              <input id="FavoritesMaxPages" is="emby-input" min="1" type="number">
-            </div>
-          </fieldset>
+            <hr>
 
-          <button class="raised button-submit block" is="emby-button" type="submit">
-            <span>Save</span>
-          </button>
+            <!-- ────────── ЛОГИ ────────── -->
+            <div class="verticalSection verticalSection-extrabottompadding">
+                <div class="sectionTitleContainer flex align-items-center">
+                    <h2 class="sectionTitle">Последние логи задач</h2>
+                </div>
+
+                <div class="inline-btns">
+                    <button class="raised" id="BtnShowLogs" is="emby-button" type="button">
+                        <span>📄 Показать</span>
+                    </button>
+                    <button class="raised" id="BtnAutoRefreshLogs" is="emby-button" type="button">
+                        <span>🔁 Auto 5s: OFF</span>
+                    </button>
+                    <button class="raised danger-btn" id="BtnClearLogBuffer" is="emby-button" type="button">
+                        <span>🧹 Clear (in-memory)</span>
+                    </button>
+                </div>
+                <div id="LogsBox" class="log-box">(нет данных)</div>
+                <div class="mini-note dim">
+                    * Логи берутся из <code>PluginConfiguration.LastTaskLog</code>, обновляются по завершению задач.
+                    * Очистка удалит *только* буфер в памяти (метод <code>ClearTaskLog()</code> не вызывается отсюда — нет эндпоинта).
+                </div>
+            </div>
+
         </div>
-      </form>
+    </div> <!-- /content-primary /content -->
 
-      <hr>
+    <script type="text/javascript">
+        /* global ApiClient, Dashboard */
+        const pluginId = "cce0798d-c8b7-4265-b08c-dc9e7bd3fc0f";
+        const $ = id => document.getElementById(id);
 
-      <!-- ───────── LOGIN ───────── -->
-      <form id="LoginForm">
-        <div class="verticalSection verticalSection-extrabottompadding">
-          <div class="sectionTitleContainer flex align-items-center">
-            <h2 class="sectionTitle">Log in to AniLiberty</h2>
-          </div>
+        // ─────────── NOTIFY ───────────
+        function notify(text, timeout = 4000) {
+            try {
+                if (Dashboard?.showToast) {
+                    Dashboard.showToast({text});
+                    return;
+                }
+                if (Dashboard?.alert) {
+                    Dashboard.alert({message: text, timeout});
+                    return;
+                }
+            } catch {}
+            // fallback
+            // eslint-disable-next-line no-alert
+            alert(text);
+        }
 
-          <div class="inputContainer">
-            <label for="loginMail">E-mail:</label>
-            <input id="loginMail" is="emby-input" type="text">
-          </div>
-          <div class="inputContainer">
-            <label for="loginPass">Password:</label>
-            <input id="loginPass" is="emby-input" type="password">
-          </div>
+        function setAuthStatus(msg, cls="") {
+            const el = $("AuthStatus");
+            el.className = "mini-note " + cls;
+            el.textContent = msg;
+        }
 
-          <button class="raised button-submit"
-                  id="btnLoginAni"
-                  is="emby-button"
-                  type="button">
-            <span>Log In</span>
-          </button>
-        </div>
-      </form>
+        // ─────────── LOAD / SAVE CONFIG ───────────
+        async function loadCfg(showToast=false) {
+            Dashboard.showLoadingMsg();
+            try {
+                const cfg = await ApiClient.getPluginConfiguration(pluginId);
 
-      <hr>
+                $("StrmAllPath").value        = cfg.StrmAllPath || "";
+                $("StrmFavoritesPath").value  = cfg.StrmFavoritesPath || "";
+                $("PreferredResolution").value = cfg.PreferredResolution || "1080";
 
-      <!-- ───────── LOGS ───────── -->
-      <div class="verticalSection verticalSection-extrabottompadding">
-        <div class="sectionTitleContainer flex align-items-center">
-          <h2 class="sectionTitle">Last Task Logs</h2>
-        </div>
+                $("EnableFavorites").checked  = cfg.EnableFavorites ?? true;
+                $("EnableAll").checked        = cfg.EnableAll ?? true;
 
-        <button class="raised button-submit" id="btnShowLogs" is="emby-button">
-          <span>Show Logs</span>
-        </button>
+                $("AllTitlesPageSize").value  = cfg.AllTitlesPageSize ?? 50;
+                $("AllTitlesMaxPages").value  = cfg.AllTitlesMaxPages ?? 100;
+                $("FavoritesPageSize").value  = cfg.FavoritesPageSize ?? 50;
+                $("FavoritesMaxPages").value  = cfg.FavoritesMaxPages ?? 50;
 
-        <div class="inputContainer"
-             style="white-space:pre-wrap;max-height:300px;overflow-y:auto">
-          <div id="debugOutput" style="border:1px solid #666;padding:.5em">
-            (Logs will appear here)
-          </div>
-        </div>
-      </div>
+                $("LblDeviceId").textContent  = cfg.AniDeviceId || "—";
+                $("LblCurrentOtp").textContent = cfg.CurrentOtpCode || "—";
 
-    </div><!-- /.content-primary -->
-  </div><!-- /content -->
-</div><!-- /page -->
+                updateTokenBox(cfg.AniLibertyToken);
 
-<script type="text/javascript">
-/* global ApiClient, Dashboard */
-const pluginId = "cce0798d-c8b7-4265-b08c-dc9e7bd3fc0f";
-const $ = id => document.getElementById(id);
+                if (showToast) notify("Конфигурация перезагружена");
+            } catch (e) {
+                notify("Ошибка загрузки: " + e.message);
+            } finally {
+                Dashboard.hideLoadingMsg();
+            }
+        }
 
-/* ─── utils ─── */
-function notify (text, timeout = 4000) {
-  const api = Dashboard ?? {};
-  if (api.showToast)       api.showToast({text});
-  else if (api.alert)      api.alert({message: text, timeout});
-  else if (api.showNotification) api.showNotification({text, timeout});
-  else alert(text);
-}
-const logBox = () => $("debugOutput");
-const debug  = t => logBox().textContent =
-  `[${new Date().toLocaleTimeString()}] ${t}\n` + logBox().textContent;
+        function updateTokenBox(token) {
+            const box = $("AniLibertyToken");
+            if (token) {
+                box.textContent = token;
+                box.classList.remove("dim");
+            } else {
+                box.textContent = "(не получен)";
+                box.classList.add("dim");
+            }
+        }
 
-/* ─── load / save config ─── */
-async function loadCfg () {
-  Dashboard.showLoadingMsg();
-  try {
-    const cfg = await ApiClient.getPluginConfiguration(pluginId);
-    $("StrmAllPath").value       = cfg.StrmAllPath       || "";
-    $("StrmFavoritesPath").value = cfg.StrmFavoritesPath || "";
-    $("PreferredResolution").value = cfg.PreferredResolution || "1080";
-    $("AniLibertyToken").value      = cfg.AniLibertyToken || "";
-    $("AllTitlesPageSize").value   = cfg.AllTitlesPageSize || 50;
-    $("AllTitlesMaxPages").value   = cfg.AllTitlesMaxPages || 100;
-    $("FavoritesPageSize").value   = cfg.FavoritesPageSize || 50;
-    $("FavoritesMaxPages").value   = cfg.FavoritesMaxPages || 50;
-    $("EnableFavorites").checked   = cfg.EnableFavorites ?? true;
-    $("EnableAll").checked         = cfg.EnableAll ?? true;
-  } finally { Dashboard.hideLoadingMsg(); }
-}
+        async function saveCfg() {
+            Dashboard.showLoadingMsg();
+            try {
+                const cfg = await ApiClient.getPluginConfiguration(pluginId);
 
-async function saveCfg () {
-  Dashboard.showLoadingMsg();
-  try {
-    const cfg = await ApiClient.getPluginConfiguration(pluginId);
-    cfg.StrmAllPath       = $("StrmAllPath").value;
-    cfg.StrmFavoritesPath = $("StrmFavoritesPath").value;
-    cfg.PreferredResolution = $("PreferredResolution").value;
-    cfg.AniLibertyToken    = $("AniLibertyToken").value;
-    cfg.AllTitlesPageSize = +$("AllTitlesPageSize").value || 50;
-    cfg.AllTitlesMaxPages = +$("AllTitlesMaxPages").value || 100;
-    cfg.FavoritesPageSize = +$("FavoritesPageSize").value || 50;
-    cfg.FavoritesMaxPages = +$("FavoritesMaxPages").value || 50;
-    cfg.EnableFavorites   = $("EnableFavorites").checked;
-    cfg.EnableAll         = $("EnableAll").checked;
-    await ApiClient.updatePluginConfiguration(pluginId, cfg);
-    notify("Settings saved");
-  } finally { Dashboard.hideLoadingMsg(); }
-}
+                cfg.StrmAllPath        = $("StrmAllPath").value.trim();
+                cfg.StrmFavoritesPath  = $("StrmFavoritesPath").value.trim();
+                cfg.PreferredResolution = $("PreferredResolution").value;
 
-/* ─── login (fetch JWT) ─── */
-async function doLogin () {
-  const mail = $("loginMail").value.trim();
-  const pass = $("loginPass").value;
-  if (!mail || !pass) { alert("Введите e-mail и пароль."); return; }
+                cfg.EnableFavorites    = $("EnableFavorites").checked;
+                cfg.EnableAll          = $("EnableAll").checked;
 
-  $("btnLoginAni").disabled = true;
-  Dashboard.showLoadingMsg();
-  try {
-    const resp = await fetch(
-      ApiClient.getUrl("AniLibertyAuth/SignInLoginPass", {api: false}),
-      {
-        method : "POST",
-        headers: {"Content-Type": "application/json"},
-        body   : JSON.stringify({mail, passwd: pass})
-      });
-    const data = await resp.json();
-    if (!data.success) throw new Error(data.error || `HTTP ${resp.status}`);
+                cfg.AllTitlesPageSize  = +$("AllTitlesPageSize").value || 50;
+                cfg.AllTitlesMaxPages  = +$("AllTitlesMaxPages").value || 100;
+                cfg.FavoritesPageSize  = +$("FavoritesPageSize").value || 50;
+                cfg.FavoritesMaxPages  = +$("FavoritesMaxPages").value || 50;
 
-    $("AniLibertyToken").value = data.token;
-    /* сразу сохраняем в конфиг */
-    const cfg = await ApiClient.getPluginConfiguration(pluginId);
-    cfg.AniLibertyToken = data.token;
-    await ApiClient.updatePluginConfiguration(pluginId, cfg);
-    notify("Токен получен и сохранён.");
-  } catch (e) { notify(`Ошибка: ${e.message}`); debug(e); }
-  finally {
-    Dashboard.hideLoadingMsg();
-    setTimeout(() => $("btnLoginAni").disabled = false, 1500);
-  }
-}
+                // DeviceId / CurrentOtp / Token не меняем здесь вручную (они апдейтом из API)
 
-/* ─── logs ─── */
-async function showLogs () {
-  Dashboard.showLoadingMsg();
-  try {
-    const cfg = await ApiClient.getPluginConfiguration(pluginId);
-    logBox().textContent = cfg.LastTaskLog || "(no logs)";
-  } catch (e) { notify(`Error: ${e.message}`); debug(e); }
-  finally     { Dashboard.hideLoadingMsg(); }
-}
+                await ApiClient.updatePluginConfiguration(pluginId, cfg);
+                notify("Настройки сохранены");
+            } catch (e) {
+                notify("Ошибка сохранения: " + e.message);
+            } finally {
+                Dashboard.hideLoadingMsg();
+            }
+        }
 
-/* ─── events ─── */
-$("aniLibertyConfigurationPage").addEventListener("pageshow", loadCfg);
-$("AniConfigForm").addEventListener("submit", e => { e.preventDefault(); saveCfg(); });
-$("btnLoginAni").addEventListener("click", doLogin);
-$("btnShowLogs").addEventListener("click", showLogs);
-</script>
+        // ─────────── AUTH: LOGIN+PASS ───────────
+        async function loginViaPassword() {
+            const mail = $("loginMail").value.trim();
+            const pass = $("loginPass").value;
+            if (!mail || !pass) {
+                notify("Введите e-mail и пароль");
+                return;
+            }
+
+            $("BtnLoginPass").disabled = true;
+            setAuthStatus("Вход (login+password)…");
+            Dashboard.showLoadingMsg();
+            try {
+                const resp = await fetch(
+                    ApiClient.getUrl("AniLibertyAuth/SignInLoginPass", {api:false}),
+                    {
+                        method: "POST",
+                        headers: {"Content-Type":"application/json"},
+                        body: JSON.stringify({mail, passwd: pass})
+                    }
+                );
+                const data = await resp.json();
+                if (!data.success) {
+                    throw new Error(data.error || ("HTTP "+resp.status));
+                }
+
+                // Получили token — обновляем конфиг
+                await refreshCfgTokenOnly(data.token);
+                setAuthStatus("Успешно: токен сохранён.", "ok");
+                notify("Login OK");
+            } catch (e) {
+                setAuthStatus("Ошибка входа: " + e.message, "err");
+                notify("Ошибка входа: " + e.message);
+            } finally {
+                Dashboard.hideLoadingMsg();
+                setTimeout(()=>{$("BtnLoginPass").disabled=false;}, 1200);
+            }
+        }
+
+        // ─────────── AUTH: OTP FLOW ───────────
+        async function startOtp() {
+            setAuthStatus("StartOtp…");
+            Dashboard.showLoadingMsg();
+            try {
+                const resp = await fetch(
+                    ApiClient.getUrl("AniLibertyAuth/StartOtp", {api:false}),
+                    { method:"POST" }
+                );
+                const data = await resp.json();
+                if (!data.success) throw new Error(data.error || ("HTTP "+resp.status));
+
+                await reloadCfgSilent(); // чтобы подхватить DeviceId + CurrentOtpCode
+                $("OtpCodeInput").value = data.otp || "";
+                setAuthStatus("StartOtp OK. Код получен: " + data.otp, "ok");
+                notify("OTP получен");
+            } catch(e) {
+                setAuthStatus("StartOtp ошибка: " + e.message, "err");
+                notify("Ошибка StartOtp: " + e.message);
+            } finally {
+                Dashboard.hideLoadingMsg();
+            }
+        }
+
+        async function signInOtp() {
+            const code = $("OtpCodeInput").value.trim();
+            if (!code) {
+                notify("Введите OTP код");
+                return;
+            }
+            setAuthStatus("SignInOtp…");
+            Dashboard.showLoadingMsg();
+            try {
+                const resp = await fetch(
+                    ApiClient.getUrl("AniLibertyAuth/SignInOtp", {api:false}),
+                    {
+                        method:"POST",
+                        headers: {"Content-Type":"application/json"},
+                        body: JSON.stringify({code})
+                    }
+                );
+                const data = await resp.json();
+                if (!data.success) throw new Error(data.error || ("HTTP "+resp.status));
+
+                await refreshCfgTokenOnly(data.token);
+                await reloadCfgSilent();
+                setAuthStatus("SignInOtp OK — токен получен.", "ok");
+                notify("OTP SignIn OK");
+            } catch(e) {
+                setAuthStatus("SignInOtp ошибка: " + e.message, "err");
+                notify("Ошибка SignInOtp: " + e.message);
+            } finally {
+                Dashboard.hideLoadingMsg();
+            }
+        }
+
+        async function acceptOtp() {
+            const code = $("OtpCodeInput").value.trim();
+            if (!code) {
+                notify("Введите OTP код");
+                return;
+            }
+            setAuthStatus("AcceptOtp…");
+            Dashboard.showLoadingMsg();
+            try {
+                const resp = await fetch(
+                    ApiClient.getUrl("AniLibertyAuth/AcceptOtp", {api:false}),
+                    {
+                        method:"POST",
+                        headers: {"Content-Type":"application/json"},
+                        body: JSON.stringify({code})
+                    }
+                );
+                const data = await resp.json();
+                if (!data.success) throw new Error(data.error || ("HTTP "+resp.status));
+                setAuthStatus("AcceptOtp OK.", "ok");
+                notify("AcceptOtp OK");
+            } catch(e) {
+                setAuthStatus("AcceptOtp ошибка: " + e.message, "err");
+                notify("Ошибка AcceptOtp: " + e.message);
+            } finally {
+                Dashboard.hideLoadingMsg();
+            }
+        }
+
+        // ─────────── TOKEN OPS ───────────
+        async function refreshCfgTokenOnly(newToken) {
+            const cfg = await ApiClient.getPluginConfiguration(pluginId);
+            cfg.AniLibertyToken = newToken || "";
+            await ApiClient.updatePluginConfiguration(pluginId, cfg);
+            updateTokenBox(cfg.AniLibertyToken);
+        }
+
+        async function clearToken() {
+            if (!confirm("Удалить текущий JWT токен?")) return;
+            Dashboard.showLoadingMsg();
+            try {
+                await refreshCfgTokenOnly("");
+                setAuthStatus("Токен очищен");
+                notify("Token cleared");
+            } finally {
+                Dashboard.hideLoadingMsg();
+            }
+        }
+
+        async function reloadCfgSilent() {
+            const cfg = await ApiClient.getPluginConfiguration(pluginId);
+            $("LblDeviceId").textContent = cfg.AniDeviceId || "—";
+            $("LblCurrentOtp").textContent = cfg.CurrentOtpCode || "—";
+            updateTokenBox(cfg.AniLibertyToken);
+        }
+
+        // ─────────── LOGS ───────────
+        let logTimer = null;
+        function setAutoLog(active) {
+            const btn = $("BtnAutoRefreshLogs");
+            if (active) {
+                if (logTimer) return;
+                btn.innerHTML = "<span>🔁 Auto 5s: ON</span>";
+                logTimer = setInterval(showLogs, 5000);
+            } else {
+                if (logTimer) clearInterval(logTimer);
+                logTimer = null;
+                btn.innerHTML = "<span>🔁 Auto 5s: OFF</span>";
+            }
+        }
+
+        async function showLogs() {
+            try {
+                const cfg = await ApiClient.getPluginConfiguration(pluginId);
+                $("LogsBox").textContent = cfg.LastTaskLog || "(no logs)";
+            } catch(e) {
+                $("LogsBox").textContent = "Ошибка: " + e.message;
+            }
+        }
+
+        function toggleAutoLogs() {
+            setAutoLog(!logTimer);
+            if (logTimer) showLogs();
+        }
+
+        function clearLogBufferLocal() {
+            if (!confirm("Очистить текст логов в интерфейсе? (Конфиг не перезаписывается моментально)")) return;
+            $("LogsBox").textContent = "(cleared locally)";
+        }
+
+        // ─────────── COPY TOKEN ───────────
+        async function copyToken() {
+            const token = $("AniLibertyToken").textContent;
+            if (!token || token === "(не получен)") {
+                notify("Нет токена для копирования");
+                return;
+            }
+            try {
+                await navigator.clipboard.writeText(token.trim());
+                notify("Скопировано в буфер обмена");
+            } catch {
+                notify("Не удалось скопировать");
+            }
+        }
+
+        // ─────────── EVENTS ───────────
+        $("aniLibertyConfigurationPage").addEventListener("pageshow", () => loadCfg(false));
+
+        $("CfgForm").addEventListener("submit", e => {
+            e.preventDefault();
+            saveCfg();
+        });
+
+        $("BtnReloadCfg").addEventListener("click", () => loadCfg(true));
+
+        $("BtnLoginPass").addEventListener("click", loginViaPassword);
+
+        $("BtnStartOtp").addEventListener("click", startOtp);
+        $("BtnSignInOtp").addEventListener("click", signInOtp);
+        $("BtnAcceptOtp").addEventListener("click", acceptOtp);
+
+        $("BtnClearToken").addEventListener("click", clearToken);
+        $("BtnCopyToken").addEventListener("click", copyToken);
+        $("BtnRefreshCfgToken").addEventListener("click", reloadCfgSilent);
+
+        $("BtnShowLogs").addEventListener("click", showLogs);
+        $("BtnAutoRefreshLogs").addEventListener("click", toggleAutoLogs);
+        $("BtnClearLogBuffer").addEventListener("click", clearLogBufferLocal);
+
+    </script>
+</div>
 </body>
 </html>

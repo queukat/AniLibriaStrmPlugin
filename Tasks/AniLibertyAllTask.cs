@@ -67,6 +67,8 @@ public IEnumerable<TaskTriggerInfo> GetDefaultTriggers()
                 }
 
                 _log.LogInformation("Fetching full title list …");
+                _log.LogDebug("Params: pageSize={0}, maxPages={1}",
+                                  cfg.AllTitlesPageSize, cfg.AllTitlesMaxPages);
                 var titles = await _client.FetchAllTitlesAsync(
                     cfg.AllTitlesPageSize,
                     cfg.AllTitlesMaxPages,
