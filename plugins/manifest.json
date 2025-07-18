@@ -8,15 +8,15 @@
     "category": "Metadata",
     "versions": [
       {
-        "version": "2.0.0.5",
-        "changelog": "• Removed Jellyfin core DLLs from the bundle\n• Added Polly retry logic only (Polly.*, Microsoft.Extensions.Http.Polly)\n• Target ABI bumped to 10.10.0.0\n",
+        "version": "2.0.0.6",
+        "changelog": "• Removed Jellyfin core DLLs from the bundle\n• Added Polly retry logic only (Polly.*, Microsoft.Extensions.Http.Polly)\n• Target ABI bumped to 10.11.0.0\n",
         "targetAbi": "10.11.0.0",
-        "sourceUrl": "https://queukat.github.io/AniLibertyStrmPlugin/plugins/aniliberty-strm-plugin/aniliberty-strm-plugin_2.0.0.5.zip",
-        "checksum": "bf82f3dc14de55f22aa15c0ffab1aad4",
-        "timestamp": "2025-07-18T12:15:04Z"
+        "sourceUrl": "https://queukat.github.io/AniLibriaStrmPlugin/plugins/aniliberty-strm-plugin/aniliberty-strm-plugin_2.0.0.6.zip",
+        "checksum": "3dbbee6fd20e20e99047f96e97bf5449",
+        "timestamp": "2025-07-18T12:38:11Z"
       }
     ],
     "image": "icon.png",
-    "imageUrl": "https://queukat.github.io/AniLibertyStrmPlugin/plugins/aniliberty-strm-plugin/icon.png"
+    "imageUrl": "https://queukat.github.io/AniLibriaStrmPlugin/plugins/aniliberty-strm-plugin/icon.png"
   }
 ]
