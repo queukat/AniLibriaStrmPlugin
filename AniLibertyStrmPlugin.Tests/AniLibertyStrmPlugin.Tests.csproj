@@ -7,7 +7,7 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
 
-  <!-- 📦 Тестовые пакеты (XUnit 3 + VS-адаптер + SDK-18) -->
+  <!-- 📦   (XUnit 3 + VS- + SDK-18) -->
   <ItemGroup>
     <PackageReference Include="Microsoft.NET.Test.Sdk"            Version="17.14.1" />
     <PackageReference Include="xunit"                             Version="2.9.*" />

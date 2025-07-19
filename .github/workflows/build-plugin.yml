@@ -3,10 +3,10 @@ name: build-plugin
 on:
   push:
     branches:
-      - aniLiberty-v2          # CI запускается на прямые коммиты в ветку ребрендинга
+      - aniLiberty-v2          # CI       
     tags:
-      - '*'                    # и по-прежнему на все теги
-  workflow_dispatch:           # ручной запуск из UI
+      - '*'                    #  -   
+  workflow_dispatch:           #    UI
 
 permissions:
   contents: write
@@ -23,7 +23,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # Сносим старые nuget.config, чтобы не перебивали авторизацию
+      #   nuget.config,    
       - name: Remove local NuGet configs
         run: find . -iname 'nuget.config' -delete
 
@@ -35,27 +35,27 @@ jobs:
         env:
           NUGET_AUTH_TOKEN: ${{ env.JELLYFIN_NUGET_PAT }}
 
-      # Проверяем итоговый список NuGet-источников
+      #    NuGet-
       - name: Show effective NuGet sources
         run: dotnet nuget list source
 
       # ────────────────────────────────────────────────
-      # Сборка JPRM
+      #  JPRM
       - name: Build Jellyfin plugin ➜ zip + meta.json
         uses: oddstr13/jellyfin-plugin-repository-manager@v1.1.1
         id: jprm
         with:
-          dotnet-target: net9.0          # ← теперь совпадает с TargetFramework проекта
+          dotnet-target: net9.0          # ←    TargetFramework 
           version: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || '' }}
 
-      # Контрольные суммы (по желанию)
+      #   ( )
       - name: Generate checksums
         run: |
           md5sum    "${{ steps.jprm.outputs.artifact }}" > "${{ steps.jprm.outputs.artifact }}.md5"
           sha256sum "${{ steps.jprm.outputs.artifact }}" > "${{ steps.jprm.outputs.artifact }}.sha256"
 
       # ────────────────────────────────────────────────
-      # Релиз
+      # 
       - name: Release on GitHub
         if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2

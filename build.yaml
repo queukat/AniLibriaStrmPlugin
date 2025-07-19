@@ -1,4 +1,4 @@
-﻿# Jellyfin • AniLiberty STRM  – конфигурация для JPRM
+﻿# Jellyfin • AniLiberty STRM  – ция для JPRM
 # (build.yaml должен лежать рядом с .csproj)
 
 category: "Metadata"

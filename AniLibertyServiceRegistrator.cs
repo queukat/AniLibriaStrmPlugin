@@ -9,7 +9,7 @@ using Polly.Extensions.Http;
 
 namespace AniLibertyStrmPlugin;
 
-/// <summary>DI-регистрация сервисов для Jellyfin 10.11.</summary>
+/// <summary>DI-   Jellyfin 10.11.</summary>
 public class AniLibertyServiceRegistrator : IPluginServiceRegistrator
 {
     void IPluginServiceRegistrator.RegisterServices(IServiceCollection services, IServerApplicationHost _)
@@ -17,7 +17,7 @@ public class AniLibertyServiceRegistrator : IPluginServiceRegistrator
 
     private static void Register(IServiceCollection services)
     {
-        /* ---- HttpClient с retry + UA ---- */
+        /* ---- HttpClient  retry + UA ---- */
         services.AddHttpClient("AniLiberty", c =>
             {
                 c.Timeout = TimeSpan.FromSeconds(300);

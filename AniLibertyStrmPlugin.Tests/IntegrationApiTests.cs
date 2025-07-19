@@ -1,6 +1,6 @@
 ﻿// ===== UPDATED FILE: IntegrationApiTests.cs =====
-// 2025-07-18  — упрощён «пинг» latest-эндпоинта,
-//               теперь тесты не зависят от пагинации.
+// 2025-07-18  — ё «» latest-,
+//                    .
 
 using System;
 using System.Net.Http;
@@ -24,24 +24,24 @@ namespace AniLibertyStrmPlugin.Tests
         }
 
         // ────────────────────────────────────────────────
-        [Fact(DisplayName = "GET /anime/releases/latest отдаёт непустой массив")]
+        [Fact(DisplayName = "GET /anime/releases/latest ё  ")]
         public async Task ReleasesLatest_Array_NotEmpty()
         {
             using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(15) };
             var raw = await http.GetStringAsync($"{ApiBase}/anime/releases/latest");
 
             Assert.False(string.IsNullOrWhiteSpace(raw));
-            Assert.StartsWith("[", raw.TrimStart());   // API v2 возвращает JSON-массив
+            Assert.StartsWith("[", raw.TrimStart());   // API v2  JSON-
         }
 
         // ────────────────────────────────────────────────
-        [Fact(DisplayName = "GET /anime/releases/{id} отвечает 200")]
+        [Fact(DisplayName = "GET /anime/releases/{id}  200")]
         public async Task ReleaseById_Alive()
         {
             var client = NewClient();
 
             var list = await client.FetchAllTitlesAsync(1, 1, CancellationToken.None);
-            if (list.Count == 0) return;   // API жив, но пусто — считаем OK
+            if (list.Count == 0) return;   // API ,   —  OK
 
             var first = list[0];
             var raw   = await client.GetStringWithLoggingAsync(

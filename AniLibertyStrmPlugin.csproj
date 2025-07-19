@@ -14,11 +14,11 @@
     <ItemGroup>
 
         <!--   Jellyfin -->
-            <!-- базовый набор библиотек 10.11 -->
+            <!--    10.11 -->
             <PackageReference Include="Jellyfin.Controller"                Version="10.11.*-*" PrivateAssets="all" />
             <PackageReference Include="Jellyfin.Model"                     Version="10.11.*-*" PrivateAssets="all" />
         
-            <!-- мелкие сборки, которые теперь публикуются отдельно -->
+            <!--  ,     -->
             <PackageReference Include="Jellyfin.Database.Implementations"  Version="10.11.*-*" PrivateAssets="all" />
             <PackageReference Include="Jellyfin.MediaEncoding.Keyframes"   Version="10.11.*-*" PrivateAssets="all" />
 

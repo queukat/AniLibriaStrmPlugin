@@ -37,7 +37,7 @@ namespace AniLibertyStrmPlugin
             _chapters = chapters;
         }
 
-        // ────────────────────── 1. очистка названия ──────────────────────
+        // ────────────────────── 1.   ──────────────────────
         private static readonly Regex[] _suffixRules =
         {
             new(@"\s*(?:Season)\s*\d+\b.*$", RegexOptions.IgnoreCase),
@@ -86,7 +86,7 @@ namespace AniLibertyStrmPlugin
             return num;
         }
 
-        // ───────────────────────── 2. публичный API ───────────────────────
+        // ───────────────────────── 2.  API ───────────────────────
         public async Task GenerateTitlesAsync(IEnumerable<ReleaseResponse> titles,
             string basePath,
             string resolution,
@@ -111,7 +111,7 @@ namespace AniLibertyStrmPlugin
             }
         }
 
-        // ─────────────────────── 3. один релиз → файлы ─────────────────────
+        // ─────────────────────── 3.   →  ─────────────────────
         private async Task GenerateStrmForTitle(
             ReleaseResponse rel,
             string basePath,
@@ -124,7 +124,7 @@ namespace AniLibertyStrmPlugin
                 return;
             }
 
-            // ---- имена -----------------------------------------------------
+            // ----  -----------------------------------------------------
             var ruName = rel.Name?.Main?.Trim();
             var engName = rel.Name?.English?.Trim();
             var altName = rel.Name?.Alternative?.Trim();
@@ -132,10 +132,10 @@ namespace AniLibertyStrmPlugin
             var rawName = engName ?? ruName ?? rel.Alias ?? $"Title_{rel.Id}";
             var safeName = MakeSafe(CleanShowName(rawName)).ToLowerInvariant();
 
-            // ---- номер сезона ---------------------------------------------
+            // ----   ---------------------------------------------
             var seasonNum = DetectSeasonNumber(rel);
 
-            // ---- директории ------------------------------------------------
+            // ----  ------------------------------------------------
             var showDir = Path.Combine(basePath, safeName);
             Directory.CreateDirectory(showDir);
 
@@ -143,7 +143,7 @@ namespace AniLibertyStrmPlugin
             var seasonDir = Path.Combine(showDir, seasonFolder);
             Directory.CreateDirectory(seasonDir);
 
-            // ---- постер ----------------------------------------------------
+            // ----  ----------------------------------------------------
             var posterUrl = MakeFullUrl(rel.Poster?.Src ?? rel.Poster?.Preview ?? "");
 
             await DownloadIfAbsentAsync(posterUrl, Path.Combine(showDir, "folder.jpg"), token);
@@ -182,7 +182,7 @@ namespace AniLibertyStrmPlugin
                 await File.WriteAllTextAsync(seasonNfo, seasonXml, Encoding.UTF8, token);
             }
 
-            var autoNumber = 1; // fallback для эпизодов без ordinal
+            var autoNumber = 1; // fallback    ordinal
 
             foreach (var ep in rel.Episodes)
             {
@@ -197,7 +197,7 @@ namespace AniLibertyStrmPlugin
                 if (!File.Exists(strmPath))
                     await File.WriteAllTextAsync(strmPath, url, token);
 
-                // миниатюра серии
+                //  
                 if (!string.IsNullOrWhiteSpace(ep.Preview?.Src))
                 {
                     var previewUrl = MakeFullUrl(ep.Preview.Src);
@@ -217,13 +217,13 @@ namespace AniLibertyStrmPlugin
                 
                 if (segments.Count > 0)
                 {
-                    /* ---------- 1. .edl (для авто-пропуска в трансляции) ---------- */
+                    /* ---------- 1. .edl ( -  ) ---------- */
                     var edlPath = Path.ChangeExtension(strmPath, ".edl");
                     if (!File.Exists(edlPath))
                         await File.WriteAllLinesAsync(edlPath,
                             segments.Select(s => $"{s.start} {s.stop} 0"), token);
                 
-                    /* ---------- 2. chapters.xml (Jellyfin берёт главы из sidecar) ---------- */
+                    /* ---------- 2. chapters.xml (Jellyfin ё   sidecar) ---------- */
                     var chXml = Path.ChangeExtension(strmPath, ".chapters.xml");
                     if (!File.Exists(chXml))
                     {
@@ -241,7 +241,7 @@ namespace AniLibertyStrmPlugin
                         await File.WriteAllTextAsync(chXml, sb.ToString(), Encoding.UTF8, token);
                     }
                 
-                    /* ---------- 3. Пытаемся сразу записать главы в БД, если объект уже известен ---------- */
+                    /* ---------- 3.      ,     ---------- */
                     var runtimeSec = ep.Duration > 0 ? ep.Duration
                                                      : await GetHlsDurationAsync(url, token);
                 
@@ -300,7 +300,7 @@ namespace AniLibertyStrmPlugin
 
         // ─────────────────────── helpers ─────────────────────────────
         // (DownloadIfAbsentAsync, ChooseHls, MakeFullUrl, MakeSafe, MakeSafeXml,
-        //  GetHlsDurationAsync — без изменений)
+        //  GetHlsDurationAsync —  )
 
         private static async Task DownloadIfAbsentAsync(string url, string path, CancellationToken ct)
         {
@@ -388,7 +388,7 @@ namespace AniLibertyStrmPlugin
             }
             catch (HttpRequestException ex) when ((int?)ex.StatusCode == 429)
             {
-                // Too Many Requests – кешируем 0 и не шумим
+                // Too Many Requests –  0   
                 _hlsDurationCache[url] = 0;
                 return 0;
             }

@@ -1,5 +1,5 @@
 ﻿// ===== UPDATED FILE: Models/AniLibertyModels.cs =====
-// 2025-07-14 — добавлено поле Season (year+value) из API v1
+// 2025-07-14 —   Season (year+value)  API v1
 
 using System.Text.Json.Serialization;
 using AniLibertyStrmPlugin.Converters;
@@ -16,7 +16,7 @@ public class ReleaseResponse
     [JsonPropertyName("poster")]  public PosterBlock Poster { get; set; } = null!;
     [JsonPropertyName("description")] public string Description { get; set; } = string.Empty;
 
-    // <-- НОВОЕ
+    // <-- 
     [JsonPropertyName("season")]  public SeasonBlock? Season { get; set; }
     // ———
 
@@ -26,7 +26,7 @@ public class ReleaseResponse
 // ──────────────────────────────────────────────────────────────────────────
 public class SeasonBlock
 {
-    // winter / spring / summer / autumn  (см. /anime/catalog/references/seasons)
+    // winter / spring / summer / autumn  (. /anime/catalog/references/seasons)
     [JsonPropertyName("value")] public string Value { get; set; } = string.Empty;
     [JsonPropertyName("year")]  public int    Year  { get; set; }
 }
@@ -50,8 +50,8 @@ public class PosterBlock
 // ──────────────────────────────────────────────────────────────────────────
 public class EpisodeItem
 {
-    // 🔸 Ordinal иногда приходит как строка ("OP") или вовсе отсутствует.
-    //    Делаем его nullable int + конвертер, чтоб JSON-ошибок не было.
+    // 🔸 Ordinal     ("OP")   .
+    //      nullable int + ,  JSON-  .
     [JsonPropertyName("ordinal")]
     [JsonConverter(typeof(IntNullableConverter))]
     public int? Ordinal { get; set; }
@@ -62,7 +62,7 @@ public class EpisodeItem
 
     [JsonPropertyName("duration")] public int Duration { get; set; }
 
-    // 🔹 добавляем блок `ending`
+    // 🔹   `ending`
     [JsonPropertyName("opening")] public OpeningBlock? Opening { get; set; }
     [JsonPropertyName("ending")]  public OpeningBlock? Ending  { get; set; }
 

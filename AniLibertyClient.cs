@@ -14,7 +14,7 @@ using Microsoft.Extensions.Logging;
 namespace AniLibertyStrmPlugin
 {
     /// <summary>
-    ///   HTTP‑обёртка над новым API AniLiberty v1 с логированием.
+    ///   HTTP‑ё  новым API AniLiberty v1 с логированием.
     ///   Документация: https://api.anilibria.app/api/docs/v1
     /// </summary>
     public interface IAniLibertyClient

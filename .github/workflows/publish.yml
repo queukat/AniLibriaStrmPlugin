@@ -4,11 +4,11 @@ permissions:
   contents: write
 
 on:
-  # запуск при создании релиза-tag («Publish release» в UI
+  #    -tag («Publish release»  UI
   release:
     types: [ released ]
 
-  # возможность вручную из вкладки Actions
+  #     Actions
   workflow_dispatch:
     inputs:
       version:
@@ -19,10 +19,10 @@ jobs:
   publish:
     runs-on: ubuntu-latest
     env:
-      # версия берётся из релиза либо из ручного ввода
+      #  ё      
       VERSION: ${{ github.event.inputs.version || github.event.release.tag_name }}
 
-      # базовый URL вашего каталога (без manifest.json в конце!)
+      #  URL   ( manifest.json  !)
       BASE_URL: "https://queukat.github.io/AniLibriaStrmPlugin/plugins"
 
     steps:
@@ -41,14 +41,14 @@ jobs:
           dotnet-target: net9.0
           version: ${{ env.VERSION }}
       
-      # ─── ставим jprm из master ───────────────────────────────────────────
+      # ───  jprm  master ───────────────────────────────────────────
       - name: Install jprm CLI
         run: |
           python -m pip install --quiet \
             "git+https://github.com/oddstr13/jellyfin-plugin-repository-manager@v1.1.1"
       
       
-      # ─── готовим publish-dir и обновляем manifest ────────────────────────
+      # ───  publish-dir   manifest ────────────────────────
       - name: Prepare publish directory + update manifest
         run: |
           set -e
@@ -62,11 +62,11 @@ jobs:
           ICON_PATH="aniliberty-strm-plugin/icon.png"
           ICON_URL="${BASE_URL}/${ICON_PATH}"
       
-          # 1) manifest.json → если нет, создаём
+          # 1) manifest.json →  , ё
           [ -f manifest.json ] || echo "[]" > manifest.json
           jprm repo add . "./${ZIPNAME}"
       
-          # 2) правим ссылки
+          # 2)  
           jq --arg base "${BASE_URL}" --arg icon "${ICON_URL}" '
             map(
               .imageUrl |= (if startswith("http") then . else $icon end) |
@@ -88,7 +88,7 @@ jobs:
 
 
       # ─────────────────────────────────────────────────────────
-      # Деплой в ветку gh-pages  ➜  GitHub Pages
+      #    gh-pages  ➜  GitHub Pages
       # ─────────────────────────────────────────────────────────
       - name: Deploy to gh-pages
         uses: peaceiris/actions-gh-pages@v4

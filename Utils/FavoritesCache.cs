@@ -1,6 +1,6 @@
 ﻿// ===== ADDED FILE: Utils/FavoritesCache.cs =====
-// Простейший in-memory-кэш списка избранных ID, чтобы не плодить
-// лишние файловые операции между вызовами задач.
+//  in-memory-   ID,   
+//      .
 
 using System.Collections.Generic;
 
@@ -10,7 +10,7 @@ namespace AniLibertyStrmPlugin.Utils
     {
         private static readonly HashSet<int> _ids = new();
 
-        /// <summary>Полностью заменяет содержимое кэша.</summary>
+        /// <summary>   .</summary>
         public static void Update(IEnumerable<int> ids)
         {
             lock (_ids)
@@ -21,7 +21,7 @@ namespace AniLibertyStrmPlugin.Utils
             }
         }
 
-        /// <summary>Проверка наличия ID в кэше.</summary>
+        /// <summary>  ID  .</summary>
         public static bool Contains(int id)
         {
             lock (_ids)

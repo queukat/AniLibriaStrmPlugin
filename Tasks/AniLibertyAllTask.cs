@@ -32,10 +32,10 @@ namespace AniLibertyStrmPlugin.Tasks
         public string Key => "AniLibertyStrmTask";
 
 #if JF_10_10
-// Jellyfin 10.10 не поддерживает TaskTriggerInfoType — не возвращаем расписание
+// Jellyfin 10.10   TaskTriggerInfoType —   
         public IEnumerable<TaskTriggerInfo> GetDefaultTriggers() => Array.Empty<TaskTriggerInfo>();
 #else
-// Начиная с 10.11+ — возвращаем расписание с триггером раз в сутки
+//   10.11+ —       
 public IEnumerable<TaskTriggerInfo> GetDefaultTriggers()
 {
     yield return new TaskTriggerInfo

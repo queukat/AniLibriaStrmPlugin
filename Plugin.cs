@@ -12,7 +12,7 @@ using MediaBrowser.Model.Serialization;
 namespace AniLibertyStrmPlugin
 {
     /// <summary>
-    /// Точка входа плагина + хранитель конфигурации и буфера логов.
+    ///   плагина + хранитель конфигурации и буфера логов.
     /// </summary>
     public sealed class Plugin : BasePlugin<PluginConfiguration>, IHasWebPages
     {

@@ -6,7 +6,7 @@ using Microsoft.AspNetCore.Mvc;
 namespace AniLibertyStrmPlugin;
 
 /// <summary>
-///  REST-контроллер для авторизации и OTP-входа через новый AniLiberty API v1.
+///  REST-    OTP-   AniLiberty API v1.
 /// </summary>
 [ApiController] 
 [Route("AniLibertyAuth")]
@@ -17,7 +17,7 @@ public class AniLibertyAuthController : ControllerBase
     private static readonly JsonSerializerOptions _json =
         new() { PropertyNameCaseInsensitive = true };
 
-    // ─────────────────────────── 1. Логин/пароль ───────────────────────────
+    // ─────────────────────────── 1. / ───────────────────────────
 
     [HttpPost("SignInLoginPass")]
     public async Task<object> SignInLoginPass([FromBody] LoginRequest req)
