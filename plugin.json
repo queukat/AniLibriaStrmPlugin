@@ -1,0 +1,10 @@
+{
+  "name": "AniLiberty STRM Plugin",
+  "guid": "cce0798d-c8b7-4265-b08c-dc9e7bd3fc0f",
+  "version": "2.0.0.6",
+  "description": "Creates .strm / .edl / .nfo files for AniLiberty titles and favourites.",
+  "overview": "Generates STRM libraries for the full catalogue and user favourites, with EDL intro-skip and proper NFO metadata.",
+  "owner": "queukat",
+  "category": "Metadata",
+  "targetAbi": "10.11.0.0"
+}
