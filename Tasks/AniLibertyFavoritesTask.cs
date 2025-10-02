@@ -1,31 +1,25 @@
-﻿﻿// ===== File: AniLibertyFavoritesTask.cs =====
+﻿﻿// ===== File: AniLibertyFavoritesTask.cs (updated) =====
 
 using System.Threading;
 using System.Threading.Tasks;
 using System.Collections.Generic;
 using System.Linq;
-using AniLibertyStrmPlugin;               // ← 
+using AniLibertyStrmPlugin;
 using AniLibertyStrmPlugin.Utils;
 using MediaBrowser.Model.Tasks;
 using Microsoft.Extensions.Logging;
 
 namespace AniLibertyStrmPlugin.Tasks
 {
-    public sealed class AniLibertyFavoritesTask : IScheduledTask
+    public sealed class AniLibertyFavoritesTask(
+        IAniLibertyClient client,
+        IAniLibertyStrmGenerator gen,
+        ILogger<AniLibertyFavoritesTask> log
+    ) : IScheduledTask
     {
-        private readonly IAniLibertyClient _client;
-        private readonly IAniLibertyStrmGenerator _gen;
-        private readonly ILogger<AniLibertyFavoritesTask> _log;
-
-        public AniLibertyFavoritesTask(
-            IAniLibertyClient client,
-            IAniLibertyStrmGenerator gen,
-            ILogger<AniLibertyFavoritesTask> log)
-        {
-            _client = client;
-            _gen    = gen;
-            _log    = log;
-        }
+        private readonly IAniLibertyClient _client = client;
+        private readonly IAniLibertyStrmGenerator _gen = gen;
+        private readonly ILogger<AniLibertyFavoritesTask> _log = log;
 
         public bool   IsHidden    => false;
         public string Name        => "Generate AniLiberty STRM (Favorites Only)";
@@ -44,7 +38,7 @@ namespace AniLibertyStrmPlugin.Tasks
             {
                 if (!cfg.EnableFavorites)
                 {
-                    _log.LogInformation("Favorites catalogue updates disabled — skipping task.");
+                    _log.Info("Favorites catalogue updates disabled — skipping task.");
                     return;
                 }
 
@@ -54,7 +48,9 @@ namespace AniLibertyStrmPlugin.Tasks
                     return;
                 }
 
-                _log.Info("Fetching favourites pageSize={0} …", cfg.FavoritesPageSize);
+                _log.Info("Fetching favourites pageSize={0}, maxPages={1} …",
+                          cfg.FavoritesPageSize, cfg.FavoritesMaxPages);
+
                 var titles = await _client.FetchFavoritesAsync(
                     cfg.AniLibertyToken,
                     cfg.FavoritesPageSize,
@@ -63,8 +59,12 @@ namespace AniLibertyStrmPlugin.Tasks
 
                 _log.Info("Total favourites fetched: {0}", titles.Count);
 
-                await _gen.GenerateTitlesAsync(titles, cfg.StrmFavoritesPath,
-                    cfg.PreferredResolution, progress, token);
+                await _gen.GenerateTitlesAsync(
+                    titles,
+                    cfg.StrmFavoritesPath,
+                    cfg.PreferredResolution,
+                    progress,
+                    token);
 
                 FavoritesCache.Update(titles.Select(t => t.Id));
             }

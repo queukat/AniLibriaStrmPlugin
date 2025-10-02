@@ -1,5 +1,5 @@
 using MediaBrowser.Model.Plugins;
-
+using Microsoft.Extensions.Logging;
 namespace AniLibertyStrmPlugin.Configuration;
 
 /// <summary>  (AniLiberty STRM v2).</summary>
@@ -25,4 +25,10 @@ public class PluginConfiguration : BasePluginConfiguration
     public int AllTitlesMaxPages { get; set; }   = 100;
     public int FavoritesPageSize { get; set; }   = 50;
     public int FavoritesMaxPages { get; set; }   = 50;
+    
+    // Минимальный уровень для попадания сообщений в LastTaskLog (UI)
+    public LogLevel UiMinLogLevel { get; set; } = LogLevel.Information;
+
+    // Сколько строк хранить в LastTaskLog
+    public int LastLogMaxLines { get; set; } = 800;  // можно 800–1500
 }

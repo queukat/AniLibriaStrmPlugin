@@ -21,6 +21,7 @@ namespace AniLibertyStrmPlugin
         {
             Instance = this;
         }
+        private readonly object _logSync = new();
 
         public static Plugin Instance { get; private set; }
 
@@ -41,35 +42,42 @@ namespace AniLibertyStrmPlugin
         // ──────────────────────────   ───────────────────────────────
         private readonly StringBuilder _logBuffer = new();
 
-        public void AppendTaskLog(string message)
+        public void AppendTaskLog(string line)
         {
-            lock (_logBuffer)
-            {
-                _logBuffer.AppendLine($"[{DateTime.Now:HH:mm:ss}] {message}");
+            var ts = DateTime.Now.ToString("HH:mm:ss");
+            var ln = $"[{ts}] {line}";
 
-                // Пишем в конфиг сразу – так «Show Logs» всегда увидит актуальный текст.
-                var cfg               = Configuration;
-                cfg.LastTaskLog       = _logBuffer.ToString();
-                UpdateConfiguration(cfg);                 // включает SaveConfiguration()
+            lock (_logSync)
+            {
+                var max = Math.Max(50, Configuration?.LastLogMaxLines ?? 800);
+                var existing = Configuration?.LastTaskLog ?? string.Empty;
+
+                // Быстро добавить и усечь хвост
+                var joined = string.IsNullOrEmpty(existing) ? ln : existing + "\n" + ln;
+                var arr = joined.Split('\n');
+                if (arr.Length > max)
+                    joined = string.Join('\n', arr.Skip(arr.Length - max));
+
+                Configuration.LastTaskLog = joined;
+                // Не пишем на диск на каждый чих — дисковый flush делай там, где уже делал (например, в finally задач)
             }
         }
 
+
         public void FlushLog()
         {
-            lock (_logBuffer)
+            lock (_logSync)
             {
-                var cfg         = Configuration;
-                cfg.LastTaskLog = _logBuffer.ToString();
+                var cfg = Configuration;
                 UpdateConfiguration(cfg);
             }
         }
 
         public void ClearTaskLog()
         {
-            lock (_logBuffer)
+            lock (_logSync)
             {
-                _logBuffer.Clear();
-                var cfg         = Configuration;
+                var cfg = Configuration;
                 cfg.LastTaskLog = string.Empty;
                 UpdateConfiguration(cfg);
             }

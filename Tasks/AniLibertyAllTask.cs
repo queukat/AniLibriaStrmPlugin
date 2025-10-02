@@ -4,6 +4,7 @@ using System;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
+using AniLibertyStrmPlugin.Utils;
 using MediaBrowser.Model.Tasks;
 using Microsoft.Extensions.Logging;
 
@@ -50,23 +51,23 @@ public IEnumerable<TaskTriggerInfo> GetDefaultTriggers()
         public async Task ExecuteAsync(IProgress<double> progress, CancellationToken token)
         {
             var cfg = Plugin.Instance.Configuration;
-            _log.LogInformation("=== AniLibertyAllTask started ===");
+            _log.Info("=== AniLibertyAllTask started ===");
 
             try
             {
                 if (!cfg.EnableAll)
                 {
-                    _log.LogInformation("Global catalogue updates disabled — skipping AllTitles task.");
+                    _log.Info("Global catalogue updates disabled — skipping AllTitles task.");
                     return;
                 }
 
                 if (string.IsNullOrWhiteSpace(cfg.StrmAllPath))
                 {
-                    _log.LogInformation("StrmAllPath is empty – nothing to do.");
+                    _log.Info("StrmAllPath is empty – nothing to do.");
                     return;
                 }
 
-                _log.LogInformation("Fetching full title list …");
+                _log.Info("Fetching full title list …");
                 _log.LogDebug("Params: pageSize={0}, maxPages={1}",
                                   cfg.AllTitlesPageSize, cfg.AllTitlesMaxPages);
                 var titles = await _client.FetchAllTitlesAsync(
@@ -74,7 +75,7 @@ public IEnumerable<TaskTriggerInfo> GetDefaultTriggers()
                     cfg.AllTitlesMaxPages,
                     token);
 
-                _log.LogInformation("Titles fetched: {Count}", titles.Count);
+                _log.Info("Titles fetched: {0}", titles.Count);
 
                 await _gen.GenerateTitlesAsync(
                     titles,
@@ -89,7 +90,7 @@ public IEnumerable<TaskTriggerInfo> GetDefaultTriggers()
             }
             finally
             {
-                _log.LogInformation("=== AniLibertyAllTask done ===");
+                _log.Info("=== AniLibertyAllTask done ===");
                 Plugin.Instance.FlushLog();
             }
         }

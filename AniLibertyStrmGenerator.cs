@@ -1,4 +1,3 @@
-
 using AniLibertyStrmPlugin.Models;
 using MediaBrowser.Controller.Library;
 using Microsoft.Extensions.Logging;
@@ -9,36 +8,30 @@ using System.Collections.Concurrent;
 using MediaBrowser.Controller.Entities;
 using MediaBrowser.Controller.Chapters;
 using MediaBrowser.Model.Entities;
+using AniLibertyStrmPlugin.Utils;
 
 namespace AniLibertyStrmPlugin
 {
     public interface IAniLibertyStrmGenerator
     {
-        Task GenerateTitlesAsync(IEnumerable<ReleaseResponse> titles,
+        Task GenerateTitlesAsync(
+            IEnumerable<ReleaseResponse> titles,
             string basePath,
             string resolution,
             IProgress<double>? progress,
             CancellationToken token);
     }
 
-    public sealed class AniLibertyStrmGenerator : IAniLibertyStrmGenerator
+    public sealed class AniLibertyStrmGenerator(
+        ILogger<AniLibertyStrmGenerator> log,
+        ILibraryManager library,
+        IChapterManager chapters,
+        IAniLibertyClient client)
+        : IAniLibertyStrmGenerator
     {
-        private readonly ILogger<AniLibertyStrmGenerator> _log;
-        private readonly ILibraryManager _library;
-        private readonly IChapterManager _chapters;
 
-        public AniLibertyStrmGenerator(
-            ILogger<AniLibertyStrmGenerator> log,
-            ILibraryManager library,
-            IChapterManager chapters)
-        {
-            _log = log;
-            _library = library;
-            _chapters = chapters;
-        }
-
-        // ────────────────────── 1.   ──────────────────────
-        private static readonly Regex[] _suffixRules =
+        // ────────────────────── 1.  очистка суффиксов ──────────────────────
+        private static readonly Regex[] SuffixRules =
         {
             new(@"\s*(?:Season)\s*\d+\b.*$", RegexOptions.IgnoreCase),
             new(@"\s*\d+(?:st|nd|rd|th)?\s*Season\b.*$", RegexOptions.IgnoreCase),
@@ -46,15 +39,20 @@ namespace AniLibertyStrmPlugin
             new(@"\s*\d+(?:st|nd|rd|th)?\s*Cour\b.*$", RegexOptions.IgnoreCase),
             new(@"\s*[-._ ]+(?:I{2,3}|IV|V?I{0,3}|VII?)$", RegexOptions.IgnoreCase),
             new(@"\s+[2-4]$", RegexOptions.IgnoreCase),
-            new(@"\s+(?:OAD|OVA|OAV|Special|Movie)$", RegexOptions.IgnoreCase),
+            new(@"\s+(?:OAD|OVA|OAV|Specials?|Movie)$", RegexOptions.IgnoreCase),
+
+            // NEW: сносим "Ω/omega/омега" в конце
+            new(@"\s*(?:Ω|ω|Omega|Омега)\b.*$", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant),
         };
 
         private static string CleanShowName(string name)
         {
             if (string.IsNullOrWhiteSpace(name)) return name;
 
-            var cleaned = _suffixRules.Aggregate(name, (current, rx) => rx.Replace(current, ""));
+            var cleaned = SuffixRules.Aggregate(name, (current, rx) => rx.Replace(current, ""));
             cleaned = Regex.Replace(cleaned, @"[\s\.\-_()]+$", "");
+            // На всякий случай: единичные Ω внутри — убираем
+            cleaned = Regex.Replace(cleaned, @"[\u03A9\u03C9]", "");
             return cleaned.Trim();
         }
 
@@ -86,56 +84,216 @@ namespace AniLibertyStrmPlugin
             return num;
         }
 
-        // ───────────────────────── 2.  API ───────────────────────
-        public async Task GenerateTitlesAsync(IEnumerable<ReleaseResponse> titles,
+        // ────────────── вспомогательное: квартал для сортировки ───────────
+        private static readonly Dictionary<string, int> _seasonOrder = new(StringComparer.OrdinalIgnoreCase)
+        {
+            ["winter"] = 1, ["spring"] = 2, ["summer"] = 3, ["autumn"] = 4
+        };
+        private static int QuarterIndex(string? v) => v != null && _seasonOrder.TryGetValue(v, out var k) ? k : 99;
+
+        // Предкалькуляция ключа группы (очищенное, нормализованное имя)
+        private static string GroupKey(ReleaseResponse r)
+        {
+            var ruName = r.Name?.Main?.Trim();
+            var engName = r.Name?.English?.Trim();
+            var rawName = engName ?? ruName ?? r.Alias ?? $"Title_{r.Id}";
+            // specials убираем из ключа
+            rawName = Regex.Replace(rawName, @"\b(?:specials?)\b", "", RegexOptions.IgnoreCase).Trim();
+            return NormalizeTitleForFs(rawName).ToLowerInvariant();
+        }
+
+        // ────────────────────── 2.  API ───────────────────────
+        public async Task GenerateTitlesAsync(
+            IEnumerable<ReleaseResponse> titles,
             string basePath,
             string resolution,
             IProgress<double>? progress,
             CancellationToken token)
         {
-            Directory.CreateDirectory(basePath);
+            if (titles == null) return;
 
-            var list = titles.ToList();
+            // Преобразуем к списку, чтобы знать Count и удобнее логировать/прогресс
+            var list = titles as IList<ReleaseResponse> ?? titles.ToList();
+            if (list.Count == 0) return;
+
+            // Fallback‑нумерация по году внутри групп одинаковых имён
+            var fallbackById = new Dictionary<int, int>();
+            foreach (var grp in list.GroupBy(GroupKey))
+            {
+                var ordered = grp
+                    .OrderBy(r => r.Season?.Year > 0 ? r.Season!.Year : int.MaxValue)
+                    .ThenBy(r => QuarterIndex(r.Season?.Value))
+                    .ThenBy(r => r.Name?.English ?? r.Name?.Main ?? r.Alias ?? string.Empty, StringComparer.OrdinalIgnoreCase)
+                    .ThenBy(r => r.Id)
+                    .ToList();
+
+                for (int i = 0; i < ordered.Count; i++)
+                    fallbackById[ordered[i].Id] = i + 1;
+            }
+
             var total = list.Count;
             var current = 0;
 
-            foreach (var rel in list)
+            foreach (var rel0 in list)
             {
                 token.ThrowIfCancellationRequested();
                 current++;
 
-                var display = rel.Name?.English ?? rel.Name?.Main ?? rel.Alias;
-                _log.LogInformation("({Cur}/{Tot}) {Name}", current, total, display);
-                await GenerateStrmForTitle(rel, basePath, resolution, token);
-                progress?.Report(current / (double)total * 100);
+                var display = rel0.Name?.English ?? rel0.Name?.Main ?? rel0.Alias;
+                log.Info("({0}/{1}) \"{2}\"", current, total, display);
+
+                // Гидратация (если нет эпизодов в карточке каталога)
+                var rel = rel0;
+                if (rel.Episodes is null || rel.Episodes.Count == 0)
+                {
+                    try
+                    {
+                        var full = await client.FetchReleaseByIdAsync(rel.Id, token);
+                        if (full?.Episodes?.Count > 0)
+                        {
+                            rel = full;
+                        }
+                        else
+                        {
+                            log.LogInformation("Skip {Id} – no episodes in detail", rel.Id);
+                            progress?.Report(current / (double)total * 100.0);
+                            continue;
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        log.LogWarning(ex, "Skip {Id} – failed to fetch details", rel.Id);
+                        progress?.Report(current / (double)total * 100.0);
+                        continue;
+                    }
+                }
+
+                var displayRaw = rel.Name?.English ?? rel.Name?.Main ?? rel.Alias ?? "";
+                if (LooksLikeMovie(rel, displayRaw))
+                {
+                    await GenerateMovieAsync(rel, basePath, resolution, token);
+
+                    async Task GenerateMovieAsync(ReleaseResponse rel, string basePath, string resolution,
+                        CancellationToken token)
+                    {
+                        // Берём единственный эпизод как «файл» фильма
+                        var ep = rel.Episodes?.FirstOrDefault();
+                        if (ep == null)
+                        {
+                            log.Info("Skip {0} – no movie episode", rel.Id);
+                            return;
+                        }
+
+                        var ruName = rel.Name?.Main?.Trim();
+                        var engName = rel.Name?.English?.Trim();
+                        var raw = engName ?? ruName ?? rel.Alias ?? $"Movie_{rel.Id}";
+
+                        // вычистим слово "movie", нормализуем "Code: White" → "Code White", уберём двоеточия
+                        var title = Regex.Replace(raw, @"\b(the\s*movie|movie|film)\b", "", RegexOptions.IgnoreCase);
+                        title = Regex.Replace(title, @"\bcode\s*[:\-]\s*", "Code ", RegexOptions.IgnoreCase);
+                        title = NormalizeTitleForFs(title);
+
+                        var year = rel.Season?.Year > 0 ? rel.Season!.Year : (DateTime.UtcNow.Year);
+                        var folder = $"{title} ({year})";
+                        var movieDir = Path.Combine(basePath, folder);
+                        Directory.CreateDirectory(movieDir);
+
+                        var url = ChooseHls(ep, resolution);
+                        if (string.IsNullOrEmpty(url)) return;
+
+                        var strmPath = Path.Combine(movieDir, $"{folder}.strm");
+                        if (!File.Exists(strmPath))
+                            await File.WriteAllTextAsync(strmPath, url, token);
+
+                        // poster
+                        var posterUrl = MakeFullUrl(rel.Poster?.Src ?? rel.Poster?.Preview ?? "");
+                        await DownloadIfAbsentAsync(posterUrl, Path.Combine(movieDir, "cover.jpg"), token);
+
+                        // простейший movie.nfo
+                        var plot = MakeSafeXml(rel.Description ?? "");
+                        var orig = engName ?? ruName ?? title;
+                        var nfo = $@"<?xml version=""1.0"" encoding=""utf-8"" standalone=""yes""?>
+                     <movie>
+                       <title>{MakeSafeXml(title)}</title>
+                       {(orig != title ? $"<originaltitle>{MakeSafeXml(orig)}</originaltitle>" : "")}
+                       <year>{year}</year>
+                       {(plot.Length > 0 ? $"<plot>{plot}</plot>" : "")}
+                     </movie>";
+                        var nfoPath = Path.Combine(movieDir, $"{folder}.nfo");
+                        if (!File.Exists(nfoPath))
+                            await File.WriteAllTextAsync(nfoPath, nfo, Encoding.UTF8, token);
+                    }
+                }
+                else
+                    await GenerateStrmForTitle(rel, basePath, resolution, fallbackById, list, token);
+
+                progress?.Report(current / (double)total * 100.0);
             }
         }
 
-        // ─────────────────────── 3.   →  ─────────────────────
+        private static bool LooksLikeMovie(ReleaseResponse rel, string title)
+        {
+            var oneEp = (rel.Episodes?.Count ?? 0) <= 1 || rel.EpisodesTotal.GetValueOrDefault(0) <= 1;
+            var hasMovieWord = Regex.IsMatch(title, @"\b(movie|film|the\s*movie)\b", RegexOptions.IgnoreCase);
+            return oneEp && hasMovieWord;
+        }
+
+        // ─────────────────────── 3. генерация STRM → файлы ─────────────────────
         private async Task GenerateStrmForTitle(
             ReleaseResponse rel,
             string basePath,
             string resolution,
+            Dictionary<int,int> fallbackById,
+            IList<ReleaseResponse> allList,
             CancellationToken token)
         {
             if (rel.Episodes is null || rel.Episodes.Count == 0)
             {
-                _log.LogInformation("Skip {Id} – no episodes", rel.Id);
+                log.Info("Skip {0} – no episodes", rel.Id);
                 return;
             }
 
-            // ----  -----------------------------------------------------
+            // ---- имена -----------------------------------------------------
             var ruName = rel.Name?.Main?.Trim();
             var engName = rel.Name?.English?.Trim();
             var altName = rel.Name?.Alternative?.Trim();
 
             var rawName = engName ?? ruName ?? rel.Alias ?? $"Title_{rel.Id}";
-            var safeName = MakeSafe(CleanShowName(rawName)).ToLowerInvariant();
+            // specials? -> вынести из имени и отправить в Season 00
+            var isSpecialsTitle = Regex.IsMatch(rawName, @"\b(?:specials?)\b", RegexOptions.IgnoreCase);
+            if (isSpecialsTitle)
+                rawName = Regex.Replace(rawName, @"\b(?:specials?)\b", "", RegexOptions.IgnoreCase).Trim();
+            var safeName = NormalizeTitleForFs(rawName).ToLowerInvariant();
 
-            // ----   ---------------------------------------------
-            var seasonNum = DetectSeasonNumber(rel);
+            // ---- сезон -----------------------------------------------------
+            int seasonNum;
+            var hasFranchiseSeason = false;
 
-            // ----  ------------------------------------------------
+            if (isSpecialsTitle)
+            {
+                seasonNum = 0;
+            }
+            else
+            {
+                // 1) пытаемся получить сезон из франшизы
+                seasonNum = await DetectSeasonFromFranchiseAsync(rel.Id, token);
+                hasFranchiseSeason = seasonNum > 0;
+
+                // 2) если не удалось — парсим из названия (как было)
+                if (seasonNum <= 0)
+                    seasonNum = DetectSeasonNumber(rel);
+
+                // 3) если всё ещё «первый» и в группе есть дубликаты — используем fallback‑порядок по году
+                if (!hasFranchiseSeason && seasonNum <= 1)
+                {
+                    var key = GroupKey(rel);
+                    var sameGroupCount = allList.Count(x => GroupKey(x) == key);
+                    if (sameGroupCount > 1 && fallbackById.TryGetValue(rel.Id, out var nByYear))
+                        seasonNum = nByYear;
+                }
+            }
+
+            // ---- директории ------------------------------------------------
             var showDir = Path.Combine(basePath, safeName);
             Directory.CreateDirectory(showDir);
 
@@ -143,9 +301,8 @@ namespace AniLibertyStrmPlugin
             var seasonDir = Path.Combine(showDir, seasonFolder);
             Directory.CreateDirectory(seasonDir);
 
-            // ----  ----------------------------------------------------
+            // ---- постер ----------------------------------------------------
             var posterUrl = MakeFullUrl(rel.Poster?.Src ?? rel.Poster?.Preview ?? "");
-
             await DownloadIfAbsentAsync(posterUrl, Path.Combine(showDir, "folder.jpg"), token);
             await DownloadIfAbsentAsync(posterUrl, Path.Combine(showDir, $"{seasonFolder}-poster.jpg"), token);
 
@@ -169,7 +326,7 @@ namespace AniLibertyStrmPlugin
                 await File.WriteAllTextAsync(tvshowNfo, xml, Encoding.UTF8, token);
             }
 
-            // ---- season.nfo ------------------------------------------------
+            // ---- season.nfo -----------------------------------------------
             var seasonNfo = Path.Combine(seasonDir, "season.nfo");
             if (!File.Exists(seasonNfo))
             {
@@ -182,7 +339,7 @@ namespace AniLibertyStrmPlugin
                 await File.WriteAllTextAsync(seasonNfo, seasonXml, Encoding.UTF8, token);
             }
 
-            var autoNumber = 1; // fallback    ordinal
+            var autoNumber = 1; // fallback порядковый номер
 
             foreach (var ep in rel.Episodes)
             {
@@ -197,7 +354,7 @@ namespace AniLibertyStrmPlugin
                 if (!File.Exists(strmPath))
                     await File.WriteAllTextAsync(strmPath, url, token);
 
-                //  
+                // превью
                 if (!string.IsNullOrWhiteSpace(ep.Preview?.Src))
                 {
                     var previewUrl = MakeFullUrl(ep.Preview.Src);
@@ -209,21 +366,21 @@ namespace AniLibertyStrmPlugin
 
                 // ───── Skip-Intro / Credits ─────
                 var segments = new List<(int start, int stop, string name)>
-                {
-                    (ep.Opening?.Start ?? -1, ep.Opening?.Stop ?? -1, "Intro"),
-                    (ep.Ending ?.Start ?? -1, ep.Ending ?.Stop ?? -1, "Credits")
-                }.Where(s => s.start >= 0 && s.stop > s.start)
-                 .ToList();
-                
+                    {
+                        (ep.Opening?.Start ?? -1, ep.Opening?.Stop ?? -1, "Intro"),
+                        (ep.Ending?.Start ?? -1, ep.Ending?.Stop ?? -1, "Credits")
+                    }.Where(s => s.start >= 0 && s.stop > s.start)
+                    .ToList();
+
                 if (segments.Count > 0)
                 {
-                    /* ---------- 1. .edl ( -  ) ---------- */
+                    // 1) .edl (skip секции)
                     var edlPath = Path.ChangeExtension(strmPath, ".edl");
                     if (!File.Exists(edlPath))
                         await File.WriteAllLinesAsync(edlPath,
                             segments.Select(s => $"{s.start} {s.stop} 0"), token);
-                
-                    /* ---------- 2. chapters.xml (Jellyfin ё   sidecar) ---------- */
+
+                    // 2) chapters.xml (sidecar главы Jellyfin)
                     var chXml = Path.ChangeExtension(strmPath, ".chapters.xml");
                     if (!File.Exists(chXml))
                     {
@@ -237,48 +394,49 @@ namespace AniLibertyStrmPlugin
                             sb.AppendLine($"    <time>{TimeSpan.FromSeconds(start):hh\\:mm\\:ss\\.fff}</time>");
                             sb.AppendLine("  </chapter>");
                         }
+
                         sb.AppendLine("</chapters>");
                         await File.WriteAllTextAsync(chXml, sb.ToString(), Encoding.UTF8, token);
                     }
-                
-                    /* ---------- 3.      ,     ---------- */
-                    var runtimeSec = ep.Duration > 0 ? ep.Duration
-                                                     : await GetHlsDurationAsync(url, token);
-                
+
+                    // 3) запись глав в библиотеку, если Item уже проиндексирован
+                    var runtimeSec = ep.Duration > 0
+                        ? ep.Duration
+                        : await GetHlsDurationAsync(url, token);
+
                     if (runtimeSec > segments.Max(s => s.stop) + 1)
                     {
                         try
                         {
-                            if (_library.FindByPath(strmPath, isFolder: false) is Video item)
+                            if (library.FindByPath(strmPath, isFolder: false) is Video item)
                             {
-                                var chapters = segments.Select(s => new ChapterInfo
+                                var chapters1 = segments.Select(s => new ChapterInfo
                                 {
                                     Name = s.name,
                                     StartPositionTicks = TimeSpan.FromSeconds(s.start).Ticks
                                 }).ToArray();
-                
-                #if JF_10_10
+
+#if JF_10_10
                                 _chapters.SaveChapters(item.Id, chapters);
-                #else
-                                var existing = _chapters.GetChapters(item.Id);
-                                
-                                bool same = existing.Count >= chapters.Length &&
-                                            existing.Take(chapters.Length)
-                                                    .Select((c, i) => c.StartPositionTicks == chapters[i].StartPositionTicks)
-                                                    .All(b => b);
-                                
+#else
+                                var existing = chapters.GetChapters(item.Id);
+                                bool same = existing.Count >= chapters1.Length &&
+                                            existing.Take(chapters1.Length)
+                                                .Select((c, i) =>
+                                                    c.StartPositionTicks == chapters1[i].StartPositionTicks)
+                                                .All(b => b);
+
                                 if (!same)
-                                    _chapters.SaveChapters(item, chapters);
-                #endif
+                                    chapters.SaveChapters(item, chapters1);
+#endif
                             }
                         }
                         catch (Exception ex)
                         {
-                            _log.LogWarning(ex, "Unable to save chapters for {File}", strmPath);
+                            log.Warn(ex, "Unable to save chapters for {0}", strmPath);
                         }
                     }
                 }
-
 
                 // episode.nfo -------------------------------------------------
                 var nfoPath = Path.ChangeExtension(strmPath, ".nfo");
@@ -287,30 +445,86 @@ namespace AniLibertyStrmPlugin
                     var epRu = $"Episode {epNum}";
                     var showTitle = ruName ?? engName ?? safeName;
                     var xml = $@"<?xml version=""1.0"" encoding=""utf-8"" standalone=""yes""?>
-            <episodedetails>
-              <title>{MakeSafeXml(epRu)}</title>
-              <season>{seasonNum}</season>
-              <episode>{epNum}</episode>
-              <showtitle>{MakeSafeXml(showTitle)}</showtitle>
-            </episodedetails>";
+<episodedetails>
+  <title>{MakeSafeXml(epRu)}</title>
+  <season>{seasonNum}</season>
+  <episode>{epNum}</episode>
+  <showtitle>{MakeSafeXml(showTitle)}</showtitle>
+</episodedetails>";
                     await File.WriteAllTextAsync(nfoPath, xml, Encoding.UTF8, token);
                 }
             }
         }
 
-        // ─────────────────────── helpers ─────────────────────────────
-        // (DownloadIfAbsentAsync, ChooseHls, MakeFullUrl, MakeSafe, MakeSafeXml,
-        //  GetHlsDurationAsync —  )
+        // ─────────────────────── франшиза → номер сезона ───────────────────
+        private static readonly ConcurrentDictionary<int, List<FranchiseInfo>?> _franchiseCache = new();
 
-        private static async Task DownloadIfAbsentAsync(string url, string path, CancellationToken ct)
+        private async Task<int> DetectSeasonFromFranchiseAsync(int releaseId, CancellationToken ct)
+        {
+            if (!_franchiseCache.TryGetValue(releaseId, out var frList))
+            {
+                frList = await client.FetchFranchisesForReleaseAsync(releaseId, ct);
+                _franchiseCache[releaseId] = frList;
+            }
+
+            return ComputeSeasonFromFranchises(frList, releaseId);
+        }
+
+        private static int ComputeSeasonFromFranchises(List<FranchiseInfo>? list, int releaseId)
+        {
+            if (list is null || list.Count == 0) return 0;
+
+            // Берём франшизу, где больше всего релизов (и которая содержит текущий)
+            var candidates = list.Where(f => f.FranchiseReleases?.Any(x => x.ReleaseId == releaseId) == true).ToList();
+            if (candidates.Count == 0) candidates = list;
+
+            var best = candidates
+                .OrderByDescending(f => f.FranchiseReleases?.Count ?? 0)
+                .FirstOrDefault();
+
+            if (best == null || best.FranchiseReleases == null || best.FranchiseReleases.Count == 0)
+                return 0;
+
+            var entries = best.FranchiseReleases;
+
+            // Если есть TV-подраздел, отдаём приоритет TV
+            var onlyTv = entries.Where(e => string.Equals(e.Release?.Type?.Value, "TV", StringComparison.OrdinalIgnoreCase)).ToList();
+            if (onlyTv.Any(e => e.ReleaseId == releaseId))
+                entries = onlyTv;
+
+            var sorted = entries
+                .OrderBy(e => e.SortOrder ?? int.MaxValue)
+                .ThenBy(e => e.Release?.Year ?? int.MaxValue)
+                .ThenBy(e => e.ReleaseId)
+                .ToList();
+
+            var idx = sorted.FindIndex(e => e.ReleaseId == releaseId);
+            return idx >= 0 ? idx + 1 : 0;
+        }
+
+        private static string NormalizeTitleForFs(string s)
+        {
+            if (string.IsNullOrWhiteSpace(s)) return string.Empty;
+            // унифицируем символ x и выкидываем дефисы/тире
+            s = s.Replace('×', 'x').Replace('Ｘ', 'x');
+            s = s.Replace("-", " ").Replace("–", " ").Replace("—", " ");
+            // убираем одиночные омеги
+            s = s.Replace("Ω", "").Replace("ω", "");
+            s = Regex.Replace(s, @"\s+", " ").Trim();
+            return MakeSafe(CleanShowName(s));
+        }
+
+        // ─────────────────────── helpers ─────────────────────────────
+
+        private async Task DownloadIfAbsentAsync(string url, string path, CancellationToken ct)
         {
             if (string.IsNullOrEmpty(url) || File.Exists(path)) return;
 
             try
             {
                 using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(20) };
-                http.DefaultRequestHeaders.UserAgent.ParseAdd("Jellyfin-AniLibertyStrm/1.0 (+https://github.com/queukat/AniLibertyStrmPlugin)");
-
+                http.DefaultRequestHeaders.UserAgent.ParseAdd(
+                    "Jellyfin-AniLibertyStrm/1.0 (+https://github.com/queukat/AniLibertyStrmPlugin)");
 
                 var resp = await http.GetAsync(url, ct);
                 if (!resp.IsSuccessStatusCode) return;
@@ -325,7 +539,7 @@ namespace AniLibertyStrmPlugin
             }
             catch (Exception ex)
             {
-                Console.WriteLine("[AniStrm] Download image failed: " + ex.Message);
+                log.Warn(ex, "Download image failed: {0}", url);
             }
         }
 
@@ -350,7 +564,24 @@ namespace AniLibertyStrmPlugin
             var sb = new StringBuilder(s.Length);
 
             foreach (var ch in s)
+            {
+                if (ch == '-' || ch == '–' || ch == '—')
+                {
+                    sb.Append(' ');
+                    continue;
+                }
+
+                if (ch == '×')
+                {
+                    sb.Append('x');
+                    continue;
+                }
+
+                // NEW: убираем греческие омеги
+                if (ch == 'Ω' || ch == 'ω') continue;
+
                 sb.Append(Array.IndexOf(invalid, ch) >= 0 ? ' ' : ch);
+            }
 
             var tmp = Regex.Replace(sb.ToString(), @"[ \t\.\-]{2,}", " ").Trim();
             return tmp;
@@ -359,10 +590,9 @@ namespace AniLibertyStrmPlugin
         private static string MakeSafeXml(string? text) =>
             System.Security.SecurityElement.Escape(text) ?? string.Empty;
 
-        // — HLS duration cache/logic remain unchanged —
         private static readonly ConcurrentDictionary<string, double> _hlsDurationCache = new();
 
-        private static async Task<double> GetHlsDurationAsync(string url, CancellationToken ct)
+        private async Task<double> GetHlsDurationAsync(string url, CancellationToken ct)
         {
             if (_hlsDurationCache.TryGetValue(url, out var cached))
                 return cached;
@@ -388,13 +618,12 @@ namespace AniLibertyStrmPlugin
             }
             catch (HttpRequestException ex) when ((int?)ex.StatusCode == 429)
             {
-                // Too Many Requests –  0   
                 _hlsDurationCache[url] = 0;
                 return 0;
             }
             catch (Exception ex)
             {
-                Console.WriteLine("[AniStrm] GetHlsDuration failed: " + ex.Message);
+                log.Warn(ex, "GetHlsDuration failed: {0}", url);
                 _hlsDurationCache[url] = 0;
                 return 0;
             }

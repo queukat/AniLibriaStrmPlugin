@@ -1,4 +1,3 @@
-
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -13,44 +12,33 @@ using Microsoft.Extensions.Logging;
 
 namespace AniLibertyStrmPlugin
 {
-    /// <summary>
-    ///   HTTP‑ё  новым API AniLiberty v1 с логированием.
-    ///   Документация: https://api.anilibria.app/api/docs/v1
-    /// </summary>
     public interface IAniLibertyClient
     {
         Task<string> GetStringWithLoggingAsync(string url, CancellationToken ct);
         Task<string> GetStringAuthAsync(string url, string bearer, CancellationToken ct);
 
         Task<List<ReleaseResponse>> FetchAllTitlesAsync(int pageSize, int maxPages, CancellationToken ct);
+        Task<List<ReleaseResponse>> FetchFavoritesAsync(string bearerToken, int pageSize, int maxPages, CancellationToken ct);
 
-        Task<List<ReleaseResponse>> FetchFavoritesAsync(
-            string bearerToken,
-            int pageSize,
-            int maxPages,
-            CancellationToken ct);
+        // NEW:
+        Task<ReleaseResponse?> FetchReleaseByIdAsync(int id, CancellationToken ct);
+
+        // NEW (franchises):
+        Task<List<FranchiseInfo>?> FetchFranchisesForReleaseAsync(int releaseId, CancellationToken ct);
     }
 
     public sealed record AniLibertyClient(HttpClient http, ILogger<AniLibertyClient> log) : IAniLibertyClient
     {
         private const string ApiBase = "https://api.anilibria.app/api/v1";
 
-        // ──────────────────────────────────────────────
-        #region Low‑level GET helpers (with logging)
-
         public async Task<string> GetStringWithLoggingAsync(string url, CancellationToken ct)
         {
             var resp = await http.GetAsync(url, ct);
-
             if (!resp.IsSuccessStatusCode)
             {
                 var body = await SafeReadAsync(resp, ct);
-                log.LogError("HTTP {Code} for {Url}: {Body}",
-                    (int)resp.StatusCode,
-                    url,
-                    Truncate(body, 300));
+                log.LogError("HTTP {Code} for \"{Url}\": {Body}", (int)resp.StatusCode, url, Truncate(body, 300));
             }
-
             resp.EnsureSuccessStatusCode();
             return await resp.Content.ReadAsStringAsync(ct);
         }
@@ -59,23 +47,15 @@ namespace AniLibertyStrmPlugin
         {
             using var req = new HttpRequestMessage(HttpMethod.Get, url);
             req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", bearer);
-
             var resp = await http.SendAsync(req, ct);
-
             if (!resp.IsSuccessStatusCode)
             {
                 var body = await SafeReadAsync(resp, ct);
-                log.LogError("HTTP {Code} for {Url}: {Body}",
-                    (int)resp.StatusCode,
-                    url,
-                    Truncate(body, 300));
+                log.LogError("HTTP {Code} for \"{Url}\": {Body}", (int)resp.StatusCode, url, Truncate(body, 300));
             }
-
             resp.EnsureSuccessStatusCode();
             return await resp.Content.ReadAsStringAsync(ct);
         }
-
-        #endregion
 
         private static readonly JsonSerializerOptions _jsonOpts = new()
         {
@@ -83,103 +63,65 @@ namespace AniLibertyStrmPlugin
             DefaultIgnoreCondition      = JsonIgnoreCondition.WhenWritingNull
         };
 
-        // ──────────────────────────────────────────────
-        #region /anime/releases/latest → *весь* каталог (разбито пагинацией)
-
-        public async Task<List<ReleaseResponse>> FetchAllTitlesAsync(
-            int pageSize,
-            int maxPages,
-            CancellationToken ct)
+        public async Task<List<ReleaseResponse>> FetchAllTitlesAsync(int pageSize, int maxPages, CancellationToken ct)
         {
             var result = new List<ReleaseResponse>();
 
-            for (var page = 0; page < maxPages; page++) // ⚠️ 0‑based индекс!
+            for (var page = 1; page <= maxPages; page++)   // ← 1-based
             {
-                var url =
-                    $"{ApiBase}/anime/catalog/releases?limit={pageSize}&page={page}";
-
+                var url = $"{ApiBase}/anime/catalog/releases?limit={pageSize}&page={page}";
                 log.LogDebug("GET {Url}", url);
-                log.LogTrace("⌚ request started {Url}", url);
-        
-                // объявляем raw заранее, чтобы его видеть и в try, и в catch
                 string raw = string.Empty;
-        
+
                 try
                 {
-                    // присваиваем в пределах try
                     raw = await GetStringWithLoggingAsync(url, ct);
-        
+
                     List<ReleaseResponse>? pageData = null;
-        
                     try
                     {
-                        // 1) пытаемся десериализовать новый формат
                         pageData = JsonSerializer.Deserialize<List<ReleaseResponse>>(raw, _jsonOpts);
                     }
                     catch (JsonException)
                     {
-                        // 2) если не массив — пробуем старый формат с объектом { data: […] }
                         var old = JsonSerializer.Deserialize<ReleasesApiResponse>(raw, _jsonOpts);
                         pageData = old?.Data;
                     }
-        
+
                     if (pageData is { Count: > 0 })
                     {
                         result.AddRange(pageData);
-                        if (pageData.Count < pageSize)
-                            break; // последняя страница
+                        if (pageData.Count < pageSize) break;
                     }
-                    else
-                    {
-                        break; // пусто — выходим
-                    }
+                    else break;
                 }
                 catch (Exception ex)
                 {
-                    // теперь raw доступен здесь
-                    log.LogError(ex,
-                        "❌ Deserialization failed (page {Page}). Raw length={Len}. First 300 bytes:\n{Raw}",
-                        page,
-                        raw?.Length ?? 0,
-                        Truncate(raw, 300));
-        
+                    log.LogError(ex, "❌ Deserialization failed (page {Page}). Raw length={Len}. First 300:\n{Raw}",
+                        page, raw?.Length ?? 0, Truncate(raw, 300));
                     break;
                 }
             }
-        
+
             return result;
         }
 
-
-        #endregion
-
-        // ──────────────────────────────────────────────
-        #region /accounts/users/me/favorites/releases
-
-        public async Task<List<ReleaseResponse>> FetchFavoritesAsync(
-            string bearerToken,
-            int pageSize,
-            int maxPages,
-            CancellationToken ct)
+        public async Task<List<ReleaseResponse>> FetchFavoritesAsync(string bearerToken, int pageSize, int maxPages, CancellationToken ct)
         {
             var result = new List<ReleaseResponse>();
 
-            for (var page = 1; page <= maxPages; page++) // ⚠️ favourites – 1‑based page
+            for (var page = 1; page <= maxPages; page++)
             {
-                var url =
-                    $"{ApiBase}/accounts/users/me/favorites/releases?limit={pageSize}&page={page}";
-
+                var url = $"{ApiBase}/accounts/users/me/favorites/releases?limit={pageSize}&page={page}";
                 var sw = Stopwatch.StartNew();
                 try
                 {
                     var raw    = await GetStringAuthAsync(url, bearerToken, ct);
-                    var parsed =
-                        JsonSerializer.Deserialize<ReleasesApiResponse>(raw, _jsonOpts);
+                    var parsed = JsonSerializer.Deserialize<ReleasesApiResponse>(raw, _jsonOpts);
                     var got = parsed?.Data?.Count ?? 0;
 
                     sw.Stop();
-                    log.LogInformation("FAV page {Page}: OK, {Items} items, {Ms} ms", page, got,
-                        sw.ElapsedMilliseconds);
+                    log.LogInformation("FAV page {Page}: OK, {Items} items, {Ms} ms", page, got, sw.ElapsedMilliseconds);
 
                     if (got == 0)
                     {
@@ -188,13 +130,12 @@ namespace AniLibertyStrmPlugin
                         break;
                     }
 
-                    result.AddRange(parsed.Data);
+                    result.AddRange(parsed!.Data);
                 }
                 catch (Exception ex)
                 {
                     sw.Stop();
-                    log.LogError(ex, "FAV page {Page} failed after {Ms} ms", page,
-                        sw.ElapsedMilliseconds);
+                    log.LogError(ex, "FAV page {Page} failed after {Ms} ms", page, sw.ElapsedMilliseconds);
                     break;
                 }
             }
@@ -202,10 +143,45 @@ namespace AniLibertyStrmPlugin
             return result;
         }
 
-        #endregion
+        // NEW: подробности релиза с эпизодами
+        public async Task<ReleaseResponse?> FetchReleaseByIdAsync(int id, CancellationToken ct)
+        {
+            var url = $"{ApiBase}/anime/releases/{id}";
+            log.LogDebug("GET {Url}", url);
 
-        // ──────────────────────────────────────────────
-        #region helpers
+            try
+            {
+                var raw = await GetStringWithLoggingAsync(url, ct);
+                var full = JsonSerializer.Deserialize<ReleaseResponse>(raw, _jsonOpts);
+                if (full == null)
+                    log.LogWarning("Deserialize of release {Id} returned null", id);
+                return full;
+            }
+            catch (Exception ex)
+            {
+                log.LogError(ex, "Failed to fetch release {Id}", id);
+                return null;
+            }
+        }
+
+        // NEW: франшизы по релизу
+        public async Task<List<FranchiseInfo>?> FetchFranchisesForReleaseAsync(int releaseId, CancellationToken ct)
+        {
+            var url = $"{ApiBase}/anime/franchises/release/{releaseId}";
+            log.LogDebug("GET {Url}", url);
+
+            try
+            {
+                var raw = await GetStringWithLoggingAsync(url, ct);
+                var data = JsonSerializer.Deserialize<List<FranchiseInfo>>(raw, _jsonOpts);
+                return data;
+            }
+            catch (Exception ex)
+            {
+                log.LogError(ex, "Failed to fetch franchises for release {Id}", releaseId);
+                return null;
+            }
+        }
 
         private static async Task<string> SafeReadAsync(HttpResponseMessage resp, CancellationToken ct)
         {
@@ -215,11 +191,7 @@ namespace AniLibertyStrmPlugin
 
         private static string Truncate(string? text, int max) =>
             string.IsNullOrEmpty(text) || text.Length <= max ? text ?? string.Empty : text[..max] + " …";
-
-        #endregion
     }
-
-    // ═════════════ DTO wrappers ════════════════
 
     internal sealed class ReleasesApiResponse
     {

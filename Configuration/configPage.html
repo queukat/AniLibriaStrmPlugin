@@ -162,6 +162,29 @@
                         </div>
                     </fieldset>
 
+                    <!-- Logging -->
+                    <fieldset>
+                        <legend>Logging</legend>
+                        <div class="inputContainer" style="max-width:320px">
+                            <label for="UiMinLogLevel">Log verbosity (UI):</label>
+                            <select id="UiMinLogLevel" is="emby-select">
+                                <option value="Trace">Trace</option>
+                                <option value="Debug">Debug</option>
+                                <option value="Information">Information</option>
+                                <option value="Warning">Warning</option>
+                                <option value="Error">Error</option>
+                                <option value="Critical">Critical</option>
+                            </select>
+                            <div class="fieldDescription">Messages below this level won’t appear in “Last Task Logs”.</div>
+                        </div>
+
+                        <div class="inputContainer" style="max-width:220px">
+                            <label for="LastLogMaxLines">Max UI log lines:</label>
+                            <input id="LastLogMaxLines" is="emby-input" min="50" type="number">
+                        </div>
+                    </fieldset>
+
+
                     <div class="spaced-buttons">
                         <button class="raised button-submit" data-theme="b" is="emby-button" type="submit">
                             💾 <span>Save</span>
@@ -320,6 +343,8 @@
 
                 $("LblDeviceId").textContent  = cfg.AniDeviceId || "—";
                 $("LblCurrentOtp").textContent = cfg.CurrentOtpCode || "—";
+                $("UiMinLogLevel").value  = cfg.UiMinLogLevel || "Information";
+                $("LastLogMaxLines").value = cfg.LastLogMaxLines ?? 800;
 
                 updateTokenBox(cfg.AniLibertyToken);
 
@@ -355,6 +380,8 @@
                 cfg.AllTitlesMaxPages   = +$("AllTitlesMaxPages").value || 100;
                 cfg.FavoritesPageSize   = +$("FavoritesPageSize").value || 50;
                 cfg.FavoritesMaxPages   = +$("FavoritesMaxPages").value || 50;
+                cfg.UiMinLogLevel   = $("UiMinLogLevel").value;
+                cfg.LastLogMaxLines = +$("LastLogMaxLines").value || 800;
                 await ApiClient.updatePluginConfiguration(pluginId, cfg);
                 notify("Settings saved");
             } catch(e){

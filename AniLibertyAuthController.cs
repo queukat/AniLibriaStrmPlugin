@@ -1,4 +1,6 @@
-﻿using System.Net;
+﻿// --- File: AniLibertyAuthController.cs (fixed) ---
+
+using System.Net;
 using System.Net.Http.Headers;
 using System.Text.Json;
 using Microsoft.AspNetCore.Mvc;
@@ -6,42 +8,33 @@ using Microsoft.AspNetCore.Mvc;
 namespace AniLibertyStrmPlugin;
 
 /// <summary>
-///  REST-    OTP-   AniLiberty API v1.
+///  REST-контроллер для входа (логин/пароль) и OTP по новому AniLiberty API v1.
 /// </summary>
-[ApiController] 
+[ApiController]
 [Route("AniLibertyAuth")]
 public class AniLibertyAuthController : ControllerBase
 {
     private const string ApiBase = "https://api.anilibria.app/api/v1";
 
-    private static readonly JsonSerializerOptions _json =
-        new() { PropertyNameCaseInsensitive = true };
-
-    // ─────────────────────────── 1. / ───────────────────────────
+    // ─────────────────────────── 1) Логин/пароль ───────────────────────────
 
     [HttpPost("SignInLoginPass")]
     public async Task<object> SignInLoginPass([FromBody] LoginRequest req)
     {
         AppendLog($"SignInLoginPass called. login={req?.mail ?? "null"}");
 
-        if (req == null || string.IsNullOrEmpty(req.mail) || string.IsNullOrEmpty(req.passwd))
-            return new { success = false, error = "No login/pass" };
+        if (req is null || string.IsNullOrEmpty(req.mail) || string.IsNullOrEmpty(req.passwd))
+            return Fail("No login/pass");
 
         var body = JsonSerializer.Serialize(new { login = req.mail, password = req.passwd });
-        var resp = await PostJson(ApiBase + "/accounts/users/auth/login", body);
+        var resp = await PostJson($"{ApiBase}/accounts/users/auth/login", body);
 
         if (!resp.ok)
-            return new { success = false, error = resp.body };
+            return Fail("Auth failed", resp.status, resp.body);
 
-        string? token = null;
-        try
-        {
-            token = JsonDocument.Parse(resp.body).RootElement.GetProperty("token").GetString();
-        }
-        catch { /* ignore */ }
-
+        var token = ExtractToken(resp.body);
         if (string.IsNullOrEmpty(token))
-            return new { success = false, error = "No token in response", serverResponse = resp.body };
+            return Fail("No token in response", resp.status, resp.body);
 
         var cfg = Plugin.Instance.Configuration;
         cfg.AniLibertyToken = token;
@@ -50,28 +43,34 @@ public class AniLibertyAuthController : ControllerBase
         return new { success = true, token, serverResponse = resp.body };
     }
 
-    // ────────────────────────────── 2. OTP ────────────────────────────────
+    // ────────────────────────────── 2) OTP ────────────────────────────────
 
     [HttpPost("StartOtp")]
     public async Task<object> StartOtp()
     {
         var cfg = Plugin.Instance.Configuration;
         if (string.IsNullOrEmpty(cfg.AniDeviceId))
+        {
             cfg.AniDeviceId = Guid.NewGuid().ToString("N");
-        Plugin.Instance.UpdateConfiguration(cfg);
+            Plugin.Instance.UpdateConfiguration(cfg);
+        }
 
         var body = JsonSerializer.Serialize(new { device_id = cfg.AniDeviceId });
-        var resp = await PostJson(ApiBase + "/accounts/otp/get", body);
+        var resp = await PostJson($"{ApiBase}/accounts/otp/get", body);
 
         if (!resp.ok)
-            return new { success = false, error = resp.body };
+            return Fail("OTP start failed", resp.status, resp.body);
 
         string? otp = null;
-        try { otp = JsonDocument.Parse(resp.body).RootElement.GetProperty("otp").GetString(); }
+        try
+        {
+            using var doc = JsonDocument.Parse(resp.body);
+            otp = doc.RootElement.GetProperty("otp").GetString();
+        }
         catch { /* ignore */ }
 
         if (string.IsNullOrEmpty(otp))
-            return new { success = false, error = "No otp in response", serverResponse = resp.body };
+            return Fail("No otp in response", resp.status, resp.body);
 
         cfg.CurrentOtpCode = otp;
         Plugin.Instance.UpdateConfiguration(cfg);
@@ -82,39 +81,38 @@ public class AniLibertyAuthController : ControllerBase
     [HttpPost("AcceptOtp")]
     public async Task<object> AcceptOtp([FromBody] OtpRequest req)
     {
-        if (req == null || string.IsNullOrEmpty(req.code))
-            return new { success = false, error = "No code" };
+        if (req is null || string.IsNullOrEmpty(req.code))
+            return Fail("No code");
 
         var body = JsonSerializer.Serialize(new { code = req.code });
-        var resp = await PostJson(ApiBase + "/accounts/otp/accept", body,
+        var resp = await PostJson(
+            $"{ApiBase}/accounts/otp/accept",
+            body,
             bearer: Plugin.Instance.Configuration.AniLibertyToken);
 
         return resp.ok
             ? new { success = true, serverResponse = resp.body }
-            : new { success = false, error = resp.body };
+            : Fail("AcceptOtp failed", resp.status, resp.body);
     }
 
     [HttpPost("SignInOtp")]
     public async Task<object> SignInOtp([FromBody] OtpRequest req)
     {
         var cfg = Plugin.Instance.Configuration;
-        if (req == null || string.IsNullOrEmpty(req.code))
-            return new { success = false, error = "No code" };
+        if (req is null || string.IsNullOrEmpty(req.code))
+            return Fail("No code");
         if (string.IsNullOrEmpty(cfg.AniDeviceId))
-            return new { success = false, error = "No deviceId" };
+            return Fail("No deviceId");
 
         var body = JsonSerializer.Serialize(new { code = req.code, device_id = cfg.AniDeviceId });
-        var resp = await PostJson(ApiBase + "/accounts/otp/login", body);
+        var resp = await PostJson($"{ApiBase}/accounts/otp/login", body);
 
         if (!resp.ok)
-            return new { success = false, error = resp.body, serverResponse = resp.body };
+            return Fail("OTP login failed", resp.status, resp.body);
 
-        string? token = null;
-        try { token = JsonDocument.Parse(resp.body).RootElement.GetProperty("token").GetString(); }
-        catch { /* ignore */ }
-
+        var token = ExtractToken(resp.body);
         if (string.IsNullOrEmpty(token))
-            return new { success = false, error = "No token in response", serverResponse = resp.body };
+            return Fail("No token in response", resp.status, resp.body);
 
         cfg.AniLibertyToken = token;
         Plugin.Instance.UpdateConfiguration(cfg);
@@ -124,32 +122,65 @@ public class AniLibertyAuthController : ControllerBase
 
     // ──────────────────────────── helpers ─────────────────────────────
 
-    private static async Task<(bool ok, string body)> PostJson(string url, string json, string? bearer = null)
+    private static string? ExtractToken(string json)
+    {
+        try
+        {
+            using var doc = JsonDocument.Parse(json);
+            return doc.RootElement.TryGetProperty("token", out var t) ? t.GetString() : null;
+        }
+        catch { return null; }
+    }
+
+    /// <summary>Единый формат ошибки, чтобы не плодить анонимные объекты c разной формой.</summary>
+    private static object Fail(string error, HttpStatusCode status = 0, string? serverResponse = null)
+        => new
+        {
+            success = false,
+            error,
+            status = (int)status,
+            serverResponse
+        };
+
+    private static async Task<(bool ok, HttpStatusCode status, string body)> PostJson(
+        string url,
+        string json,
+        string? bearer = null)
     {
         try
         {
             using var client = new HttpClient();
+            // Нормальный UA и JSON:
+            client.DefaultRequestHeaders.UserAgent.ParseAdd("Jellyfin-AniLibertyStrm/2.0 (+https://github.com/queukat)");
+            client.DefaultRequestHeaders.Accept.ParseAdd("application/json");
+            client.DefaultRequestHeaders.AcceptLanguage.ParseAdd("ru,en;q=0.8");
+
             if (!string.IsNullOrEmpty(bearer))
-                client.DefaultRequestHeaders.Authorization =
-                    new AuthenticationHeaderValue("Bearer", bearer);
+                client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", bearer);
 
             var resp = await client.PostAsync(url,
                 new StringContent(json, System.Text.Encoding.UTF8, "application/json"));
+
             var body = await resp.Content.ReadAsStringAsync();
-            return (resp.IsSuccessStatusCode, body);
+            return (resp.IsSuccessStatusCode, resp.StatusCode, body);
+        }
+        catch (OperationCanceledException)
+        {
+            return (false, 0, "Canceled");
         }
         catch (Exception ex)
         {
-            return (false, ex.Message);
+            return (false, 0, ex.Message);
         }
     }
 
     private static void AppendLog(string msg)
     {
-        var timestamped = $"{DateTime.Now:HH:mm:ss} {msg}";
-        Console.WriteLine("[AniLibertyAuth] " + timestamped);
-        Plugin.Instance.AppendTaskLog(timestamped);
+        // в консоль — со временем, в UI-лог — без повтора времени (его добавит AppendTaskLog)
+        Console.WriteLine($"[AniLibertyAuth] {DateTime.Now:HH:mm:ss} {msg}");
+        Plugin.Instance.AppendTaskLog("[AniLibertyAuth] " + msg);
     }
+
 }
 
 public class OtpRequest
