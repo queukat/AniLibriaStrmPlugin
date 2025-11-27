@@ -21,7 +21,10 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # ВАЖНО: нужна вся история для git-cliff
 
       #   nuget.config,    
       - name: Remove local NuGet configs
@@ -56,13 +59,25 @@ jobs:
 
       # ────────────────────────────────────────────────
       # 
+      - name: Generate changelog for this tag
+        if: startsWith(github.ref, 'refs/tags/')
+        id: changelog
+        uses: orhun/git-cliff-action@v4
+        with:
+          config: cliff.toml
+          args: --latest
+        env:
+          OUTPUT: CHANGELOG_RELEASE.md
+          GITHUB_REPO: ${{ github.repository }}
+      
       - name: Release on GitHub
         if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.ref_name }}
           name: AniLiberty STRM ${{ github.ref_name }}
-          generate_release_notes: true
+          generate_release_notes: false
+          body_path: CHANGELOG_RELEASE.md
           files: |
             ${{ steps.jprm.outputs.artifact }}
             ${{ steps.jprm.outputs.artifact }}.md5
