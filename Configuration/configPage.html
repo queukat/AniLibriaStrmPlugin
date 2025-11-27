@@ -8,41 +8,197 @@
             --narrow-width: 640px;
             --auth-width: 640px;
         }
-        fieldset {border:1px solid #555;padding:1em;margin:1.4em 0 1.8em;max-width:var(--narrow-width)}
-        fieldset legend{padding:0 .45em;font-weight:600}
-        .note-block{margin:.65em 0 1.2em;font-size:.78em;line-height:1.35;opacity:.9}
-        .fieldDescription{font-size:.72em;line-height:1.25}
-        .spaced-buttons{margin-top:1.1em;margin-bottom:.4em;display:flex;flex-wrap:wrap;gap:.6em}
-        .dim{opacity:.55}
-        .mini{font-size:.7em;opacity:.75;margin-top:.35em}
-        .token-box{font-family:monospace;font-size:.82em;padding:.55em .6em;border:1px solid #666;background:#111;
-            word-break:break-all;max-height:120px;overflow:auto}
-        .danger{background:#822 !important;border-color:#a44 !important}
-        .ok{color:#6d6}
-        .err{color:#e88}
-        .folder-row{display:flex;gap:.4em;align-items:center;max-width:var(--narrow-width)}
-        .folder-row input{flex:1 1 auto}
-        .folder-btns{display:flex;gap:.35em;align-items:center}
-        .folder-btns button{padding:0 .65em;min-width:2.3em}
-        .otp-row{display:flex;gap:.55em;flex-wrap:wrap;margin:.7em 0;max-width:var(--auth-width)}
-        .otp-row input{flex:1 1 160px;max-width:210px}
-        .otp-row button{flex:0 0 auto}
-        .auth-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:1.2em;max-width:var(--auth-width)}
-        .auth-box{min-width:240px}
-        .auth-box h4{margin:.2em 0 .5em;font-size:1.02em}
-        .token-actions{display:flex;flex-wrap:wrap;gap:.6em;margin-top:.6em}
-        .log-container{border:1px solid #666;padding:.55em .6em;background:#111;
-            font-family:Consolas,monospace;font-size:.78em;max-height:350px;overflow-y:auto;
-            line-height:1.28}
-        .log-line{white-space:pre}
-        .log-topbar{display:flex;align-items:center;gap:.75em;flex-wrap:wrap;margin-top:.2em}
-        .checkboxContainer.inline{display:inline-flex;align-items:center;margin-left:.4em}
-        .token-badge{font-size:.55em;opacity:.65;margin-left:.5em}
-        button.condensed{padding:0 .7em}
-        .warn-inline{color:#e88;font-style:italic;font-size:.67em;margin:.2em 0 .4em}
-        .auth-fieldset{max-width:var(--auth-width)}
-        .dir-mode-toggle{display:inline-flex;align-items:center;font-size:.66em;gap:.4em;margin-left:.6em}
-        .dir-mode-toggle input{margin:0}
+
+        fieldset {
+            border: 1px solid #555;
+            padding: 1em;
+            margin: 1.4em 0 1.8em;
+            max-width: var(--narrow-width)
+        }
+
+        fieldset legend {
+            padding: 0 .45em;
+            font-weight: 600
+        }
+
+        .note-block {
+            margin: .65em 0 1.2em;
+            font-size: .78em;
+            line-height: 1.35;
+            opacity: .9
+        }
+
+        .fieldDescription {
+            font-size: .72em;
+            line-height: 1.25
+        }
+
+        .spaced-buttons {
+            margin-top: 1.1em;
+            margin-bottom: .4em;
+            display: flex;
+            flex-wrap: wrap;
+            gap: .6em
+        }
+
+        .dim {
+            opacity: .55
+        }
+
+        .mini {
+            font-size: .7em;
+            opacity: .75;
+            margin-top: .35em
+        }
+
+        .token-box {
+            font-family: monospace;
+            font-size: .82em;
+            padding: .55em .6em;
+            border: 1px solid #666;
+            background: #111;
+            word-break: break-all;
+            max-height: 120px;
+            overflow: auto
+        }
+
+        .danger {
+            background: #822 !important;
+            border-color: #a44 !important
+        }
+
+        .ok {
+            color: #6d6
+        }
+
+        .err {
+            color: #e88
+        }
+
+        .folder-row {
+            display: flex;
+            gap: .4em;
+            align-items: center;
+            max-width: var(--narrow-width)
+        }
+
+        .folder-row input {
+            flex: 1 1 auto
+        }
+
+        .folder-btns {
+            display: flex;
+            gap: .35em;
+            align-items: center
+        }
+
+        .folder-btns button {
+            padding: 0 .65em;
+            min-width: 2.3em
+        }
+
+        .otp-row {
+            display: flex;
+            gap: .55em;
+            flex-wrap: wrap;
+            margin: .7em 0;
+            max-width: var(--auth-width)
+        }
+
+        .otp-row input {
+            flex: 1 1 160px;
+            max-width: 210px
+        }
+
+        .otp-row button {
+            flex: 0 0 auto
+        }
+
+        .auth-grid {
+            display: grid;
+            grid-template-columns:repeat(auto-fill, minmax(250px, 1fr));
+            gap: 1.2em;
+            max-width: var(--auth-width)
+        }
+
+        .auth-box {
+            min-width: 240px
+        }
+
+        .auth-box h4 {
+            margin: .2em 0 .5em;
+            font-size: 1.02em
+        }
+
+        .token-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: .6em;
+            margin-top: .6em
+        }
+
+        .log-container {
+            border: 1px solid #666;
+            padding: .55em .6em;
+            background: #111;
+            font-family: Consolas, monospace;
+            font-size: .78em;
+            max-height: 350px;
+            overflow-y: auto;
+            line-height: 1.28
+        }
+
+        .log-line {
+            white-space: pre
+        }
+
+        .log-topbar {
+            display: flex;
+            align-items: center;
+            gap: .75em;
+            flex-wrap: wrap;
+            margin-top: .2em
+        }
+
+        .checkboxContainer.inline {
+            display: inline-flex;
+            align-items: center;
+            margin-left: .4em
+        }
+
+        .token-badge {
+            font-size: .55em;
+            opacity: .65;
+            margin-left: .5em
+        }
+
+        button.condensed {
+            padding: 0 .7em
+        }
+
+        .warn-inline {
+            color: #e88;
+            font-style: italic;
+            font-size: .67em;
+            margin: .2em 0 .4em
+        }
+
+        .auth-fieldset {
+            max-width: var(--auth-width)
+        }
+
+        .dir-mode-toggle {
+            display: inline-flex;
+            align-items: center;
+            font-size: .66em;
+            gap: .4em;
+            margin-left: .6em
+        }
+
+        .dir-mode-toggle input {
+            margin: 0
+        }
+
         /*  ,    */
         form#AniConfigForm fieldset.auth-fieldset {
             /*    */
@@ -77,12 +233,14 @@
                     <div class="inputContainer">
                         <label for="StrmAllPath">All Titles STRM Path:</label>
                         <div class="folder-row">
-                            <input id="StrmAllPath" is="emby-input" type="text" autocomplete="off">
+                            <input autocomplete="off" id="StrmAllPath" is="emby-input" type="text">
                             <div class="folder-btns">
-                                <button id="PickAllDirPicker" class="raised" is="emby-button" type="button" title="Pick directory (showDirectoryPicker)">🔍</button>
+                                <button class="raised" id="PickAllDirPicker" is="emby-button" title="Pick directory (showDirectoryPicker)"
+                                        type="button">🔍
+                                </button>
                             </div>
                             <label class="dir-mode-toggle">
-                                <input type="checkbox" id="ChkAllAppend">
+                                <input id="ChkAllAppend" type="checkbox">
                                 <span>Append mode</span>
                             </label>
                         </div>
@@ -95,12 +253,14 @@
                     <div class="inputContainer">
                         <label for="StrmFavoritesPath">Favorites STRM Path:</label>
                         <div class="folder-row">
-                            <input id="StrmFavoritesPath" is="emby-input" type="text" autocomplete="off">
+                            <input autocomplete="off" id="StrmFavoritesPath" is="emby-input" type="text">
                             <div class="folder-btns">
-                                <button id="PickFavDirPicker" class="raised" is="emby-button" type="button" title="Pick directory (showDirectoryPicker)">🔍</button>
+                                <button class="raised" id="PickFavDirPicker" is="emby-button" title="Pick directory (showDirectoryPicker)"
+                                        type="button">🔍
+                                </button>
                             </div>
                             <label class="dir-mode-toggle">
-                                <input type="checkbox" id="ChkFavAppend">
+                                <input id="ChkFavAppend" type="checkbox">
                                 <span>Append mode</span>
                             </label>
                         </div>
@@ -132,7 +292,8 @@
                             <label for="AllTitlesPageSize">Items/page:</label>
                             <input id="AllTitlesPageSize" is="emby-input" min="1" type="number">
                         </div>
-                        <div class="fieldDescription" style="color:#e88;font-style:italic;margin-top:-0.4em;margin-bottom:1em">
+                        <div class="fieldDescription"
+                             style="color:#e88;font-style:italic;margin-top:-0.4em;margin-bottom:1em">
                             ⚠️ Do not touch this unless you really know what you're doing! Setting this too high<br>
                             may cause the server to hang forever, return nothing, crash scheduled tasks,<br>
                             eat all your RAM, and possibly summon an ancient evil from the depths of the void.<br>
@@ -151,9 +312,11 @@
                             <label for="FavoritesPageSize">Items/page:</label>
                             <input id="FavoritesPageSize" is="emby-input" min="1" type="number">
                         </div>
-                        <div class="fieldDescription" style="color:#e88;font-style:italic;margin-top:-0.4em;margin-bottom:1em">
+                        <div class="fieldDescription"
+                             style="color:#e88;font-style:italic;margin-top:-0.4em;margin-bottom:1em">
                             ⚠️ Increasing this without good reason is a fast track to misery.<br>
-                            The server may choke, your tasks may fail silently, or worse — flood you with empty files.<br>
+                            The server may choke, your tasks may fail silently, or worse — flood you with empty
+                            files.<br>
                             Stick to 50 unless you enjoy chaos.
                         </div>
                         <div class="inputContainer">
@@ -175,7 +338,8 @@
                                 <option value="Error">Error</option>
                                 <option value="Critical">Critical</option>
                             </select>
-                            <div class="fieldDescription">Messages below this level won’t appear in “Last Task Logs”.</div>
+                            <div class="fieldDescription">Messages below this level won’t appear in “Last Task Logs”.
+                            </div>
                         </div>
 
                         <div class="inputContainer" style="max-width:220px">
@@ -204,7 +368,8 @@
                 <legend>AniLiberty Authorization</legend>
                 <div class="note-block" style="margin-top:.2em">
                     Two flows: <b>Login+Password</b> (immediate JWT) and <b>OTP</b> (device + code).
-                    Successful responses store <code>AniLibertyToken</code>; <code>DeviceId</code> & last OTP code persist.
+                    Successful responses store <code>AniLibertyToken</code>; <code>DeviceId</code> & last OTP code
+                    persist.
                 </div>
 
                 <div class="auth-grid">
@@ -212,11 +377,11 @@
                         <h4>1. Login + Password</h4>
                         <div class="inputContainer">
                             <label for="loginMail">E-mail:</label>
-                            <input id="loginMail" is="emby-input" type="text" autocomplete="off">
+                            <input autocomplete="off" id="loginMail" is="emby-input" type="text">
                         </div>
                         <div class="inputContainer">
                             <label for="loginPass">Password:</label>
-                            <input id="loginPass" is="emby-input" type="password" autocomplete="off">
+                            <input autocomplete="off" id="loginPass" is="emby-input" type="password">
                         </div>
                         <div class="spaced-buttons" style="margin-top:.3em">
                             <button class="raised condensed" id="btnLoginAni" is="emby-button" type="button">
@@ -229,10 +394,14 @@
                         <h4>2. OTP Flow</h4>
                         <div class="mini dim">Start → Sign In → (optionally) Accept</div>
                         <div class="otp-row">
-                            <button class="raised condensed" id="BtnStartOtp" is="emby-button" type="button">➡️ Start</button>
-                            <input id="OtpCodeInput" is="emby-input" type="text" placeholder="OTP code">
-                            <button class="raised condensed" id="BtnSignInOtp" is="emby-button" type="button">✅ Sign In</button>
-                            <button class="raised condensed" id="BtnAcceptOtp" is="emby-button" type="button">☑ Accept</button>
+                            <button class="raised condensed" id="BtnStartOtp" is="emby-button" type="button">➡️ Start
+                            </button>
+                            <input id="OtpCodeInput" is="emby-input" placeholder="OTP code" type="text">
+                            <button class="raised condensed" id="BtnSignInOtp" is="emby-button" type="button">✅ Sign
+                                In
+                            </button>
+                            <button class="raised condensed" id="BtnAcceptOtp" is="emby-button" type="button">☑ Accept
+                            </button>
                         </div>
                         <div class="mini">
                             DeviceId: <code id="LblDeviceId">—</code><br>
@@ -242,13 +411,18 @@
 
                     <div class="auth-box" style="grid-column:1/-1">
                         <h4>Token</h4>
-                        <div id="AniLibertyToken" class="token-box dim">(not acquired)</div>
+                        <div class="token-box dim" id="AniLibertyToken">(not acquired)</div>
                         <div class="token-actions">
-                            <button class="raised condensed" id="BtnCopyToken" is="emby-button" type="button">📋 Copy</button>
-                            <button class="raised danger condensed" id="BtnClearToken" is="emby-button" type="button">🧨 Clear</button>
-                            <button class="raised condensed" id="BtnRefreshTokenBox" is="emby-button" type="button">⟳ Refresh</button>
+                            <button class="raised condensed" id="BtnCopyToken" is="emby-button" type="button">📋 Copy
+                            </button>
+                            <button class="raised danger condensed" id="BtnClearToken" is="emby-button" type="button">🧨
+                                Clear
+                            </button>
+                            <button class="raised condensed" id="BtnRefreshTokenBox" is="emby-button" type="button">⟳
+                                Refresh
+                            </button>
                         </div>
-                        <div id="AuthStatus" class="mini dim" style="margin-top:.6em"></div>
+                        <div class="mini dim" id="AuthStatus" style="margin-top:.6em"></div>
                     </div>
                 </div>
             </fieldset>
@@ -263,16 +437,19 @@
 
                 <div class="log-topbar spaced-buttons">
                     <button class="raised" id="btnShowLogs" is="emby-button" type="button">📄 <span>Show</span></button>
-                    <button class="raised" id="btnAutoLogs" is="emby-button" type="button">🔁 <span>Auto: OFF</span></button>
-                    <button class="raised" id="btnToggleOrder" is="emby-button" type="button">⬆️ <span>Newest on top: OFF</span></button>
-                    <button class="raised danger" id="btnClearDisplay" is="emby-button" type="button">🧹 <span>Clear View</span></button>
+                    <button class="raised" id="btnAutoLogs" is="emby-button" type="button">🔁 <span>Auto: OFF</span>
+                    </button>
+                    <button class="raised" id="btnToggleOrder" is="emby-button" type="button">⬆️ <span>Newest on top: OFF</span>
+                    </button>
+                    <button class="raised danger" id="btnClearDisplay" is="emby-button" type="button">🧹
+                        <span>Clear View</span></button>
                     <label class="checkboxContainer inline">
                         <input id="chkRawMode" is="emby-checkbox" type="checkbox">
                         <span style="margin-left:.3em">Raw mode</span>
                     </label>
                 </div>
 
-                <div id="debugOutput" class="log-container"></div>
+                <div class="log-container" id="debugOutput"></div>
                 <div class="mini dim" style="margin-top:.6em">
                     * Source: <code>PluginConfiguration.LastTaskLog</code>.
                     * Raw mode shows original block.
@@ -292,12 +469,20 @@
         /* ========== UTIL ========== */
         function notify(text, timeout = 4000) {
             try {
-                if (Dashboard?.showToast) { Dashboard.showToast({text}); return; }
-                if (Dashboard?.alert) { Dashboard.alert({message:text, timeout}); return; }
-            } catch {}
+                if (Dashboard?.showToast) {
+                    Dashboard.showToast({text});
+                    return;
+                }
+                if (Dashboard?.alert) {
+                    Dashboard.alert({message: text, timeout});
+                    return;
+                }
+            } catch {
+            }
             alert(text);
         }
-        function setAuthStatus(msg, cls="") {
+
+        function setAuthStatus(msg, cls = "") {
             const el = $("AuthStatus");
             el.className = "mini " + cls;
             el.textContent = msg;
@@ -325,25 +510,25 @@
         }
 
         /* ========== CONFIG LOAD / SAVE ========== */
-        async function loadCfg(showToast=false) {
+        async function loadCfg(showToast = false) {
             Dashboard.showLoadingMsg();
             try {
                 const cfg = await ApiClient.getPluginConfiguration(pluginId);
-                $("StrmAllPath").value        = cfg.StrmAllPath || "";
-                $("StrmFavoritesPath").value  = cfg.StrmFavoritesPath || "";
+                $("StrmAllPath").value = cfg.StrmAllPath || "";
+                $("StrmFavoritesPath").value = cfg.StrmFavoritesPath || "";
                 $("PreferredResolution").value = cfg.PreferredResolution || "1080";
 
                 $("EnableFavorites").checked = cfg.EnableFavorites ?? true;
-                $("EnableAll").checked       = cfg.EnableAll ?? true;
+                $("EnableAll").checked = cfg.EnableAll ?? true;
 
                 $("AllTitlesPageSize").value = cfg.AllTitlesPageSize ?? 50;
                 $("AllTitlesMaxPages").value = cfg.AllTitlesMaxPages ?? 100;
                 $("FavoritesPageSize").value = cfg.FavoritesPageSize ?? 50;
                 $("FavoritesMaxPages").value = cfg.FavoritesMaxPages ?? 50;
 
-                $("LblDeviceId").textContent  = cfg.AniDeviceId || "—";
+                $("LblDeviceId").textContent = cfg.AniDeviceId || "—";
                 $("LblCurrentOtp").textContent = cfg.CurrentOtpCode || "—";
-                $("UiMinLogLevel").value  = cfg.UiMinLogLevel || "Information";
+                $("UiMinLogLevel").value = cfg.UiMinLogLevel || "Information";
                 $("LastLogMaxLines").value = cfg.LastLogMaxLines ?? 800;
 
                 updateTokenBox(cfg.AniLibertyToken);
@@ -371,20 +556,20 @@
             Dashboard.showLoadingMsg();
             try {
                 const cfg = await ApiClient.getPluginConfiguration(pluginId);
-                cfg.StrmAllPath         = $("StrmAllPath").value.trim();
-                cfg.StrmFavoritesPath   = $("StrmFavoritesPath").value.trim();
+                cfg.StrmAllPath = $("StrmAllPath").value.trim();
+                cfg.StrmFavoritesPath = $("StrmFavoritesPath").value.trim();
                 cfg.PreferredResolution = $("PreferredResolution").value;
-                cfg.EnableFavorites     = $("EnableFavorites").checked;
-                cfg.EnableAll           = $("EnableAll").checked;
-                cfg.AllTitlesPageSize   = +$("AllTitlesPageSize").value || 50;
-                cfg.AllTitlesMaxPages   = +$("AllTitlesMaxPages").value || 100;
-                cfg.FavoritesPageSize   = +$("FavoritesPageSize").value || 50;
-                cfg.FavoritesMaxPages   = +$("FavoritesMaxPages").value || 50;
-                cfg.UiMinLogLevel   = $("UiMinLogLevel").value;
+                cfg.EnableFavorites = $("EnableFavorites").checked;
+                cfg.EnableAll = $("EnableAll").checked;
+                cfg.AllTitlesPageSize = +$("AllTitlesPageSize").value || 50;
+                cfg.AllTitlesMaxPages = +$("AllTitlesMaxPages").value || 100;
+                cfg.FavoritesPageSize = +$("FavoritesPageSize").value || 50;
+                cfg.FavoritesMaxPages = +$("FavoritesMaxPages").value || 50;
+                cfg.UiMinLogLevel = $("UiMinLogLevel").value;
                 cfg.LastLogMaxLines = +$("LastLogMaxLines").value || 800;
                 await ApiClient.updatePluginConfiguration(pluginId, cfg);
                 notify("Settings saved");
-            } catch(e){
+            } catch (e) {
                 notify("Save error: " + e.message);
             } finally {
                 Dashboard.hideLoadingMsg();
@@ -394,7 +579,7 @@
         async function refreshTokenOnly() {
             const cfg = await ApiClient.getPluginConfiguration(pluginId);
             updateTokenBox(cfg.AniLibertyToken);
-            $("LblDeviceId").textContent  = cfg.AniDeviceId || "—";
+            $("LblDeviceId").textContent = cfg.AniDeviceId || "—";
             $("LblCurrentOtp").textContent = cfg.CurrentOtpCode || "—";
         }
 
@@ -402,27 +587,34 @@
         async function doLogin() {
             const mail = $("loginMail").value.trim();
             const pass = $("loginPass").value;
-            if (!mail || !pass) { notify("Enter e-mail and password."); return; }
+            if (!mail || !pass) {
+                notify("Enter e-mail and password.");
+                return;
+            }
             $("btnLoginAni").disabled = true;
             setAuthStatus("Logging in…");
             Dashboard.showLoadingMsg();
             try {
                 const resp = await fetch(
-                    ApiClient.getUrl("AniLibertyAuth/SignInLoginPass", {api:false}),
-                    { method:"POST", headers: {"Content-Type":"application/json"},
-                        body: JSON.stringify({mail, passwd: pass}) }
+                    ApiClient.getUrl("AniLibertyAuth/SignInLoginPass", {api: false}),
+                    {
+                        method: "POST", headers: {"Content-Type": "application/json"},
+                        body: JSON.stringify({mail, passwd: pass})
+                    }
                 );
                 const data = await resp.json();
-                if (!data.success) throw new Error(data.error || ("HTTP "+resp.status));
+                if (!data.success) throw new Error(data.error || ("HTTP " + resp.status));
                 await updateTokenInConfig(data.token);
                 setAuthStatus("Login OK, token saved.", "ok");
                 notify("Login success");
-            } catch(e) {
-                setAuthStatus("Login error: "+e.message, "err");
+            } catch (e) {
+                setAuthStatus("Login error: " + e.message, "err");
                 notify("Login error: " + e.message);
             } finally {
                 Dashboard.hideLoadingMsg();
-                setTimeout(()=>{$("btnLoginAni").disabled=false;}, 1200);
+                setTimeout(() => {
+                    $("btnLoginAni").disabled = false;
+                }, 1200);
             }
         }
 
@@ -431,15 +623,15 @@
             setAuthStatus("Starting OTP…");
             Dashboard.showLoadingMsg();
             try {
-                const resp = await fetch(ApiClient.getUrl("AniLibertyAuth/StartOtp", {api:false}), { method:"POST" });
+                const resp = await fetch(ApiClient.getUrl("AniLibertyAuth/StartOtp", {api: false}), {method: "POST"});
                 const data = await resp.json();
-                if (!data.success) throw new Error(data.error || ("HTTP "+resp.status));
+                if (!data.success) throw new Error(data.error || ("HTTP " + resp.status));
                 await loadCfg(); // refresh code + device
                 $("OtpCodeInput").value = data.otp || "";
                 setAuthStatus("StartOtp OK (code received).", "ok");
-            } catch(e) {
-                setAuthStatus("StartOtp error: "+e.message, "err");
-                notify("StartOtp error: "+e.message);
+            } catch (e) {
+                setAuthStatus("StartOtp error: " + e.message, "err");
+                notify("StartOtp error: " + e.message);
             } finally {
                 Dashboard.hideLoadingMsg();
             }
@@ -447,24 +639,29 @@
 
         async function signInOtp() {
             const code = $("OtpCodeInput").value.trim();
-            if (!code) { notify("Enter OTP code"); return; }
+            if (!code) {
+                notify("Enter OTP code");
+                return;
+            }
             setAuthStatus("SignInOtp…");
             Dashboard.showLoadingMsg();
             try {
                 const resp = await fetch(
-                    ApiClient.getUrl("AniLibertyAuth/SignInOtp", {api:false}),
-                    { method:"POST", headers: {"Content-Type":"application/json"},
-                        body: JSON.stringify({code}) }
+                    ApiClient.getUrl("AniLibertyAuth/SignInOtp", {api: false}),
+                    {
+                        method: "POST", headers: {"Content-Type": "application/json"},
+                        body: JSON.stringify({code})
+                    }
                 );
                 const data = await resp.json();
-                if (!data.success) throw new Error(data.error || ("HTTP "+resp.status));
+                if (!data.success) throw new Error(data.error || ("HTTP " + resp.status));
                 await updateTokenInConfig(data.token);
                 await refreshTokenOnly();
                 setAuthStatus("SignInOtp OK — token saved.", "ok");
                 notify("OTP SignIn success");
-            } catch(e){
-                setAuthStatus("SignInOtp error: "+e.message, "err");
-                notify("SignInOtp error: "+e.message);
+            } catch (e) {
+                setAuthStatus("SignInOtp error: " + e.message, "err");
+                notify("SignInOtp error: " + e.message);
             } finally {
                 Dashboard.hideLoadingMsg();
             }
@@ -472,22 +669,27 @@
 
         async function acceptOtp() {
             const code = $("OtpCodeInput").value.trim();
-            if (!code) { notify("Enter OTP code"); return; }
+            if (!code) {
+                notify("Enter OTP code");
+                return;
+            }
             setAuthStatus("AcceptOtp…");
             Dashboard.showLoadingMsg();
             try {
                 const resp = await fetch(
-                    ApiClient.getUrl("AniLibertyAuth/AcceptOtp", {api:false}),
-                    { method:"POST", headers: {"Content-Type":"application/json"},
-                        body: JSON.stringify({code}) }
+                    ApiClient.getUrl("AniLibertyAuth/AcceptOtp", {api: false}),
+                    {
+                        method: "POST", headers: {"Content-Type": "application/json"},
+                        body: JSON.stringify({code})
+                    }
                 );
                 const data = await resp.json();
-                if (!data.success) throw new Error(data.error || ("HTTP "+resp.status));
+                if (!data.success) throw new Error(data.error || ("HTTP " + resp.status));
                 setAuthStatus("AcceptOtp OK.", "ok");
                 notify("AcceptOtp success");
-            } catch(e){
-                setAuthStatus("AcceptOtp error: "+e.message, "err");
-                notify("AcceptOtp error: "+e.message);
+            } catch (e) {
+                setAuthStatus("AcceptOtp error: " + e.message, "err");
+                notify("AcceptOtp error: " + e.message);
             } finally {
                 Dashboard.hideLoadingMsg();
             }
@@ -499,14 +701,19 @@
             await ApiClient.updatePluginConfiguration(pluginId, cfg);
             updateTokenBox(cfg.AniLibertyToken);
         }
+
         async function clearToken() {
             if (!confirm("Clear current JWT token?")) return;
             await updateTokenInConfig("");
             setAuthStatus("Token cleared");
         }
+
         async function copyToken() {
             const token = $("AniLibertyToken").textContent;
-            if (!token || token === "(not acquired)") { notify("No token to copy"); return; }
+            if (!token || token === "(not acquired)") {
+                notify("No token to copy");
+                return;
+            }
             try {
                 await navigator.clipboard.writeText(token.trim());
                 notify("Copied to clipboard");
@@ -518,6 +725,7 @@
         /* ========== LOGS ========== */
         let autoLogTimer = null;
         let newestOnTop = false;
+
         function renderLogs(text) {
             const box = $("debugOutput");
             const raw = $("chkRawMode").checked;
@@ -530,7 +738,7 @@
                 box.appendChild(pre);
                 return;
             }
-            const lines = (text || "(no logs)").split(/\r?\n/).filter(l => l.trim().length>0);
+            const lines = (text || "(no logs)").split(/\r?\n/).filter(l => l.trim().length > 0);
             const arr = newestOnTop ? lines.slice().reverse() : lines;
             for (const line of arr) {
                 const div = document.createElement("div");
@@ -539,14 +747,16 @@
                 box.appendChild(div);
             }
         }
+
         async function showLogs() {
             try {
                 const cfg = await ApiClient.getPluginConfiguration(pluginId);
                 renderLogs(cfg.LastTaskLog);
-            } catch(e){
+            } catch (e) {
                 renderLogs("Error: " + e.message);
             }
         }
+
         function toggleAutoLogs() {
             const btn = $("btnAutoLogs");
             if (autoLogTimer) {
@@ -559,6 +769,7 @@
                 showLogs();
             }
         }
+
         function toggleOrder() {
             newestOnTop = !newestOnTop;
             $("btnToggleOrder").innerHTML = (newestOnTop ? "⬇️" : "⬆️") +
@@ -577,14 +788,17 @@
                 if (!handle) return;
                 const appendMode = $(appendChkId).checked;
                 applyDirectoryPick(targetInputId, handle.name, appendMode);
-            } catch(e){
+            } catch (e) {
                 if (e.name !== "AbortError") console.warn("DirPicker error:", e);
             }
         }
 
         /* ========== EVENTS ========== */
         $("aniLibertyConfigurationPage").addEventListener("pageshow", () => loadCfg(false));
-        $("AniConfigForm").addEventListener("submit", e => { e.preventDefault(); saveCfg(); });
+        $("AniConfigForm").addEventListener("submit", e => {
+            e.preventDefault();
+            saveCfg();
+        });
         $("BtnReloadCfg").addEventListener("click", () => loadCfg(true));
 
         // Auth
@@ -604,8 +818,8 @@
         $("chkRawMode").addEventListener("change", showLogs);
 
         // Directory pick (only 🔍)
-        $("PickAllDirPicker").addEventListener("click", () => handleDirectoryPick("StrmAllPath","ChkAllAppend"));
-        $("PickFavDirPicker").addEventListener("click", () => handleDirectoryPick("StrmFavoritesPath","ChkFavAppend"));
+        $("PickAllDirPicker").addEventListener("click", () => handleDirectoryPick("StrmAllPath", "ChkAllAppend"));
+        $("PickFavDirPicker").addEventListener("click", () => handleDirectoryPick("StrmFavoritesPath", "ChkFavAppend"));
     </script>
 </div>
 </body>

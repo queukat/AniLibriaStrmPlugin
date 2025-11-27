@@ -3,7 +3,7 @@
 
 category: "Metadata"
 
-artifacts:                     # DLL-ы, которые попадут в ZIP
+artifacts: # DLL-ы, которые попадут в ZIP
   - "AniLibertyStrmPlugin.dll"
   - "Polly.dll"
   - "Polly.Core.dll"

@@ -4,7 +4,10 @@ namespace AniLibertyStrmPlugin.Utils;
 
 internal static class LogHelper
 {
-    private static string WithLevel(string level, string msg) => $"[{level}] {msg}";
+    private static string WithLevel(string level, string msg)
+    {
+        return $"[{level}] {msg}";
+    }
 
     public static void Info(this ILogger log, string fmt, params object?[] args)
     {

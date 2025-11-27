@@ -1,82 +1,79 @@
-﻿﻿// ===== File: AniLibertyFavoritesTask.cs (updated) =====
+﻿// ===== File: AniLibertyFavoritesTask.cs (updated) =====
 
-using System.Threading;
-using System.Threading.Tasks;
-using System.Collections.Generic;
-using System.Linq;
-using AniLibertyStrmPlugin;
 using AniLibertyStrmPlugin.Utils;
 using MediaBrowser.Model.Tasks;
 using Microsoft.Extensions.Logging;
 
-namespace AniLibertyStrmPlugin.Tasks
+namespace AniLibertyStrmPlugin.Tasks;
+
+public sealed class AniLibertyFavoritesTask(
+    IAniLibertyClient client,
+    IAniLibertyStrmGenerator gen,
+    ILogger<AniLibertyFavoritesTask> log
+) : IScheduledTask
 {
-    public sealed class AniLibertyFavoritesTask(
-        IAniLibertyClient client,
-        IAniLibertyStrmGenerator gen,
-        ILogger<AniLibertyFavoritesTask> log
-    ) : IScheduledTask
+    private readonly IAniLibertyClient _client = client;
+    private readonly IAniLibertyStrmGenerator _gen = gen;
+    private readonly ILogger<AniLibertyFavoritesTask> _log = log;
+
+    public bool IsHidden => false;
+    public string Name => "Generate AniLiberty STRM (Favorites Only)";
+    public string Category => "AniLiberty";
+    public string Description => "Fetches AniLiberty favorites and generates .strm + .edl + .nfo.";
+    public string Key => "AniLibertyStrmFavoritesOnly";
+
+    public IEnumerable<TaskTriggerInfo> GetDefaultTriggers()
     {
-        private readonly IAniLibertyClient _client = client;
-        private readonly IAniLibertyStrmGenerator _gen = gen;
-        private readonly ILogger<AniLibertyFavoritesTask> _log = log;
+        return Array.Empty<TaskTriggerInfo>();
+    }
 
-        public bool   IsHidden    => false;
-        public string Name        => "Generate AniLiberty STRM (Favorites Only)";
-        public string Category    => "AniLiberty";
-        public string Description => "Fetches AniLiberty favorites and generates .strm + .edl + .nfo.";
-        public string Key         => "AniLibertyStrmFavoritesOnly";
+    public async Task ExecuteAsync(IProgress<double> progress, CancellationToken token)
+    {
+        var cfg = Plugin.Instance.Configuration;
+        _log.Info("=== AniLibertyFavoritesTask started ===");
 
-        public IEnumerable<TaskTriggerInfo> GetDefaultTriggers() => Array.Empty<TaskTriggerInfo>();
-
-        public async Task ExecuteAsync(IProgress<double> progress, CancellationToken token)
+        try
         {
-            var cfg = Plugin.Instance.Configuration;
-            _log.Info("=== AniLibertyFavoritesTask started ===");
-
-            try
+            if (!cfg.EnableFavorites)
             {
-                if (!cfg.EnableFavorites)
-                {
-                    _log.Info("Favorites catalogue updates disabled — skipping task.");
-                    return;
-                }
-
-                if (string.IsNullOrWhiteSpace(cfg.AniLibertyToken))
-                {
-                    _log.Warn("No auth token – aborting.");
-                    return;
-                }
-
-                _log.Info("Fetching favourites pageSize={0}, maxPages={1} …",
-                          cfg.FavoritesPageSize, cfg.FavoritesMaxPages);
-
-                var titles = await _client.FetchFavoritesAsync(
-                    cfg.AniLibertyToken,
-                    cfg.FavoritesPageSize,
-                    cfg.FavoritesMaxPages,
-                    token);
-
-                _log.Info("Total favourites fetched: {0}", titles.Count);
-
-                await _gen.GenerateTitlesAsync(
-                    titles,
-                    cfg.StrmFavoritesPath,
-                    cfg.PreferredResolution,
-                    progress,
-                    token);
-
-                FavoritesCache.Update(titles.Select(t => t.Id));
+                _log.Info("Favorites catalogue updates disabled — skipping task.");
+                return;
             }
-            catch (Exception ex)
+
+            if (string.IsNullOrWhiteSpace(cfg.AniLibertyToken))
             {
-                _log.Err(ex, "AniLibertyFavoritesTask failed");
+                _log.Warn("No auth token – aborting.");
+                return;
             }
-            finally
-            {
-                _log.Info("=== AniLibertyFavoritesTask done ===");
-                Plugin.Instance.FlushLog();
-            }
+
+            _log.Info("Fetching favourites pageSize={0}, maxPages={1} …",
+                cfg.FavoritesPageSize, cfg.FavoritesMaxPages);
+
+            var titles = await _client.FetchFavoritesAsync(
+                cfg.AniLibertyToken,
+                cfg.FavoritesPageSize,
+                cfg.FavoritesMaxPages,
+                token);
+
+            _log.Info("Total favourites fetched: {0}", titles.Count);
+
+            await _gen.GenerateTitlesAsync(
+                titles,
+                cfg.StrmFavoritesPath,
+                cfg.PreferredResolution,
+                progress,
+                token);
+
+            FavoritesCache.Update(titles.Select(t => t.Id));
+        }
+        catch (Exception ex)
+        {
+            _log.Err(ex, "AniLibertyFavoritesTask failed");
+        }
+        finally
+        {
+            _log.Info("=== AniLibertyFavoritesTask done ===");
+            Plugin.Instance.FlushLog();
         }
     }
 }
