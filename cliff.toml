@@ -1,34 +1,42 @@
-﻿
-
-[git]
-
+﻿[git]
 tag_pattern = "v[0-9].*"
 
-
 [changelog]
-
 header = ""
 footer = ""
-trim = true
-
-[git.commit_parsers]
-
+trim   = true
 
 [[git.commit_parsers]]
 message = "^feat"
-group = "Features"
+group   = "Features"
 
 [[git.commit_parsers]]
 message = "^fix"
-group = "Fixes"
+group   = "Fixes"
 
 [[git.commit_parsers]]
 message = "^refactor"
-group = "Refactoring"
+group   = "Refactoring"
+
+[[git.commit_parsers]]
+message = "^build"
+group   = "Build"
+
+[[git.commit_parsers]]
+message = "^ci"
+group   = "CI"
+
+[[git.commit_parsers]]
+message = "^docs"
+group   = "Docs"
+
+[[git.commit_parsers]]
+message = "^test"
+group   = "Tests"
 
 [[git.commit_parsers]]
 message = ".*"
-group = "Other"
+group   = "Other"
 
 [git.remotes]
 github = "https://github.com/queukat/AniLibertyStrmPlugin"
