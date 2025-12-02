@@ -1,22 +1,22 @@
 [
   {
     "guid": "cce0798d-c8b7-4265-b08c-dc9e7bd3fc0f",
-    "name": "AniLibria STRM Plugin",
-    "description": "Creates .strm / .edl / .nfo files for AniLibria titles and favourites.\n",
+    "name": "AniLiberty STRM Plugin",
+    "description": "Creates .strm / .edl / .nfo files for AniLiberty titles and favourites.\n",
     "overview": "Generates STRM libraries for the full catalogue and/or user favourites, with EDL intro-skip and proper NFO metadata.\n",
     "owner": "queukat",
     "category": "Metadata",
     "versions": [
       {
-        "version": "2.0.0.2",
-        "changelog": "• Removed Jellyfin core DLLs from the bundle\n• Added Polly retry logic only (Polly.*, Microsoft.Extensions.Http.Polly)\n• Target ABI bumped to 10.10.0.0\n",
-        "targetAbi": "10.10.0.0",
-        "sourceUrl": "https://queukat.github.io/AniLibriaStrmPlugin/plugins//anilibria-strm-plugin/anilibria-strm-plugin_2.0.0.2.zip",
-        "checksum": "363d8329de8f3916312c4772aac38681",
-        "timestamp": "2025-11-27T21:30:28Z"
+        "version": "2.0.0.3",
+        "changelog": "• Removed Jellyfin core DLLs from the bundle\n• Added Polly retry logic only (Polly.*, Microsoft.Extensions.Http.Polly)\n• Target ABI bumped to 10.11.0.0\n",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://queukat.github.io/AniLibriaStrmPlugin/plugins/aniliberty-strm-plugin/aniliberty-strm-plugin_2.0.0.3.zip",
+        "checksum": "1f0e4ad290a0cab0a9dc069e7862a567",
+        "timestamp": "2025-12-02T11:30:25Z"
       }
     ],
     "image": "icon.png",
-    "imageUrl": "https://queukat.github.io/AniLibriaStrmPlugin/plugins//anilibria-strm-plugin/icon.png"
+    "imageUrl": "https://queukat.github.io/AniLibriaStrmPlugin/plugins/aniliberty-strm-plugin/icon.png"
   }
 ]
