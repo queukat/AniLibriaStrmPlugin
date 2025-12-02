@@ -42,10 +42,13 @@ public sealed class AniLibertyFavoritesTask(
 
             if (string.IsNullOrWhiteSpace(cfg.AniLibertyToken))
             {
-                _log.Warn("No auth token – aborting.");
-                return;
+                const string userMessage =
+                    "No auth token – aborting.";
+                
+                _log.Warn(userMessage);
+                throw new InvalidOperationException(userMessage);
             }
-
+            
             _log.Info("Fetching favourites pageSize={0}, maxPages={1} …",
                 cfg.FavoritesPageSize, cfg.FavoritesMaxPages);
 
