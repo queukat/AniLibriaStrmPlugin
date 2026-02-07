@@ -12,9 +12,8 @@ artifacts: # DLL-ы, которые попадут в ZIP
   - "icon.png"
 
 changelog: |
-  • Removed Jellyfin core DLLs from the bundle
-  • Added Polly retry logic only (Polly.*, Microsoft.Extensions.Http.Polly)
-  • Target ABI bumped to 10.11.0.0
+  • See GitHub Release notes for details
+
 
 description: >
   Creates .strm / .edl / .nfo files for AniLiberty titles and favourites.
@@ -28,7 +27,7 @@ owner: "queukat"
 
 targetAbi: "10.11.0.0"
 
-# JPRM перепишет version тегом, если вы запускаете workflow по push-тегу.
-version: "2.0.0.6"
+version: "dev"
+
 
 image: Resources/icon.png

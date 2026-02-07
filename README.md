@@ -1,6 +1,6 @@
 # AniLiberty STRM Plugin for Jellyfin
 
-![icon](icon.png)
+![icon](Resources/icon.png)
 
 Generate **`.strm` / `.nfo` / `.edl`** (and optionally native *Skip Intro* markers) for every title that the Russian
 fansub site **AniLiberty / AniLibria** hosts — directly from your Jellyfin server (via the AniLiberty API v1).
@@ -16,17 +16,26 @@ fansub site **AniLiberty / AniLibria** hosts — directly from your Jellyfin ser
   - `SxxExx.strm` with HLS URL.
   - `SxxExx-thumb.jpg/png` (episode preview, if available).
   - `SxxExx.edl` (intro / credits skip).
-  - `SxxExx.nfo` (basic episode metadata).
+  - `SxxExx.nfo` (episode metadata: title (RU/EN when available), runtime, year).
 - **Intro‑skip**
   - Always generates classic **EDL** files.
   - On Jellyfin ≥ 10.11 additionally writes *Intro* / *Credits* chapter markers → native *Skip Intro* button.
+- **API v1 aware metadata**
+  - Uses `release.year` (API v1) for movies and show grouping (season object does **not** contain a year in v1).
+  - Better type handling: **MOVIE** is detected by `type.value`; **SPECIAL / OVA / OAD** are routed into **Season 00**.
 - **Robust HTTP layer**
-  - Auto‑retry with exponential back‑off (Polly).
-  - Separate HTTP clients for API and image downloads.
+  - DI-managed `HttpClient` for the AniLiberty API (consistent headers, `ResponseHeadersRead`).
+  - Auto‑retry with exponential back‑off (Polly) for transient errors **and HTTP 429 (Too Many Requests)**.
+  - Reused HTTP clients for media/image downloads to reduce overhead.
+- **Image handling**
+  - Supports API v1 image schema (`preview/thumbnail/optimized`) and prefers non‑optimized URLs when possible.
+  - Normalizes `.webp` URLs to `.jpg` and safely picks extensions even when URLs contain query parameters.
 - **Built‑in auth helper**
   - Login via **e‑mail + password** or **OTP** against AniLiberty API v1.
   - Plugin stores a **JWT** (`AniLibertyToken`) and device id; you don’t have to paste cookies manually.
-- Full logging into the plugin’s configuration page (including quick **Last Task Logs** viewer).
+- **UI logs that don’t explode**
+  - Full logging into the plugin’s configuration page (Last Task Logs).
+  - Optional **Enable debug logs** switch (very noisy): when OFF, DEBUG/TRACE aren’t stored in UI logs and per‑title progress is throttled.
 
 ---
 
@@ -39,7 +48,7 @@ fansub site **AniLiberty / AniLibria** hosts — directly from your Jellyfin ser
 | OS              | Anything Jellyfin runs on (Windows / Linux / macOS)   |
 
 Older Jellyfin 10.10 builds are **not** supported: the plugin is compiled against 10.11
-(Jellyfin.Controller / Jellyfin.Model 10.11.\*).
+(Jellyfin.Controller / Jellyfin.Model 10.11.*).
 
 ---
 
@@ -95,7 +104,14 @@ Open **Dashboard → Plugins → AniLiberty STRM**.
 | **Update favourites folder** | If unchecked, the “Favourites only” scheduled task will be skipped.    |
 | **Update full catalogue**    | If unchecked, the “All titles” scheduled task will be skipped.         |
 | Pagination settings          | API paging; change only if you hit rate limits or need to throttle.    |
-| Logging options              | Minimum UI log level + how many lines to keep in `LastTaskLog`.        |
+| Logging options              | UI min log level, **Enable debug logs**, and how many lines to keep.   |
+
+### Logging notes
+
+- **UiMinLogLevel** controls what gets stored in *Last Task Logs*.
+- **Enable debug logs (very noisy)**:
+  - When **OFF**: DEBUG/TRACE messages are not stored in UI logs; per‑title progress logging is throttled.
+  - When **ON**: UI logs become much more verbose (use it for troubleshooting).
 
 ### AniLiberty authentication
 
@@ -110,10 +126,9 @@ You have two flows:
      (`AniLibertyToken`). The token is shown in the *Token* box.
 
 2. **OTP flow**
-   - Press **Start** – the plugin requests a one‑time code for your device id.
+   - Press **Start** – the plugin requests a one‑time code for your device id (the last received code is shown on the page).
    - Enter the received code into the OTP field.
    - Press **Sign In** to exchange the code for a JWT and store it.
-   - (Optional) Press **Accept** to confirm the device via AniLiberty API.
 
 The token and device id are stored in the plugin configuration and reused by:
 

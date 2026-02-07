@@ -4,35 +4,111 @@ permissions:
   contents: write
 
 on:
-  #    -tag («Publish release»  UI
   release:
     types: [ released ]
 
-  #     Actions
   workflow_dispatch:
     inputs:
       version:
-        description: "Version to publish (leave empty to use latest tag)"
+        description: "Version/tag to publish (leave empty to use latest tag)"
         required: false
 
 jobs:
   publish:
     runs-on: ubuntu-latest
     env:
-      #  ё      
+      BASE_URL: "https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/plugins"
       VERSION: ${{ github.event.inputs.version || github.event.release.tag_name }}
-
-      #  URL   ( manifest.json  !)
-      BASE_URL: "https://queukat.github.io/AniLibriaStrmPlugin/plugins"
 
     steps:
       - name: Checkout sources
         uses: actions/checkout@v4
 
+      - name: Fetch tags
+        run: git fetch --tags --force
+
+      - name: Resolve VERSION (if empty)
+        shell: bash
+        run: |
+          set -e
+          if [ -z "${VERSION}" ]; then
+            echo "VERSION=$(git describe --tags --abbrev=0)" >> "$GITHUB_ENV"
+          fi
+          echo "Using VERSION=$VERSION"
+
       - name: Setup .NET 9 SDK
         uses: actions/setup-dotnet@v3
         with:
           dotnet-version: 9.0.x
+
+
+      - name: Write RELEASE_BODY.txt
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_BODY_FROM_EVENT: ${{ github.event.release.body }}
+        run: |
+          set -euo pipefail
+
+          if [ -n "${RELEASE_BODY_FROM_EVENT}" ]; then
+            python3 - <<'PY'
+import os, pathlib
+body = os.environ.get("RELEASE_BODY_FROM_EVENT","")
+pathlib.Path("RELEASE_BODY.txt").write_text(body, encoding="utf-8")
+print("RELEASE_BODY.txt written from event body, chars:", len(body))
+PY
+          else
+            # Get release by tag name → .body :contentReference[oaicite:1]{index=1}
+            gh api "repos/${GITHUB_REPOSITORY}/releases/tags/${VERSION}" --jq '.body' > RELEASE_BODY.txt || true
+            if [ ! -s RELEASE_BODY.txt ]; then
+              echo "(no release notes)" > RELEASE_BODY.txt
+            fi
+            echo "RELEASE_BODY.txt written from API for tag ${VERSION}"
+          fi
+
+      # 2) Инжектим release notes в build.yaml: changelog: |
+      - name: Inject release notes into build.yaml (changelog)
+        shell: bash
+        run: |
+          python3 - <<'PY'
+import io, pathlib
+
+body = pathlib.Path("RELEASE_BODY.txt").read_text(encoding="utf-8").rstrip()
+if not body:
+    body = "(no release notes)"
+
+path = "build.yaml"
+lines = io.open(path, "r", encoding="utf-8").read().splitlines(True)
+
+# find "changelog: |"
+idx = None
+for i, ln in enumerate(lines):
+    if ln.lstrip().startswith("changelog:") and "|" in ln:
+        idx = i
+        break
+if idx is None:
+    raise SystemExit("build.yaml: cannot find 'changelog: |'")
+
+# remove old block (indented by 2 spaces) until next top-level key
+j = idx + 1
+while j < len(lines):
+    if lines[j].strip() == "":
+        j += 1
+        continue
+    if lines[j].startswith("  "):   # content of block scalar
+        j += 1
+        continue
+    break
+
+new_block = [("  " + ln.rstrip() + "\n") for ln in body.splitlines()]
+if not new_block:
+    new_block = ["  (no release notes)\n"]
+
+lines = lines[:idx+1] + new_block + lines[j:]
+
+io.open(path, "w", encoding="utf-8", newline="").writelines(lines)
+print("build.yaml changelog injected, lines:", len(new_block))
+PY
 
       - name: Build plugin (JPRM)
         uses: oddstr13/jellyfin-plugin-repository-manager@v1.1.1
@@ -40,33 +116,30 @@ jobs:
         with:
           dotnet-target: net9.0
           version: ${{ env.VERSION }}
-      
-      # ───  jprm  master ───────────────────────────────────────────
+
       - name: Install jprm CLI
         run: |
           python -m pip install --quiet \
             "git+https://github.com/oddstr13/jellyfin-plugin-repository-manager@v1.1.1"
-      
-      
-      # ───  publish-dir   manifest ────────────────────────
+
       - name: Prepare publish directory + update manifest
+        shell: bash
         run: |
-          set -e
+          set -euo pipefail
           mkdir -p publish/plugins
           cp "${{ steps.jprm.outputs.artifact }}" publish/plugins/
-      
+
           pushd publish/plugins
-      
-          BASE_URL="https://queukat.github.io/AniLibriaStrmPlugin/plugins"
+
           ZIPNAME=$(basename "${{ steps.jprm.outputs.artifact }}")
           ICON_PATH="aniliberty-strm-plugin/icon.png"
           ICON_URL="${BASE_URL}/${ICON_PATH}"
-      
-          # 1) manifest.json →  , ё
+
+          # 1) manifest.json
           [ -f manifest.json ] || echo "[]" > manifest.json
           jprm repo add . "./${ZIPNAME}"
-      
-          # 2)  
+
+          # 2) переписываем ссылки на абсолютные
           jq --arg base "${BASE_URL}" --arg icon "${ICON_URL}" '
             map(
               .imageUrl |= (if startswith("http") then . else $icon end) |
@@ -80,16 +153,12 @@ jobs:
             )
           ' manifest.json > manifest.tmp && mv manifest.tmp manifest.json
           popd
-      
+
       - name: Copy plugin icon to pages
         run: |
           mkdir -p publish/plugins/aniliberty-strm-plugin
           cp Resources/icon.png publish/plugins/aniliberty-strm-plugin/icon.png
 
-
-      # ─────────────────────────────────────────────────────────
-      #    gh-pages  ➜  GitHub Pages
-      # ─────────────────────────────────────────────────────────
       - name: Deploy to gh-pages
         uses: peaceiris/actions-gh-pages@v4
         with:
