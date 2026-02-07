@@ -14,7 +14,6 @@ artifacts: # DLL-ы, которые попадут в ZIP
 changelog: |
   • See GitHub Release notes for details
 
-
 description: >
   Creates .strm / .edl / .nfo files for AniLiberty titles and favourites.
 
@@ -27,7 +26,6 @@ owner: "queukat"
 
 targetAbi: "10.11.0.0"
 
-version: "dev"
-
+version: "0.0.0"
 
 image: Resources/icon.png
