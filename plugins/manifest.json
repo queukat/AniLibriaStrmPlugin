@@ -8,12 +8,12 @@
     "category": "Metadata",
     "versions": [
       {
-        "version": "0.0.0.0",
+        "version": "2.0.0.4",
         "changelog": "• See GitHub Release notes for details\n",
         "targetAbi": "10.11.0.0",
-        "sourceUrl": "https://queukat.github.io/AniLibriaStrmPlugin/plugins/aniliberty-strm-plugin/aniliberty-strm-plugin_0.0.0.0.zip",
-        "checksum": "15cdd04930e6ee95a79a3c449708511e",
-        "timestamp": "2026-02-07T22:34:36Z"
+        "sourceUrl": "https://queukat.github.io/AniLibriaStrmPlugin/plugins/aniliberty-strm-plugin/aniliberty-strm-plugin_2.0.0.4.zip",
+        "checksum": "cc1ecfe63739e2ba5c89891a871172ec",
+        "timestamp": "2026-02-07T22:39:13Z"
       }
     ],
     "image": "icon.png",
