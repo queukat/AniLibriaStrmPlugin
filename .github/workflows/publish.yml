@@ -71,19 +71,15 @@ jobs:
           set -euo pipefail
 
           if [ -n "${RELEASE_BODY_FROM_EVENT:-}" ]; then
-            python3 - <<'PY'
-            import os, pathlib
-            body = os.environ.get("RELEASE_BODY_FROM_EVENT", "")
-            pathlib.Path("RELEASE_BODY.txt").write_text(body, encoding="utf-8")
-            print("RELEASE_BODY.txt written from event body, chars:", len(body))
-            PY
+            printf '%s' "$RELEASE_BODY_FROM_EVENT" > RELEASE_BODY.txt
           else
             gh api "repos/${GITHUB_REPOSITORY}/releases/tags/${VERSION}" --jq '.body' > RELEASE_BODY.txt || true
-            if [ ! -s RELEASE_BODY.txt ]; then
-              echo "(no release notes)" > RELEASE_BODY.txt
-            fi
-            echo "RELEASE_BODY.txt written from API for tag ${VERSION}"
           fi
+
+          if [ ! -s RELEASE_BODY.txt ]; then
+            echo "(no release notes)" > RELEASE_BODY.txt
+          fi
+
 
 
       - name: Build plugin (JPRM)
