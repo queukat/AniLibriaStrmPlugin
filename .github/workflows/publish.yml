@@ -51,14 +51,8 @@ jobs:
           set -euo pipefail
 
           if [ -n "${RELEASE_BODY_FROM_EVENT}" ]; then
-            python3 - <<'PY'
-import os, pathlib
-body = os.environ.get("RELEASE_BODY_FROM_EVENT","")
-pathlib.Path("RELEASE_BODY.txt").write_text(body, encoding="utf-8")
-print("RELEASE_BODY.txt written from event body, chars:", len(body))
-PY
+            python3 -c 'import os,pathlib; body=os.environ.get("RELEASE_BODY_FROM_EVENT",""); pathlib.Path("RELEASE_BODY.txt").write_text(body, encoding="utf-8"); print("RELEASE_BODY.txt written from event body, chars:", len(body))'
           else
-            # Get release by tag name → .body :contentReference[oaicite:1]{index=1}
             gh api "repos/${GITHUB_REPOSITORY}/releases/tags/${VERSION}" --jq '.body' > RELEASE_BODY.txt || true
             if [ ! -s RELEASE_BODY.txt ]; then
               echo "(no release notes)" > RELEASE_BODY.txt
@@ -66,49 +60,31 @@ PY
             echo "RELEASE_BODY.txt written from API for tag ${VERSION}"
           fi
 
+
       # 2) Инжектим release notes в build.yaml: changelog: |
-      - name: Inject release notes into build.yaml (changelog)
+      - name: Write RELEASE_BODY.txt
         shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_BODY_FROM_EVENT: ${{ github.event.release.body }}
         run: |
-          python3 - <<'PY'
-import io, pathlib
+          set -euo pipefail
 
-body = pathlib.Path("RELEASE_BODY.txt").read_text(encoding="utf-8").rstrip()
-if not body:
-    body = "(no release notes)"
+          if [ -n "${RELEASE_BODY_FROM_EVENT:-}" ]; then
+            python3 - <<'PY'
+            import os, pathlib
+            body = os.environ.get("RELEASE_BODY_FROM_EVENT", "")
+            pathlib.Path("RELEASE_BODY.txt").write_text(body, encoding="utf-8")
+            print("RELEASE_BODY.txt written from event body, chars:", len(body))
+            PY
+          else
+            gh api "repos/${GITHUB_REPOSITORY}/releases/tags/${VERSION}" --jq '.body' > RELEASE_BODY.txt || true
+            if [ ! -s RELEASE_BODY.txt ]; then
+              echo "(no release notes)" > RELEASE_BODY.txt
+            fi
+            echo "RELEASE_BODY.txt written from API for tag ${VERSION}"
+          fi
 
-path = "build.yaml"
-lines = io.open(path, "r", encoding="utf-8").read().splitlines(True)
-
-# find "changelog: |"
-idx = None
-for i, ln in enumerate(lines):
-    if ln.lstrip().startswith("changelog:") and "|" in ln:
-        idx = i
-        break
-if idx is None:
-    raise SystemExit("build.yaml: cannot find 'changelog: |'")
-
-# remove old block (indented by 2 spaces) until next top-level key
-j = idx + 1
-while j < len(lines):
-    if lines[j].strip() == "":
-        j += 1
-        continue
-    if lines[j].startswith("  "):   # content of block scalar
-        j += 1
-        continue
-    break
-
-new_block = [("  " + ln.rstrip() + "\n") for ln in body.splitlines()]
-if not new_block:
-    new_block = ["  (no release notes)\n"]
-
-lines = lines[:idx+1] + new_block + lines[j:]
-
-io.open(path, "w", encoding="utf-8", newline="").writelines(lines)
-print("build.yaml changelog injected, lines:", len(new_block))
-PY
 
       - name: Build plugin (JPRM)
         uses: oddstr13/jellyfin-plugin-repository-manager@v1.1.1
