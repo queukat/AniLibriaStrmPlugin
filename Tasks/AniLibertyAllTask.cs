@@ -43,10 +43,11 @@ public sealed class AniLibertyAllTask : IScheduledTask
     }
 #endif
 
-
     public async Task ExecuteAsync(IProgress<double> progress, CancellationToken token)
     {
-        var cfg = Plugin.Instance.Configuration;
+        var plugin = Plugin.Instance ?? throw new InvalidOperationException("Plugin instance is not initialized.");
+        var cfg = plugin.Configuration;
+
         _log.Info("=== AniLibertyAllTask started ===");
 
         try
@@ -66,6 +67,7 @@ public sealed class AniLibertyAllTask : IScheduledTask
             _log.Info("Fetching full title list …");
             _log.LogDebug("Params: pageSize={0}, maxPages={1}",
                 cfg.AllTitlesPageSize, cfg.AllTitlesMaxPages);
+
             var titles = await _client.FetchAllTitlesAsync(
                 cfg.AllTitlesPageSize,
                 cfg.AllTitlesMaxPages,
@@ -87,7 +89,7 @@ public sealed class AniLibertyAllTask : IScheduledTask
         finally
         {
             _log.Info("=== AniLibertyAllTask done ===");
-            Plugin.Instance.FlushLog();
+            plugin.FlushLog();
         }
     }
 }

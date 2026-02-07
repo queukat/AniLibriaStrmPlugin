@@ -1,15 +1,15 @@
-﻿using AniLibertyStrmPlugin.Tasks;
+﻿using System.Net;
+using AniLibertyStrmPlugin.Tasks;
 using MediaBrowser.Controller;
 using MediaBrowser.Controller.Plugins;
 using MediaBrowser.Model.Tasks;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging;
 using Polly;
 using Polly.Extensions.Http;
 
 namespace AniLibertyStrmPlugin;
 
-/// <summary>DI-   Jellyfin 10.11.</summary>
+/// <summary>DI для Jellyfin 10.11.</summary>
 public class AniLibertyServiceRegistrator : IPluginServiceRegistrator
 {
     void IPluginServiceRegistrator.RegisterServices(IServiceCollection services, IServerApplicationHost _)
@@ -19,12 +19,14 @@ public class AniLibertyServiceRegistrator : IPluginServiceRegistrator
 
     private static void Register(IServiceCollection services)
     {
-        /* ---- HttpClient  retry + UA ---- */
+        /* ---- HttpClient retry + UA ---- */
         services.AddHttpClient("AniLiberty", c =>
             {
                 c.Timeout = TimeSpan.FromSeconds(300);
                 c.DefaultRequestHeaders.UserAgent
                     .ParseAdd("Jellyfin-AniLibertyStrm/2.0 (+https://github.com/queukat/AniLibertyStrmPlugin)");
+                c.DefaultRequestHeaders.Accept.ParseAdd("application/json");
+                c.DefaultRequestHeaders.AcceptLanguage.ParseAdd("ru,en;q=0.8");
             })
             .AddPolicyHandler(PolicyHelpers.GetRetryPolicy());
 
@@ -32,7 +34,7 @@ public class AniLibertyServiceRegistrator : IPluginServiceRegistrator
         services.AddTransient<IAniLibertyClient>(sp =>
         {
             var http = sp.GetRequiredService<IHttpClientFactory>().CreateClient("AniLiberty");
-            var log = sp.GetRequiredService<ILogger<AniLibertyClient>>();
+            var log = sp.GetRequiredService<Microsoft.Extensions.Logging.ILogger<AniLibertyClient>>();
             return new AniLibertyClient(http, log);
         });
 
@@ -45,14 +47,15 @@ public class AniLibertyServiceRegistrator : IPluginServiceRegistrator
 
 internal static class PolicyHelpers
 {
-    private static readonly Random _rnd = new();
-
     public static IAsyncPolicy<HttpResponseMessage> GetRetryPolicy()
     {
         return HttpPolicyExtensions
             .HandleTransientHttpError()
-            .WaitAndRetryAsync(3, attempt =>
-                TimeSpan.FromSeconds(Math.Pow(2, attempt)) +
-                TimeSpan.FromMilliseconds(_rnd.Next(0, 1000)));
+            .OrResult(r => r.StatusCode == HttpStatusCode.TooManyRequests) // 429
+            .WaitAndRetryAsync(
+                3,
+                attempt =>
+                    TimeSpan.FromSeconds(Math.Pow(2, attempt)) +
+                    TimeSpan.FromMilliseconds(Random.Shared.Next(0, 1000)));
     }
 }

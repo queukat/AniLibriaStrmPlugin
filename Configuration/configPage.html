@@ -342,7 +342,15 @@
                             </div>
                         </div>
 
-                        <div class="inputContainer" style="max-width:220px">
+                        <label class="checkboxContainer" style="margin-top:.6em">
+                            <input id="EnableDebugLogs" is="emby-checkbox" type="checkbox">
+                            <span>Enable debug logs (very noisy)</span>
+                        </label>
+                        <div class="fieldDescription">
+                            When OFF: DEBUG/TRACE are not stored in UI logs, and per-title progress is throttled.
+                        </div>
+
+                        <div class="inputContainer" style="max-width:220px;margin-top:.8em">
                             <label for="LastLogMaxLines">Max UI log lines:</label>
                             <input id="LastLogMaxLines" is="emby-input" min="50" type="number">
                         </div>
@@ -392,15 +400,13 @@
 
                     <div class="auth-box">
                         <h4>2. OTP Flow</h4>
-                        <div class="mini dim">Start → Sign In → (optionally) Accept</div>
+                        <div class="mini dim">Start → Sign In</div>
                         <div class="otp-row">
                             <button class="raised condensed" id="BtnStartOtp" is="emby-button" type="button">➡️ Start
                             </button>
                             <input id="OtpCodeInput" is="emby-input" placeholder="OTP code" type="text">
                             <button class="raised condensed" id="BtnSignInOtp" is="emby-button" type="button">✅ Sign
                                 In
-                            </button>
-                            <button class="raised condensed" id="BtnAcceptOtp" is="emby-button" type="button">☑ Accept
                             </button>
                         </div>
                         <div class="mini">
@@ -529,6 +535,7 @@
                 $("LblDeviceId").textContent = cfg.AniDeviceId || "—";
                 $("LblCurrentOtp").textContent = cfg.CurrentOtpCode || "—";
                 $("UiMinLogLevel").value = cfg.UiMinLogLevel || "Information";
+                $("EnableDebugLogs").checked = cfg.EnableDebugLogs ?? false;
                 $("LastLogMaxLines").value = cfg.LastLogMaxLines ?? 800;
 
                 updateTokenBox(cfg.AniLibertyToken);
@@ -566,6 +573,7 @@
                 cfg.FavoritesPageSize = +$("FavoritesPageSize").value || 50;
                 cfg.FavoritesMaxPages = +$("FavoritesMaxPages").value || 50;
                 cfg.UiMinLogLevel = $("UiMinLogLevel").value;
+                cfg.EnableDebugLogs = $("EnableDebugLogs").checked;
                 cfg.LastLogMaxLines = +$("LastLogMaxLines").value || 800;
                 await ApiClient.updatePluginConfiguration(pluginId, cfg);
                 notify("Settings saved");
@@ -662,34 +670,6 @@
             } catch (e) {
                 setAuthStatus("SignInOtp error: " + e.message, "err");
                 notify("SignInOtp error: " + e.message);
-            } finally {
-                Dashboard.hideLoadingMsg();
-            }
-        }
-
-        async function acceptOtp() {
-            const code = $("OtpCodeInput").value.trim();
-            if (!code) {
-                notify("Enter OTP code");
-                return;
-            }
-            setAuthStatus("AcceptOtp…");
-            Dashboard.showLoadingMsg();
-            try {
-                const resp = await fetch(
-                    ApiClient.getUrl("AniLibertyAuth/AcceptOtp", {api: false}),
-                    {
-                        method: "POST", headers: {"Content-Type": "application/json"},
-                        body: JSON.stringify({code})
-                    }
-                );
-                const data = await resp.json();
-                if (!data.success) throw new Error(data.error || ("HTTP " + resp.status));
-                setAuthStatus("AcceptOtp OK.", "ok");
-                notify("AcceptOtp success");
-            } catch (e) {
-                setAuthStatus("AcceptOtp error: " + e.message, "err");
-                notify("AcceptOtp error: " + e.message);
             } finally {
                 Dashboard.hideLoadingMsg();
             }
@@ -805,7 +785,6 @@
         $("btnLoginAni").addEventListener("click", doLogin);
         $("BtnStartOtp").addEventListener("click", startOtp);
         $("BtnSignInOtp").addEventListener("click", signInOtp);
-        $("BtnAcceptOtp").addEventListener("click", acceptOtp);
         $("BtnCopyToken").addEventListener("click", copyToken);
         $("BtnClearToken").addEventListener("click", clearToken);
         $("BtnRefreshTokenBox").addEventListener("click", refreshTokenOnly);

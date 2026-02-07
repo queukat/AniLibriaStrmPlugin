@@ -1,8 +1,16 @@
 ﻿// ===== File: ManualStrmGenerationTests.cs =====
 // Ручной тест: берёт избранные релизы и генерит все папки сериалов/сезонов.
-// 1) Вставь AniToken и OutputDir ниже.
-// 2) Сними Skip у теста ([Fact] без параметров).
-// 3) Запусти через тестовый раннер.
+//
+// ВАЖНО:
+//  - Этот тест намеренно SKIP'нут по умолчанию, чтобы не запускаться в CI.
+//  - ТОКЕН НЕ ХРАНИМ В РЕПО.
+//
+// Как запустить локально:
+//  1) Задай переменные окружения:
+//     ANI_TOKEN      = <JWT AniLiberty>
+//     ANI_OUTPUT_DIR = <папка, куда складывать результат>
+//  2) Убери Skip у [Fact] (или временно закомментируй Skip строкой).
+//  3) Запусти тест.
 
 using System;
 using System.IO;
@@ -16,12 +24,6 @@ namespace AniLibertyStrmPlugin.Tests
 {
     public class ManualStrmGenerationTests
     {
-        // ← ВСТАВЬ СЮДА СВОЙ JWT AniLiberty
-        private const string AniToken = "eyJpdiI6InhHUGNVd1hiNFFKbVczenU5Zm9rTWc9PSIsInZhbHVlIjoidGdOejRwUko2RU5VTDFhTkwweXh1UTlXOWlaRGNqdmJGS2JJVTNzYVU3bC8yd0FwRWpubHVLZ0JzRVI0anl0VyIsIm1hYyI6IjlkNWFlMmVjYTVjZTY2YmUwNzBmNGI0ZDk0YzdlZGJiYzc3MzdjZDE4YWRlZGQzMWQ0ODA3NjQwYzg5NDJmMDYiLCJ0YWciOiIifQ";
-
-        // ← КУДА СКЛАДЫВАТЬ ПАПКИ СЕРИАЛОВ/СЕЗОНОВ
-        private const string OutputDir = @"D:\video\Anime\AniLibertyManualTest";
-
         // Какое разрешение предпочитать: "1080", "720" или "480"
         private const string PreferredResolution = "1080";
 
@@ -36,17 +38,19 @@ namespace AniLibertyStrmPlugin.Tests
             return new AniLibertyClient(http, log);
         }
 
-        // <<< ВАЖНО: вот этого атрибута не хватало >>>
-        [Fact()]
+        [Fact(Skip = "Manual test. Set ANI_TOKEN and ANI_OUTPUT_DIR and remove Skip to run locally.")]
         public async Task Generate_Folders_From_Favorites()
         {
-            if (string.IsNullOrWhiteSpace(AniToken) || AniToken == "PASTE_YOUR_TOKEN_HERE")
-                throw new InvalidOperationException("Сначала вставь JWT в константу AniToken.");
+            var aniToken = Environment.GetEnvironmentVariable("ANI_TOKEN") ?? string.Empty;
+            var outputDir = Environment.GetEnvironmentVariable("ANI_OUTPUT_DIR") ?? string.Empty;
 
-            if (string.IsNullOrWhiteSpace(OutputDir))
-                throw new InvalidOperationException("OutputDir не задан.");
+            if (string.IsNullOrWhiteSpace(aniToken))
+                throw new InvalidOperationException("ANI_TOKEN is empty. Set env var ANI_TOKEN to your JWT.");
 
-            Directory.CreateDirectory(OutputDir);
+            if (string.IsNullOrWhiteSpace(outputDir))
+                throw new InvalidOperationException("ANI_OUTPUT_DIR is empty. Set env var ANI_OUTPUT_DIR to output folder.");
+
+            Directory.CreateDirectory(outputDir);
 
             var client = NewClient();
             var genLogger = NullLogger<AniLibertyStrmGenerator>.Instance;
@@ -62,7 +66,7 @@ namespace AniLibertyStrmPlugin.Tests
             var ct = CancellationToken.None;
 
             // 1) тянем избранное
-            var favorites = await client.FetchFavoritesAsync(AniToken, PageSize, MaxPages, ct);
+            var favorites = await client.FetchFavoritesAsync(aniToken, PageSize, MaxPages, ct);
 
             if (favorites.Count == 0)
                 throw new InvalidOperationException("Избранное пустое или токен невалиден (API вернул 0 элементов).");
@@ -70,7 +74,7 @@ namespace AniLibertyStrmPlugin.Tests
             // 2) генерим STRM/папки/сезоны по тем же правилам, что и в плагине
             await generator.GenerateTitlesAsync(
                 favorites,
-                OutputDir,
+                outputDir,
                 PreferredResolution,
                 progress: null,
                 token: ct

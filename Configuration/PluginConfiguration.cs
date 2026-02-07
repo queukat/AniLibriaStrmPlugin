@@ -30,6 +30,9 @@ public class PluginConfiguration : BasePluginConfiguration
     // Минимальный уровень для попадания сообщений в LastTaskLog (UI)
     public LogLevel UiMinLogLevel { get; set; } = LogLevel.Information;
 
+    // Включать ли “шумные” debug/trace логи (и подробный прогресс по тайтлам)
+    public bool EnableDebugLogs { get; set; } = false;
+
     // Сколько строк хранить в LastTaskLog
     public int LastLogMaxLines { get; set; } = 800; // можно 800–1500
 }

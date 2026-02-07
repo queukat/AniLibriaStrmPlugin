@@ -3,15 +3,31 @@ using AniLibertyStrmPlugin.Converters;
 
 namespace AniLibertyStrmPlugin.Models;
 
+/// <summary>
+/// Основные модели AniLiberty API v1 (минимум нужный плагину).
+/// Важно:
+///  - в v1 year лежит на верхнем уровне релиза (поле "year"), а season НЕ содержит year
+///  - poster/preview — это image-схема с preview/thumbnail (+ optional optimized), а не "src"
+///  - у эпизода есть name/name_english, но нет description/plot
+/// </summary>
 public class ReleaseResponse
 {
     [JsonPropertyName("id")] public int Id { get; set; }
     [JsonPropertyName("alias")] public string Alias { get; set; } = string.Empty;
 
-    [JsonPropertyName("name")] public NameBlock Name { get; set; } = null!;
-    [JsonPropertyName("poster")] public PosterBlock Poster { get; set; } = null!;
+    [JsonPropertyName("type")] public ReleaseType? Type { get; set; }
+
+    // v1: год релиза — отдельное поле "year"
+    [JsonPropertyName("year")] public int Year { get; set; }
+
+    [JsonPropertyName("name")] public NameBlock Name { get; set; } = new();
+
+    // v1: poster — image(withOptimized): preview/thumbnail (+ optimized)
+    [JsonPropertyName("poster")] public ImageBlock Poster { get; set; } = new();
+
     [JsonPropertyName("description")] public string Description { get; set; } = string.Empty;
 
+    // v1: season = { value, description } (без year)
     [JsonPropertyName("season")] public SeasonBlock? Season { get; set; }
 
     [JsonPropertyName("episodes_total")]
@@ -23,9 +39,11 @@ public class ReleaseResponse
 
 public class SeasonBlock
 {
-    // winter / spring / summer / autumn  (. /anime/catalog/references/seasons)
+    // winter / spring / summer / autumn
     [JsonPropertyName("value")] public string Value { get; set; } = string.Empty;
-    [JsonPropertyName("year")] public int Year { get; set; }
+
+    // например "Осень"
+    [JsonPropertyName("description")] public string Description { get; set; } = string.Empty;
 }
 
 public class NameBlock
@@ -35,15 +53,33 @@ public class NameBlock
     [JsonPropertyName("alternative")] public string Alternative { get; set; } = string.Empty;
 }
 
-public class PosterBlock
+/// <summary>
+/// Image schema (commons.v1.models.components.image.withOptimized):
+///  - preview / thumbnail
+///  - optional optimized (preview/thumbnail)
+/// Плюс оставляем "src" для обратной совместимости, если вдруг где-то ещё встречается.
+/// </summary>
+public class ImageBlock
 {
-    [JsonPropertyName("src")] public string Src { get; set; } = string.Empty;
     [JsonPropertyName("preview")] public string Preview { get; set; } = string.Empty;
     [JsonPropertyName("thumbnail")] public string Thumbnail { get; set; } = string.Empty;
+
+    // legacy / backward compatibility
+    [JsonPropertyName("src")] public string Src { get; set; } = string.Empty;
+
+    [JsonPropertyName("optimized")] public ImageBlock? Optimized { get; set; }
 }
 
 public class EpisodeItem
 {
+    // v1: guid/string
+    [JsonPropertyName("id")] public string Id { get; set; } = string.Empty;
+
+    // v1: название эпизода
+    [JsonPropertyName("name")] public string Name { get; set; } = string.Empty;
+
+    [JsonPropertyName("name_english")] public string NameEnglish { get; set; } = string.Empty;
+
     [JsonPropertyName("ordinal")]
     [JsonConverter(typeof(IntNullableConverter))]
     public int? Ordinal { get; set; }
@@ -52,23 +88,24 @@ public class EpisodeItem
     [JsonPropertyName("hls_720")] public string? Hls720 { get; set; }
     [JsonPropertyName("hls_480")] public string? Hls480 { get; set; }
 
-    [JsonPropertyName("duration")] public int Duration { get; set; }
+    // docs: number (секунды)
+    public int Duration { get; set; }
 
     [JsonPropertyName("opening")] public OpeningBlock? Opening { get; set; }
     [JsonPropertyName("ending")] public OpeningBlock? Ending { get; set; }
 
-    [JsonPropertyName("preview")] public PreviewBlock? Preview { get; set; }
+    // v1: preview — image schema, не src-строка
+    [JsonPropertyName("preview")] public ImageBlock? Preview { get; set; }
+
+    [JsonPropertyName("sort_order")]
+    [JsonConverter(typeof(IntNullableConverter))]
+    public int? SortOrder { get; set; }
 }
 
 public class OpeningBlock
 {
     [JsonPropertyName("start")] public int? Start { get; set; }
     [JsonPropertyName("stop")] public int? Stop { get; set; }
-}
-
-public class PreviewBlock
-{
-    [JsonPropertyName("src")] public string Src { get; set; } = string.Empty;
 }
 
 /* ─────────────────────────────────────────────────────────────
@@ -87,7 +124,11 @@ public class FranchiseInfo
 public class FranchiseReleaseLink
 {
     [JsonPropertyName("id")] public string Id { get; set; } = string.Empty;
-    [JsonPropertyName("sort_order")] public int? SortOrder { get; set; }
+
+    [JsonPropertyName("sort_order")]
+    [JsonConverter(typeof(IntNullableConverter))]
+    public int? SortOrder { get; set; }
+
     [JsonPropertyName("release_id")] public int ReleaseId { get; set; }
     [JsonPropertyName("franchise_id")] public string FranchiseId { get; set; } = string.Empty;
 
@@ -101,13 +142,17 @@ public class FranchiseReleaseRef
     [JsonPropertyName("type")] public ReleaseType? Type { get; set; }
 
     // В ответе бывает просто year на верхнем уровне
-    [JsonPropertyName("year")] public int? Year { get; set; }
+    [JsonPropertyName("year")]
+    [JsonConverter(typeof(IntNullableConverter))]
+    public int? Year { get; set; }
 
     [JsonPropertyName("name")] public NameBlock? Name { get; set; }
 }
 
 public class ReleaseType
 {
-    [JsonPropertyName("value")] public string Value { get; set; } = string.Empty; // e.g. "TV", "Movie"
+    // enum: TV, ONA, WEB, OVA, OAD, MOVIE, DORAMA, SPECIAL
+    [JsonPropertyName("value")] public string Value { get; set; } = string.Empty;
+
     [JsonPropertyName("description")] public string Description { get; set; } = string.Empty;
 }

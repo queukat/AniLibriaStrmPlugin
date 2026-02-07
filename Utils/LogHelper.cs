@@ -8,7 +8,7 @@ internal static class LogHelper
     private static string WithLevel(string level, string msg)
         => $"[{level}] {msg}";
 
-    private static void AppendTaskLogSafe(string level, string msg)
+    private static void AppendTaskLogSafe(LogLevel level, string levelLabel, string msg)
     {
         try
         {
@@ -18,7 +18,7 @@ internal static class LogHelper
             if (plugin is null)
                 return;
 
-            plugin.AppendTaskLog(WithLevel(level, msg));
+            plugin.AppendTaskLog(WithLevel(levelLabel, msg), level);
         }
         catch
         {
@@ -26,8 +26,8 @@ internal static class LogHelper
         }
     }
 
-    private static void AppendTaskLogSafe(string level, string msg, Exception ex)
-        => AppendTaskLogSafe(level, $"{msg} — {ex.Message}");
+    private static void AppendTaskLogSafe(LogLevel level, string levelLabel, string msg, Exception ex)
+        => AppendTaskLogSafe(level, levelLabel, $"{msg} — {ex.Message}");
 
     public static void Info(this ILogger log, string fmt, params object?[] args)
     {
@@ -35,7 +35,7 @@ internal static class LogHelper
 
         var msg = string.Format(fmt, args);
         log.LogInformation(msg);
-        AppendTaskLogSafe("INFO", msg);
+        AppendTaskLogSafe(LogLevel.Information, "INFO", msg);
     }
 
     public static void Warn(this ILogger log, string fmt, params object?[] args)
@@ -44,7 +44,7 @@ internal static class LogHelper
 
         var msg = string.Format(fmt, args);
         log.LogWarning(msg);
-        AppendTaskLogSafe("WARN", msg);
+        AppendTaskLogSafe(LogLevel.Warning, "WARN", msg);
     }
 
     public static void Warn(this ILogger log, Exception ex, string fmt, params object?[] args)
@@ -53,7 +53,7 @@ internal static class LogHelper
 
         var msg = string.Format(fmt, args);
         log.LogWarning(ex, msg);
-        AppendTaskLogSafe("WARN", msg, ex);
+        AppendTaskLogSafe(LogLevel.Warning, "WARN", msg, ex);
     }
 
     public static void Err(this ILogger log, Exception ex, string fmt, params object?[] args)
@@ -62,18 +62,23 @@ internal static class LogHelper
 
         var msg = string.Format(fmt, args);
         log.LogError(ex, msg);
-        AppendTaskLogSafe("ERROR", msg, ex);
+        AppendTaskLogSafe(LogLevel.Error, "ERROR", msg, ex);
     }
 
     public static void Debug(this ILogger log, string fmt, params object?[] args)
     {
         if (log is null) return;
+
+        // Глобальный флажок “Debug logs” — если OFF, то не пишем debug вообще
+        var cfg = Plugin.Instance?.Configuration;
+        if (cfg?.EnableDebugLogs != true) return;
+
         if (!log.IsEnabled(LogLevel.Debug)) return;
 
         var msg = string.Format(fmt, args);
         log.LogDebug(msg);
 
-        // Ты раньше писал, что хочешь «полные» логи — оставляем DEBUG в task-логе.
-        AppendTaskLogSafe("DBG", msg);
+        // DEBUG в UI-лог только при включённом EnableDebugLogs (и дальше ещё фильтруется UiMinLogLevel)
+        AppendTaskLogSafe(LogLevel.Debug, "DBG", msg);
     }
 }

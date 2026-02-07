@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -36,30 +37,29 @@ public sealed record AniLibertyClient(HttpClient http, ILogger<AniLibertyClient>
 
     public async Task<string> GetStringWithLoggingAsync(string url, CancellationToken ct)
     {
-        var resp = await http.GetAsync(url, ct);
+        using var resp = await http.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, ct);
+        var body = await SafeReadAsync(resp, ct);
+
         if (!resp.IsSuccessStatusCode)
-        {
-            var body = await SafeReadAsync(resp, ct);
             log.LogError("HTTP {Code} for \"{Url}\": {Body}", (int)resp.StatusCode, url, Truncate(body, 300));
-        }
 
         resp.EnsureSuccessStatusCode();
-        return await resp.Content.ReadAsStringAsync(ct);
+        return body;
     }
 
     public async Task<string> GetStringAuthAsync(string url, string bearer, CancellationToken ct)
     {
         using var req = new HttpRequestMessage(HttpMethod.Get, url);
         req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", bearer);
-        var resp = await http.SendAsync(req, ct);
+
+        using var resp = await http.SendAsync(req, HttpCompletionOption.ResponseHeadersRead, ct);
+        var body = await SafeReadAsync(resp, ct);
+
         if (!resp.IsSuccessStatusCode)
-        {
-            var body = await SafeReadAsync(resp, ct);
             log.LogError("HTTP {Code} for \"{Url}\": {Body}", (int)resp.StatusCode, url, Truncate(body, 300));
-        }
 
         resp.EnsureSuccessStatusCode();
-        return await resp.Content.ReadAsStringAsync(ct);
+        return body;
     }
 
     public async Task<List<ReleaseResponse>> FetchAllTitlesAsync(int pageSize, int maxPages, CancellationToken ct)

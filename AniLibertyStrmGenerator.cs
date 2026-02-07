@@ -78,7 +78,21 @@ public sealed class AniLibertyStrmGenerator(
 
     private static readonly ConcurrentDictionary<string, double> _hlsDurationCache = new();
 
-    // ────────────────────── 2.  API ───────────────────────
+    // ────────────────────── 2.  media http (reuse) ──────────────────────
+    private static readonly HttpClient _mediaHttp = CreateMediaHttp(TimeSpan.FromSeconds(20));
+    private static readonly HttpClient _hlsHttp = CreateMediaHttp(TimeSpan.FromSeconds(10));
+
+    private static HttpClient CreateMediaHttp(TimeSpan timeout)
+    {
+        var http = new HttpClient { Timeout = timeout };
+        http.DefaultRequestHeaders.UserAgent.ParseAdd(
+            "Jellyfin-AniLibertyStrm/2.0 (+https://github.com/queukat/AniLibertyStrmPlugin)");
+        http.DefaultRequestHeaders.Accept.ParseAdd("*/*");
+        http.DefaultRequestHeaders.AcceptLanguage.ParseAdd("ru,en;q=0.8");
+        return http;
+    }
+
+    // ────────────────────── 3.  API ───────────────────────
     public async Task GenerateTitlesAsync(
         IEnumerable<ReleaseResponse> titles,
         string basePath,
@@ -91,12 +105,15 @@ public sealed class AniLibertyStrmGenerator(
         var list = titles as IList<ReleaseResponse> ?? titles.ToList();
         if (list.Count == 0) return;
 
+        var debugLogs = Plugin.Instance?.Configuration?.EnableDebugLogs == true;
+
         // Fallback-нумерация по году внутри групп одинаковых имён
+        // В v1 год лежит в релизе (field "year"), а не season.year
         var fallbackById = new Dictionary<int, int>();
         foreach (var grp in list.GroupBy(GroupKey))
         {
             var ordered = grp
-                .OrderBy(r => r.Season?.Year > 0 ? r.Season!.Year : int.MaxValue)
+                .OrderBy(r => r.Year > 0 ? r.Year : int.MaxValue)
                 .ThenBy(r => QuarterIndex(r.Season?.Value))
                 .ThenBy(r => r.Name?.English ?? r.Name?.Main ?? r.Alias ?? string.Empty,
                     StringComparer.OrdinalIgnoreCase)
@@ -116,7 +133,11 @@ public sealed class AniLibertyStrmGenerator(
             current++;
 
             var display = rel0.Name?.English ?? rel0.Name?.Main ?? rel0.Alias;
-            log.Info("({0}/{1}) \"{2}\"", current, total, display);
+
+            // По умолчанию НЕ спамим “по каждому тайтлу” — иначе UI-лог раздувается.
+            // При Debug logs = ON — пишем каждый, иначе: 1й, каждый 25й и последний.
+            if (debugLogs || current == 1 || current == total || current % 25 == 0)
+                log.Info("({0}/{1}) \"{2}\"", current, total, display);
 
             // Гидратация (если нет эпизодов в карточке каталога)
             var rel = rel0;
@@ -205,12 +226,16 @@ public sealed class AniLibertyStrmGenerator(
 
     private static bool LooksLikeMovie(ReleaseResponse rel, string title)
     {
+        // В v1 есть type.value (MOVIE) — это надёжнее, чем матчить по словам.
+        if (string.Equals(rel.Type?.Value, "MOVIE", StringComparison.OrdinalIgnoreCase))
+            return true;
+
         var oneEp = (rel.Episodes?.Count ?? 0) <= 1 || rel.EpisodesTotal.GetValueOrDefault(0) <= 1;
         var hasMovieWord = Regex.IsMatch(title, @"\b(movie|film|the\s*movie)\b", RegexOptions.IgnoreCase);
         return oneEp && hasMovieWord;
     }
 
-    // ─────────────────────── 3. генерация STRM → файлы ─────────────────────
+    // ─────────────────────── 4. генерация STRM → файлы ─────────────────────
 
     private async Task GenerateMovieAsync(
         ReleaseResponse rel,
@@ -233,7 +258,7 @@ public sealed class AniLibertyStrmGenerator(
         title = Regex.Replace(title, @"\bcode\s*[:\-]\s*", "Code ", RegexOptions.IgnoreCase);
         title = NormalizeTitleForFs(title);
 
-        var year = rel.Season?.Year > 0 ? rel.Season!.Year : DateTime.UtcNow.Year;
+        var year = rel.Year > 0 ? rel.Year : DateTime.UtcNow.Year;
         var folder = $"{title} ({year})";
         var movieDir = Path.Combine(basePath, folder);
         Directory.CreateDirectory(movieDir);
@@ -245,7 +270,7 @@ public sealed class AniLibertyStrmGenerator(
         if (!File.Exists(strmPath))
             await File.WriteAllTextAsync(strmPath, url, token);
 
-        var posterUrl = MakeFullUrl(rel.Poster?.Src ?? rel.Poster?.Preview ?? "");
+        var posterUrl = NormalizeImageUrlPreferJpg(MakeFullUrl(PickImageUrl(rel.Poster)));
         await DownloadIfAbsentAsync(posterUrl, Path.Combine(movieDir, "cover.jpg"), token);
 
         var plot = MakeSafeXml(rel.Description ?? "");
@@ -256,6 +281,7 @@ public sealed class AniLibertyStrmGenerator(
   {(orig != title ? $"  <originaltitle>{MakeSafeXml(orig)}</originaltitle>" : "")}
   <year>{year}</year>
   {(plot.Length > 0 ? $"  <plot>{plot}</plot>" : "")}
+  <lockdata>false</lockdata>
 </movie>";
 
         var nfoPath = Path.Combine(movieDir, $"{folder}.nfo");
@@ -282,9 +308,19 @@ public sealed class AniLibertyStrmGenerator(
         var altName = rel.Name?.Alternative?.Trim();
 
         var rawName = engName ?? ruName ?? rel.Alias ?? $"Title_{rel.Id}";
-        var isSpecialsTitle = Regex.IsMatch(rawName, @"\b(?:specials?)\b", RegexOptions.IgnoreCase);
-        if (isSpecialsTitle)
+
+        // SPECIAL/OVA/OAD лучше класть в Season 00, даже если слово "special" в названии не присутствует
+        var isSpecialsType =
+            string.Equals(rel.Type?.Value, "SPECIAL", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(rel.Type?.Value, "OVA", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(rel.Type?.Value, "OAD", StringComparison.OrdinalIgnoreCase);
+
+        var isSpecialsTitle = isSpecialsType ||
+                              Regex.IsMatch(rawName, @"\b(?:specials?)\b", RegexOptions.IgnoreCase);
+
+        if (!isSpecialsType && isSpecialsTitle)
             rawName = Regex.Replace(rawName, @"\b(?:specials?)\b", "", RegexOptions.IgnoreCase).Trim();
+
         var safeName = NormalizeTitleForFs(rawName).ToLowerInvariant();
 
         // ---- сезон -----------------------------------------------------
@@ -321,7 +357,7 @@ public sealed class AniLibertyStrmGenerator(
         Directory.CreateDirectory(seasonDir);
 
         // ---- постер ----------------------------------------------------
-        var posterUrl = MakeFullUrl(rel.Poster?.Src ?? rel.Poster?.Preview ?? "");
+        var posterUrl = NormalizeImageUrlPreferJpg(MakeFullUrl(PickImageUrl(rel.Poster)));
         await DownloadIfAbsentAsync(posterUrl, Path.Combine(showDir, "folder.jpg"), token);
         await DownloadIfAbsentAsync(posterUrl, Path.Combine(showDir, $"{seasonFolder}-poster.jpg"), token);
 
@@ -334,11 +370,22 @@ public sealed class AniLibertyStrmGenerator(
             var sortTitle = engName ?? ruName ?? displayTitle;
             var plot = MakeSafeXml(rel.Description?.Trim() ?? string.Empty);
 
+            // В tvshow.nfo хорошо бы писать год, но showDir общий на все сезоны
+            // → берём минимальный год по группе (если он вообще есть)
+            var gk = GroupKey(rel);
+            var showYear = allList
+                .Where(x => GroupKey(x) == gk)
+                .Select(x => x.Year)
+                .Where(y => y > 0)
+                .DefaultIfEmpty(0)
+                .Min();
+
             var xml = $@"<?xml version=""1.0"" encoding=""utf-8"" standalone=""yes""?>
 <tvshow>
   <title>{MakeSafeXml(displayTitle)}</title>
   {(originalTitle != displayTitle ? $"  <originaltitle>{MakeSafeXml(originalTitle)}</originaltitle>" : string.Empty)}
   {(sortTitle != displayTitle ? $"  <sorttitle>{MakeSafeXml(sortTitle)}</sorttitle>" : string.Empty)}
+  {(showYear > 0 ? $"  <year>{showYear}</year>" : string.Empty)}
   {(plot.Length > 0 ? $"  <plot>{plot}</plot><outline>{plot}</outline>" : string.Empty)}
   <lockdata>false</lockdata>
 </tvshow>";
@@ -373,14 +420,16 @@ public sealed class AniLibertyStrmGenerator(
             if (!File.Exists(strmPath))
                 await File.WriteAllTextAsync(strmPath, url, token);
 
-            // превью
-            if (!string.IsNullOrWhiteSpace(ep.Preview?.Src))
+            // превью (v1: preview.preview / preview.thumbnail)
+            var epPreviewUrlRaw = MakeFullUrl(PickImageUrl(ep.Preview));
+            var epPreviewUrl = NormalizeImageUrlPreferJpg(epPreviewUrlRaw);
+
+            if (!string.IsNullOrWhiteSpace(epPreviewUrl))
             {
-                var previewUrl = MakeFullUrl(ep.Preview.Src);
-                var ext = Path.GetExtension(previewUrl);
-                if (string.IsNullOrEmpty(ext)) ext = ".jpg";
+                // ВАЖНО: URL часто бывает с query (?x=..), Path.GetExtension() тогда возвращает ".jpg?..."
+                var ext = GetSafeImageExtensionFromUrl(epPreviewUrl);
                 var thumbPath = Path.Combine(seasonDir, $"S{seasonNum:00}E{epNum:00}-thumb{ext}");
-                await DownloadIfAbsentAsync(previewUrl, thumbPath, token);
+                await DownloadIfAbsentAsync(epPreviewUrl, thumbPath, token);
             }
 
             // ───── Skip-Intro / Credits ─────
@@ -458,17 +507,36 @@ public sealed class AniLibertyStrmGenerator(
             }
 
             // episode.nfo -------------------------------------------------
+            // В v1 есть name/name_english + duration, но нет plot/описания эпизода.
             var nfoPath = Path.ChangeExtension(strmPath, ".nfo");
             if (!File.Exists(nfoPath))
             {
-                var epRu = $"Episode {epNum}";
                 var showTitle = ruName ?? engName ?? safeName;
+
+                var epTitleRu = !string.IsNullOrWhiteSpace(ep.Name)
+                    ? ep.Name.Trim()
+                    : $"Episode {epNum}";
+
+                var epTitleEn = !string.IsNullOrWhiteSpace(ep.NameEnglish)
+                    ? ep.NameEnglish.Trim()
+                    : string.Empty;
+
+                var runtimeMin = ep.Duration > 0
+                    ? (int)Math.Round(ep.Duration / 60.0, MidpointRounding.AwayFromZero)
+                    : 0;
+
                 var xml = $@"<?xml version=""1.0"" encoding=""utf-8"" standalone=""yes""?>
 <episodedetails>
-  <title>{MakeSafeXml(epRu)}</title>
-  <season>{seasonNum}</season>
-  <episode>{epNum}</episode>
+  <title>{MakeSafeXml(epTitleRu)}</title>
+  {(epTitleEn.Length > 0 && !string.Equals(epTitleEn, epTitleRu, StringComparison.OrdinalIgnoreCase)
+      ? $"  <originaltitle>{MakeSafeXml(epTitleEn)}</originaltitle>"
+      : string.Empty)}
+  {(rel.Year > 0 ? $"  <year>{rel.Year}</year>" : string.Empty)}
+  {(runtimeMin > 0 ? $"  <runtime>{runtimeMin}</runtime>" : string.Empty)}
   <showtitle>{MakeSafeXml(showTitle)}</showtitle>
+  <episode>{epNum}</episode>
+  <season>{seasonNum}</season>
+  <lockdata>false</lockdata>
 </episodedetails>";
                 await File.WriteAllTextAsync(nfoPath, xml, Encoding.UTF8, token);
             }
@@ -533,17 +601,86 @@ public sealed class AniLibertyStrmGenerator(
 
     // ─────────────────────── helpers ─────────────────────────────
 
+    private static string PickImageUrl(ImageBlock? img)
+    {
+        if (img is null) return string.Empty;
+
+        static string First(params string?[] vals)
+            => vals.FirstOrDefault(v => !string.IsNullOrWhiteSpace(v)) ?? string.Empty;
+
+        // Prefer non-optimized URLs first (обычно jpg), optimized часто бывает webp
+        return First(
+            img.Src,
+            img.Preview,
+            img.Thumbnail,
+            img.Optimized?.Preview,
+            img.Optimized?.Thumbnail,
+            img.Optimized?.Src
+        );
+    }
+
+    private static string NormalizeImageUrlPreferJpg(string url)
+    {
+        if (string.IsNullOrWhiteSpace(url)) return url;
+
+        try
+        {
+            if (Uri.TryCreate(url, UriKind.Absolute, out var uri))
+            {
+                var path = uri.AbsolutePath;
+                if (path.EndsWith(".webp", StringComparison.OrdinalIgnoreCase))
+                {
+                    var newPath = path[..^5] + ".jpg";
+                    var builder = new UriBuilder(uri) { Path = newPath };
+                    return builder.Uri.ToString();
+                }
+            }
+        }
+        catch
+        {
+            // ignore
+        }
+
+        // fallback (на случай, если пришла строка без валидного Uri)
+        return url.EndsWith(".webp", StringComparison.OrdinalIgnoreCase)
+            ? url[..^5] + ".jpg"
+            : url;
+    }
+
+    private static string GetSafeImageExtensionFromUrl(string url)
+    {
+        if (string.IsNullOrWhiteSpace(url)) return ".jpg";
+
+        try
+        {
+            if (Uri.TryCreate(url, UriKind.Absolute, out var uri))
+            {
+                var ext = Path.GetExtension(uri.AbsolutePath);
+                if (string.IsNullOrWhiteSpace(ext)) return ".jpg";
+
+                ext = ext.ToLowerInvariant();
+                return ext is ".jpg" or ".jpeg" or ".png" ? ext : ".jpg";
+            }
+        }
+        catch
+        {
+            // ignore
+        }
+
+        var ext2 = Path.GetExtension(url);
+        if (string.IsNullOrWhiteSpace(ext2)) return ".jpg";
+
+        ext2 = ext2.ToLowerInvariant();
+        return ext2 is ".jpg" or ".jpeg" or ".png" ? ext2 : ".jpg";
+    }
+
     private async Task DownloadIfAbsentAsync(string url, string path, CancellationToken ct)
     {
         if (string.IsNullOrEmpty(url) || File.Exists(path)) return;
 
         try
         {
-            using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(20) };
-            http.DefaultRequestHeaders.UserAgent.ParseAdd(
-                "Jellyfin-AniLibertyStrm/1.0 (+https://github.com/queukat/AniLibertyStrmPlugin)");
-
-            var resp = await http.GetAsync(url, ct);
+            using var resp = await _mediaHttp.GetAsync(url, ct);
             if (!resp.IsSuccessStatusCode) return;
 
             var bytes = await resp.Content.ReadAsByteArrayAsync(ct);
@@ -633,8 +770,7 @@ public sealed class AniLibertyStrmGenerator(
 
         try
         {
-            using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(10) };
-            var playlist = await http.GetStringAsync(url, ct);
+            var playlist = await _hlsHttp.GetStringAsync(url, ct);
 
             double sum = 0;
             foreach (var line in playlist.Split('\n', StringSplitOptions.RemoveEmptyEntries))

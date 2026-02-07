@@ -1,10 +1,13 @@
-﻿// --- File: AniLibertyAuthController.cs (fixed) ---
+﻿// --- File: AniLibertyAuthController.cs (updated) ---
 
 using System.Net;
+using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Logging;
 
 namespace AniLibertyStrmPlugin;
 
@@ -16,115 +19,156 @@ namespace AniLibertyStrmPlugin;
 public class AniLibertyAuthController : ControllerBase
 {
     private const string ApiBase = "https://api.anilibria.app/api/v1";
+    private readonly IHttpClientFactory _httpFactory;
+
+    public AniLibertyAuthController(IHttpClientFactory httpFactory)
+    {
+        _httpFactory = httpFactory;
+    }
 
     // ─────────────────────────── 1) Логин/пароль ───────────────────────────
 
     [HttpPost("SignInLoginPass")]
-    public async Task<object> SignInLoginPass([FromBody] LoginRequest req)
+    public async Task<IActionResult> SignInLoginPass([FromBody] LoginRequest? req, CancellationToken ct)
     {
-        AppendLog($"SignInLoginPass called. login={req?.mail ?? "null"}");
+        AppendLog($"SignInLoginPass called. login={req?.Mail ?? "null"}");
 
-        if (req is null || string.IsNullOrEmpty(req.mail) || string.IsNullOrEmpty(req.passwd))
-            return Fail("No login/pass");
+        if (req is null || string.IsNullOrWhiteSpace(req.Mail) || string.IsNullOrWhiteSpace(req.Passwd))
+            return BadRequest(Fail("No login/pass"));
 
-        var body = JsonSerializer.Serialize(new { login = req.mail, password = req.passwd });
-        var resp = await PostJson($"{ApiBase}/accounts/users/auth/login", body);
+        var body = JsonSerializer.Serialize(new { login = req.Mail, password = req.Passwd });
+        var resp = await PostJsonAsync($"{ApiBase}/accounts/users/auth/login", body, bearer: null, ct);
 
         if (!resp.ok)
-            return Fail("Auth failed", resp.status, resp.body);
+            return StatusCode(ToStatusCode(resp.status), Fail("Auth failed", resp.status, resp.body));
 
         var token = ExtractToken(resp.body);
-        if (string.IsNullOrEmpty(token))
-            return Fail("No token in response", resp.status, resp.body);
+        if (string.IsNullOrWhiteSpace(token))
+            return StatusCode(ToStatusCode(resp.status), Fail("No token in response", resp.status, resp.body));
 
-        var cfg = Plugin.Instance.Configuration;
+        var plugin = RequirePlugin();
+        var cfg = plugin.Configuration;
         cfg.AniLibertyToken = token;
-        Plugin.Instance.UpdateConfiguration(cfg);
+        plugin.UpdateConfiguration(cfg);
 
-        return new { success = true, token, serverResponse = resp.body };
+        return Ok(new { success = true, token, serverResponse = resp.body });
     }
 
     // ────────────────────────────── 2) OTP ────────────────────────────────
 
     [HttpPost("StartOtp")]
-    public async Task<object> StartOtp()
+    public async Task<IActionResult> StartOtp(CancellationToken ct)
     {
-        var cfg = Plugin.Instance.Configuration;
-        if (string.IsNullOrEmpty(cfg.AniDeviceId))
+        var plugin = RequirePlugin();
+        var cfg = plugin.Configuration;
+
+        if (string.IsNullOrWhiteSpace(cfg.AniDeviceId))
         {
             cfg.AniDeviceId = Guid.NewGuid().ToString("N");
-            Plugin.Instance.UpdateConfiguration(cfg);
+            plugin.UpdateConfiguration(cfg);
         }
 
         var body = JsonSerializer.Serialize(new { device_id = cfg.AniDeviceId });
-        var resp = await PostJson($"{ApiBase}/accounts/otp/get", body);
+        var resp = await PostJsonAsync($"{ApiBase}/accounts/otp/get", body, bearer: null, ct);
 
         if (!resp.ok)
-            return Fail("OTP start failed", resp.status, resp.body);
+            return StatusCode(ToStatusCode(resp.status), Fail("OTP start failed", resp.status, resp.body));
 
+        // v1: { "otp": { "code": "058701", ... }, "remaining_time": 120 }
         string? otp = null;
         try
         {
             using var doc = JsonDocument.Parse(resp.body);
-            otp = doc.RootElement.GetProperty("otp").GetString();
+
+            if (doc.RootElement.TryGetProperty("otp", out var otpEl))
+            {
+                // на всякий случай поддержим и старый формат, если вдруг вернётся строка
+                if (otpEl.ValueKind == JsonValueKind.String)
+                {
+                    otp = otpEl.GetString();
+                }
+                else if (otpEl.ValueKind == JsonValueKind.Object &&
+                         otpEl.TryGetProperty("code", out var codeEl) &&
+                         codeEl.ValueKind == JsonValueKind.String)
+                {
+                    otp = codeEl.GetString();
+                }
+            }
         }
         catch
         {
             /* ignore */
         }
 
-        if (string.IsNullOrEmpty(otp))
-            return Fail("No otp in response", resp.status, resp.body);
+        if (string.IsNullOrWhiteSpace(otp))
+            return StatusCode(ToStatusCode(resp.status), Fail("No otp in response", resp.status, resp.body));
 
         cfg.CurrentOtpCode = otp;
-        Plugin.Instance.UpdateConfiguration(cfg);
+        plugin.UpdateConfiguration(cfg);
 
-        return new { success = true, otp, serverResponse = resp.body };
+        return Ok(new { success = true, otp, serverResponse = resp.body });
     }
 
     [HttpPost("AcceptOtp")]
-    public async Task<object> AcceptOtp([FromBody] OtpRequest req)
+    public async Task<IActionResult> AcceptOtp([FromBody] OtpRequest? req, CancellationToken ct)
     {
-        if (req is null || string.IsNullOrEmpty(req.code))
-            return Fail("No code");
+        if (req is null || string.IsNullOrWhiteSpace(req.Code))
+            return BadRequest(Fail("No code"));
 
-        var body = JsonSerializer.Serialize(new { req.code });
-        var resp = await PostJson(
+        var plugin = RequirePlugin();
+        var token = plugin.Configuration.AniLibertyToken;
+        if (string.IsNullOrWhiteSpace(token))
+            return BadRequest(Fail("No auth token"));
+
+        var body = JsonSerializer.Serialize(new { code = req.Code });
+        var resp = await PostJsonAsync(
             $"{ApiBase}/accounts/otp/accept",
             body,
-            Plugin.Instance.Configuration.AniLibertyToken);
+            bearer: token,
+            ct);
 
         return resp.ok
-            ? new { success = true, serverResponse = resp.body }
-            : Fail("AcceptOtp failed", resp.status, resp.body);
+            ? Ok(new { success = true, serverResponse = resp.body })
+            : StatusCode(ToStatusCode(resp.status), Fail("AcceptOtp failed", resp.status, resp.body));
     }
 
     [HttpPost("SignInOtp")]
-    public async Task<object> SignInOtp([FromBody] OtpRequest req)
+    public async Task<IActionResult> SignInOtp([FromBody] OtpRequest? req, CancellationToken ct)
     {
-        var cfg = Plugin.Instance.Configuration;
-        if (req is null || string.IsNullOrEmpty(req.code))
-            return Fail("No code");
-        if (string.IsNullOrEmpty(cfg.AniDeviceId))
-            return Fail("No deviceId");
+        var plugin = RequirePlugin();
+        var cfg = plugin.Configuration;
 
-        var body = JsonSerializer.Serialize(new { req.code, device_id = cfg.AniDeviceId });
-        var resp = await PostJson($"{ApiBase}/accounts/otp/login", body);
+        if (req is null || string.IsNullOrWhiteSpace(req.Code))
+            return BadRequest(Fail("No code"));
+        if (string.IsNullOrWhiteSpace(cfg.AniDeviceId))
+            return BadRequest(Fail("No deviceId"));
+
+        var body = JsonSerializer.Serialize(new { code = req.Code, device_id = cfg.AniDeviceId });
+        var resp = await PostJsonAsync($"{ApiBase}/accounts/otp/login", body, bearer: null, ct);
 
         if (!resp.ok)
-            return Fail("OTP login failed", resp.status, resp.body);
+            return StatusCode(ToStatusCode(resp.status), Fail("OTP login failed", resp.status, resp.body));
 
         var token = ExtractToken(resp.body);
-        if (string.IsNullOrEmpty(token))
-            return Fail("No token in response", resp.status, resp.body);
+        if (string.IsNullOrWhiteSpace(token))
+            return StatusCode(ToStatusCode(resp.status), Fail("No token in response", resp.status, resp.body));
 
         cfg.AniLibertyToken = token;
-        Plugin.Instance.UpdateConfiguration(cfg);
+        plugin.UpdateConfiguration(cfg);
 
-        return new { success = true, token, serverResponse = resp.body };
+        return Ok(new { success = true, token, serverResponse = resp.body });
     }
 
     // ──────────────────────────── helpers ─────────────────────────────
+
+    private static Plugin RequirePlugin()
+        => Plugin.Instance ?? throw new InvalidOperationException("Plugin instance is not initialized.");
+
+    private static int ToStatusCode(HttpStatusCode status)
+    {
+        var code = (int)status;
+        return code is >= 100 and <= 599 ? code : 500;
+    }
 
     private static string? ExtractToken(string json)
     {
@@ -151,27 +195,24 @@ public class AniLibertyAuthController : ControllerBase
         };
     }
 
-    private static async Task<(bool ok, HttpStatusCode status, string body)> PostJson(
+    private async Task<(bool ok, HttpStatusCode status, string body)> PostJsonAsync(
         string url,
         string json,
-        string? bearer = null)
+        string? bearer,
+        CancellationToken ct)
     {
         try
         {
-            using var client = new HttpClient();
-            // Нормальный UA и JSON:
-            client.DefaultRequestHeaders.UserAgent.ParseAdd(
-                "Jellyfin-AniLibertyStrm/2.0 (+https://github.com/queukat)");
-            client.DefaultRequestHeaders.Accept.ParseAdd("application/json");
-            client.DefaultRequestHeaders.AcceptLanguage.ParseAdd("ru,en;q=0.8");
+            var client = _httpFactory.CreateClient("AniLiberty");
 
-            if (!string.IsNullOrEmpty(bearer))
-                client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", bearer);
+            using var req = new HttpRequestMessage(HttpMethod.Post, url);
+            req.Content = new StringContent(json, Encoding.UTF8, "application/json");
 
-            var resp = await client.PostAsync(url,
-                new StringContent(json, Encoding.UTF8, "application/json"));
+            if (!string.IsNullOrWhiteSpace(bearer))
+                req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", bearer);
 
-            var body = await resp.Content.ReadAsStringAsync();
+            using var resp = await client.SendAsync(req, HttpCompletionOption.ResponseHeadersRead, ct);
+            var body = await resp.Content.ReadAsStringAsync(ct);
             return (resp.IsSuccessStatusCode, resp.StatusCode, body);
         }
         catch (OperationCanceledException)
@@ -186,19 +227,29 @@ public class AniLibertyAuthController : ControllerBase
 
     private static void AppendLog(string msg)
     {
-        // в консоль — со временем, в UI-лог — без повтора времени (его добавит AppendTaskLog)
+        // Пишем только если включён Debug logs (иначе UI-лог быстро раздувает)
+        var cfg = Plugin.Instance?.Configuration;
+        if (cfg?.EnableDebugLogs != true)
+            return;
+
         Console.WriteLine($"[AniLibertyAuth] {DateTime.Now:HH:mm:ss} {msg}");
-        Plugin.Instance.AppendTaskLog("[AniLibertyAuth] " + msg);
+
+        // В тестах/раньше инициализации плагина Instance может быть null.
+        Plugin.Instance?.AppendTaskLog("[AniLibertyAuth] " + msg, LogLevel.Debug);
     }
 }
 
-public class OtpRequest
+public sealed class OtpRequest
 {
-    public string? code { get; set; }
+    [JsonPropertyName("code")]
+    public string? Code { get; set; }
 }
 
-public class LoginRequest
+public sealed class LoginRequest
 {
-    public string? mail { get; set; }
-    public string? passwd { get; set; }
+    [JsonPropertyName("mail")]
+    public string? Mail { get; set; }
+
+    [JsonPropertyName("passwd")]
+    public string? Passwd { get; set; }
 }

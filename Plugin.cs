@@ -5,16 +5,15 @@ using MediaBrowser.Common.Plugins;
 using MediaBrowser.Model.Drawing;
 using MediaBrowser.Model.Plugins;
 using MediaBrowser.Model.Serialization;
+using Microsoft.Extensions.Logging;
 
 namespace AniLibertyStrmPlugin;
 
 /// <summary>
-///     плагина + хранитель конфигурации и буфера логов.
+///     Основной класс плагина + хранитель конфигурации и буфера логов.
 /// </summary>
 public sealed class Plugin : BasePlugin<PluginConfiguration>, IHasWebPages
 {
-    // ──────────────────────────   ───────────────────────────────
-    private readonly StringBuilder _logBuffer = new();
     private readonly object _logSync = new();
 
     public Plugin(IApplicationPaths paths, IXmlSerializer xml)
@@ -23,14 +22,13 @@ public sealed class Plugin : BasePlugin<PluginConfiguration>, IHasWebPages
         Instance = this;
     }
 
-    public static Plugin Instance { get; private set; }
+    public static Plugin? Instance { get; private set; }
 
     public override string Name => "AniLiberty STRM Plugin";
     public override Guid Id => Guid.Parse("cce0798d-c8b7-4265-b08c-dc9e7bd3fc0f");
 
     public ImageFormat ThumbImageFormat => ImageFormat.Png;
 
-    // ─────────────────────  - ──────────────────────
     public IEnumerable<PluginPageInfo> GetPages()
     {
         yield return new PluginPageInfo
@@ -40,8 +38,25 @@ public sealed class Plugin : BasePlugin<PluginConfiguration>, IHasWebPages
         };
     }
 
-    public void AppendTaskLog(string line)
+    public void AppendTaskLog(string line, LogLevel level = LogLevel.Information)
     {
+        // UI фильтр (конфиг)
+        try
+        {
+            // Debug/Trace по умолчанию НЕ пишем в UI-лог (слишком шумно)
+            if (Configuration != null &&
+                !Configuration.EnableDebugLogs &&
+                (level == LogLevel.Debug || level == LogLevel.Trace))
+                return;
+
+            if (Configuration != null && level < Configuration.UiMinLogLevel)
+                return;
+        }
+        catch
+        {
+            // не роняем логику из-за логов
+        }
+
         var ts = DateTime.Now.ToString("HH:mm:ss");
         var ln = $"[{ts}] {line}";
 
@@ -60,7 +75,6 @@ public sealed class Plugin : BasePlugin<PluginConfiguration>, IHasWebPages
             // Не пишем на диск на каждый чих — дисковый flush делай там, где уже делал (например, в finally задач)
         }
     }
-
 
     public void FlushLog()
     {
@@ -87,7 +101,6 @@ public sealed class Plugin : BasePlugin<PluginConfiguration>, IHasWebPages
         SaveConfiguration();
     }
 
-    // ──────────────────────────  ─────────────────────────────────
     public Stream GetThumbImage()
     {
         const string res = "AniLibertyStrmPlugin.Resources.icon.png";

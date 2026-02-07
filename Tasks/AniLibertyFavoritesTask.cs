@@ -29,7 +29,9 @@ public sealed class AniLibertyFavoritesTask(
 
     public async Task ExecuteAsync(IProgress<double> progress, CancellationToken token)
     {
-        var cfg = Plugin.Instance.Configuration;
+        var plugin = Plugin.Instance ?? throw new InvalidOperationException("Plugin instance is not initialized.");
+        var cfg = plugin.Configuration;
+
         _log.Info("=== AniLibertyFavoritesTask started ===");
 
         try
@@ -42,13 +44,12 @@ public sealed class AniLibertyFavoritesTask(
 
             if (string.IsNullOrWhiteSpace(cfg.AniLibertyToken))
             {
-                const string userMessage =
-                    "No auth token – aborting.";
-                
+                const string userMessage = "No auth token – aborting.";
+
                 _log.Warn(userMessage);
                 throw new InvalidOperationException(userMessage);
             }
-            
+
             _log.Info("Fetching favourites pageSize={0}, maxPages={1} …",
                 cfg.FavoritesPageSize, cfg.FavoritesMaxPages);
 
@@ -76,7 +77,7 @@ public sealed class AniLibertyFavoritesTask(
         finally
         {
             _log.Info("=== AniLibertyFavoritesTask done ===");
-            Plugin.Instance.FlushLog();
+            plugin.FlushLog();
         }
     }
 }
