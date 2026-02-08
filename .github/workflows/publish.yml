@@ -41,27 +41,6 @@ jobs:
         with:
           dotnet-version: 9.0.x
 
-
-      - name: Write RELEASE_BODY.txt
-        shell: bash
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          RELEASE_BODY_FROM_EVENT: ${{ github.event.release.body }}
-        run: |
-          set -euo pipefail
-
-          if [ -n "${RELEASE_BODY_FROM_EVENT}" ]; then
-            python3 -c 'import os,pathlib; body=os.environ.get("RELEASE_BODY_FROM_EVENT",""); pathlib.Path("RELEASE_BODY.txt").write_text(body, encoding="utf-8"); print("RELEASE_BODY.txt written from event body, chars:", len(body))'
-          else
-            gh api "repos/${GITHUB_REPOSITORY}/releases/tags/${VERSION}" --jq '.body' > RELEASE_BODY.txt || true
-            if [ ! -s RELEASE_BODY.txt ]; then
-              echo "(no release notes)" > RELEASE_BODY.txt
-            fi
-            echo "RELEASE_BODY.txt written from API for tag ${VERSION}"
-          fi
-
-
-      # 2) Инжектим release notes в build.yaml: changelog: |
       - name: Write RELEASE_BODY.txt
         shell: bash
         env:
@@ -79,6 +58,46 @@ jobs:
           if [ ! -s RELEASE_BODY.txt ]; then
             echo "(no release notes)" > RELEASE_BODY.txt
           fi
+
+      - name: Inject release notes into build.yaml changelog
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          python3 <<'PY'
+          from pathlib import Path
+
+          build_path = Path("build.yaml")
+          release_notes = Path("RELEASE_BODY.txt").read_text(encoding="utf-8").rstrip("\n")
+          if not release_notes.strip():
+            release_notes = "(no release notes)"
+
+          changelog_block = "\n".join(
+            ["changelog: |", *[f"  {line}" for line in release_notes.splitlines()]]
+          )
+
+          content = build_path.read_text(encoding="utf-8")
+          lines = content.splitlines()
+
+          start = None
+          end = len(lines)
+          for i, line in enumerate(lines):
+            if line.startswith("changelog:"):
+              start = i
+              break
+
+          if start is None:
+            raise SystemExit("'changelog:' section was not found in build.yaml")
+
+          for i in range(start + 1, len(lines)):
+            if lines[i] and not lines[i].startswith(" "):
+              end = i
+              break
+
+          new_lines = [*lines[:start], *changelog_block.splitlines(), *lines[end:]]
+          build_path.write_text("\n".join(new_lines) + "\n", encoding="utf-8")
+          print("build.yaml changelog updated from release notes")
+          PY
 
 
 
