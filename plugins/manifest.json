@@ -9,11 +9,11 @@
     "versions": [
       {
         "version": "2.0.0.4",
-        "changelog": "• See GitHub Release notes for details\n",
+        "changelog": "# AniLiberty API v1 Alignment, Better Metadata & Quieter Logs\n\nThis update improves AniLiberty authentication reliability, aligns the plugin with AniLiberty API v1 responses, and enhances generated metadata while keeping UI logs under control.\n\n## Authentication & OTP\n- Improved login and OTP endpoints with proper HTTP status codes and safer request validation.\n- Updated OTP parsing to support the API v1 format (`otp.code`) and kept backward compatibility for older responses.\n- OTP flow in the settings UI is simplified to **Start → Sign In** (the “Accept OTP” UI action was removed).\n\n## Networking reliability\n- Switched API calls to a reusable, DI-managed `HttpClient` (`IHttpClientFactory`) with consistent headers (User-Agent / Accept / Accept-Language).\n- Added retry handling for rate limits (**HTTP 429**) and transient errors.\n- Optimized HTTP reads using `ResponseHeadersRead` to reduce overhead and improve responsiveness.\n\n## STRM generation & metadata quality\n- Better year handling for AniLiberty v1 (`release.year` instead of `season.year`), including TV show year selection across grouped seasons.\n- More accurate content classification:\n  - Detects **MOVIE** by API `type.value` when available.\n  - Routes **SPECIAL / OVA / OAD** into **Season 00** more reliably.\n- Improved image handling:\n  - Supports v1 image schema (`preview/thumbnail/optimized`) and prefers non-optimized URLs when possible.\n  - Normalizes `.webp` URLs to `.jpg` and safely determines thumbnail file extensions even when URLs contain query parameters.\n- Episode NFO improvements:\n  - Writes episode titles (RU/EN when available), runtime, year, and sets `lockdata=false`.\n\n## Logging & settings\n- Added **“Enable debug logs (very noisy)”** setting:\n  - When OFF: DEBUG/TRACE aren’t stored in UI logs and per-title progress logging is throttled to avoid bloating the UI log.\n- UI log filtering now respects minimum log level and the debug toggle.\n\n## Developer / maintenance\n- Manual generation test is now **skipped by default** and uses environment variables (`ANI_TOKEN`, `ANI_OUTPUT_DIR`) so tokens aren’t stored in the repo.\n- Internal null-safety improvements around plugin initialization.\n\n## Not included\n- No changes to library scanning behavior or broader UI redesign beyond the OTP/auth/logging settings shown above.\n",
         "targetAbi": "10.11.0.0",
         "sourceUrl": "https://queukat.github.io/AniLibriaStrmPlugin/plugins/aniliberty-strm-plugin/aniliberty-strm-plugin_2.0.0.4.zip",
-        "checksum": "cc1ecfe63739e2ba5c89891a871172ec",
-        "timestamp": "2026-02-07T22:39:13Z"
+        "checksum": "6a8c53e7cb7a6411675e63844ea34505",
+        "timestamp": "2026-02-08T14:29:05Z"
       }
     ],
     "image": "icon.png",
