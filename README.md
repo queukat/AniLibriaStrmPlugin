@@ -104,7 +104,7 @@ Open **Dashboard → Plugins → AniLiberty STRM**.
 | **Update favourites folder** | If unchecked, the “Favourites only” scheduled task will be skipped.    |
 | **Update full catalogue**    | If unchecked, the “All titles” scheduled task will be skipped.         |
 | Pagination settings          | API paging; change only if you hit rate limits or need to throttle.    |
-| Logging options              | UI min log level, **Enable debug logs**, and how many lines to keep.   |
+| Logging options              | UI min log level, **Enable debug logs**, **Enable playback diagnostics logs**, and how many lines to keep. |
 
 ### Logging notes
 
@@ -112,6 +112,9 @@ Open **Dashboard → Plugins → AniLiberty STRM**.
 - **Enable debug logs (very noisy)**:
   - When **OFF**: DEBUG/TRACE messages are not stored in UI logs; per‑title progress logging is throttled.
   - When **ON**: UI logs become much more verbose (use it for troubleshooting).
+- **Enable playback diagnostics logs**:
+  - Adds per-episode diagnostics to *Last Task Logs*:
+    selected HLS URL, normalized URL, existing/new `.strm` value, and a server-side HLS probe summary.
 
 ### AniLiberty authentication
 
@@ -181,6 +184,73 @@ The repository already contains `build.yaml` and CI workflows that:
 - Compile the plugin for **net9.0 / Jellyfin 10.11**.
 - Package it together with dependencies (`Polly`, `Microsoft.Extensions.Http.Polly`, `icon.png`).
 - Publish the ZIP and `manifest.json` to GitHub Pages.
+
+---
+
+## 🔁 Release Automation
+
+The repository uses two workflows:
+
+- `.github/workflows/nightly.yml`
+  - Trigger: every push to `main`.
+  - Builds the plugin and updates a moving prerelease with tag `nightly`.
+  - Replaces assets in that single prerelease (no new tag per commit).
+
+- `.github/workflows/release.yml`
+  - Trigger: push to `main` where the **head commit message starts with `release:`**.
+  - Bumps patch part of 4-part version (`X.Y.Z.W`) in `build.yaml`.
+  - Creates tag `vX.Y.Z.W`.
+  - Creates GitHub Release with generated notes + commit summary since previous stable tag.
+  - Updates `gh-pages/plugins/manifest.json` and publishes release asset + checksum.
+  - Updates and publishes `CHANGELOG.md`.
+
+### Version source of truth
+
+- Version is stored in `build.yaml` (`version: "X.Y.Z.W"`).
+- Stable release bumps the **4th part** (`W`) by default.
+- Manifest/catalog version is produced from the same release version and kept in sync automatically.
+
+### Manifest and changelog visibility in Jellyfin
+
+- Plugin catalog manifest is published to:
+  - `https://queukat.github.io/AniLibriaStrmPlugin/plugins/manifest.json`
+- For stable releases CI updates manifest fields for the new version:
+  - `version`
+  - `sourceUrl`
+  - `checksum`
+  - `changelog` (summary + links)
+- Additional links are added in manifest version entry:
+  - `releaseUrl`
+  - `changelogUrl`
+- Public changelog is published to:
+  - `https://queukat.github.io/AniLibriaStrmPlugin/CHANGELOG.md`
+
+### How to force stable release
+
+1. Push your changes to `main`.
+2. Ensure the last pushed commit message starts with `release:`.
+3. CI does the rest: bump version, tag, release, manifest, changelog.
+
+Example commit message:
+
+```text
+release: fix Android TV playback diagnostics and manifest sync
+```
+
+---
+
+## 🧯 CI Troubleshooting
+
+- `release.yml` did not run:
+  - Verify branch is `main`.
+  - Verify the latest pushed commit message starts with `release:`.
+- Tag push or commit push failed from Actions:
+  - Check branch protection rules allow `GITHUB_TOKEN` to push tags/commits.
+- Manifest not updated:
+  - Check `gh-pages` branch exists and workflow has `contents: write`.
+- Jellyfin catalog shows old data:
+  - GitHub Pages cache/refresh delay can take a few minutes.
+  - Re-open Plugins Catalog in Jellyfin and refresh repositories.
 
 ---
 

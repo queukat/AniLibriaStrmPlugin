@@ -12,7 +12,8 @@ artifacts: # DLL-ы, которые попадут в ZIP
   - "icon.png"
 
 changelog: |
-  • See GitHub Release notes for details
+  • See GitHub Release notes: https://github.com/queukat/AniLibriaStrmPlugin/releases
+  • Full changelog: https://github.com/queukat/AniLibriaStrmPlugin/blob/main/CHANGELOG.md
 
 description: >
   Creates .strm / .edl / .nfo files for AniLiberty titles and favourites.
@@ -26,6 +27,6 @@ owner: "queukat"
 
 targetAbi: "10.11.0.0"
 
-version: "0.0.0"
+version: "2.0.0.4"
 
 image: Resources/icon.png

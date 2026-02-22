@@ -1,0 +1,321 @@
+name: Release
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-main
+  cancel-in-progress: false
+
+jobs:
+  stable-release:
+    if: startsWith(github.event.head_commit.message, 'release:')
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup .NET 9
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 9.0.x
+          cache: true
+          cache-dependency-path: |
+            **/*.csproj
+            **/packages.lock.json
+
+      - name: Run tests (excluding live integration)
+        run: dotnet test AniLibertyStrmPlugin.Tests/AniLibertyStrmPlugin.Tests.csproj -c Release --filter "Category!=Integration"
+
+      - name: Compute next version and release notes inputs
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --tags --force
+
+          PREV_TAG=$(git tag --list 'v*.*.*.*' --sort=-version:refname | head -n1 || true)
+
+          if [ -n "${PREV_TAG}" ]; then
+            BASE_VERSION="${PREV_TAG#v}"
+            git log "${PREV_TAG}..${GITHUB_SHA}" --pretty='- %s (%h)' > .release_commits.txt
+          else
+            BASE_VERSION=$(python3 - <<'PY'
+          import re
+          from pathlib import Path
+          text = Path("build.yaml").read_text(encoding="utf-8")
+          m = re.search(r'^\s*version:\s*"([^"]+)"\s*$', text, flags=re.MULTILINE)
+          if not m:
+              raise SystemExit("version not found in build.yaml")
+          print(m.group(1))
+          PY
+            )
+            git log -n 25 --pretty='- %s (%h)' > .release_commits.txt
+          fi
+
+          if [ ! -s .release_commits.txt ]; then
+            echo "- Maintenance release" > .release_commits.txt
+          fi
+
+          IFS='.' read -r V1 V2 V3 V4 <<< "${BASE_VERSION}"
+          NEXT_VERSION="${V1}.${V2}.${V3}.$((V4 + 1))"
+          RELEASE_TAG="v${NEXT_VERSION}"
+          RELEASE_URL="https://github.com/${GITHUB_REPOSITORY}/releases/tag/${RELEASE_TAG}"
+          CHANGELOG_URL="https://github.com/${GITHUB_REPOSITORY}/blob/main/CHANGELOG.md"
+
+          if [ -n "${PREV_TAG}" ]; then
+            COMPARE_URL="https://github.com/${GITHUB_REPOSITORY}/compare/${PREV_TAG}...${RELEASE_TAG}"
+          else
+            COMPARE_URL=""
+          fi
+
+          head -n 12 .release_commits.txt > .release_commits_short.txt
+          {
+            echo "Release ${NEXT_VERSION}"
+            cat .release_commits_short.txt
+            echo "GitHub Release: ${RELEASE_URL}"
+            echo "Full changelog: ${CHANGELOG_URL}"
+          } > .manifest_changelog.txt
+
+          echo "PREV_TAG=${PREV_TAG}" >> "$GITHUB_ENV"
+          echo "NEXT_VERSION=${NEXT_VERSION}" >> "$GITHUB_ENV"
+          echo "RELEASE_TAG=${RELEASE_TAG}" >> "$GITHUB_ENV"
+          echo "RELEASE_URL=${RELEASE_URL}" >> "$GITHUB_ENV"
+          echo "CHANGELOG_URL=${CHANGELOG_URL}" >> "$GITHUB_ENV"
+          echo "COMPARE_URL=${COMPARE_URL}" >> "$GITHUB_ENV"
+
+      - name: Update build.yaml (version + changelog)
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 <<'PY'
+          from pathlib import Path
+          import os
+
+          build_file = Path("build.yaml")
+          notes = Path(".manifest_changelog.txt").read_text(encoding="utf-8").rstrip("\n")
+          version = os.environ["NEXT_VERSION"]
+
+          lines = build_file.read_text(encoding="utf-8").splitlines()
+
+          for i, line in enumerate(lines):
+              if line.startswith("version:"):
+                  lines[i] = f'version: "{version}"'
+                  break
+          else:
+              raise SystemExit("version field not found in build.yaml")
+
+          start = None
+          end = len(lines)
+          for i, line in enumerate(lines):
+              if line.startswith("changelog:"):
+                  start = i
+                  break
+          if start is None:
+              raise SystemExit("changelog section not found in build.yaml")
+
+          for i in range(start + 1, len(lines)):
+              if lines[i] and not lines[i].startswith(" "):
+                  end = i
+                  break
+
+          block = ["changelog: |", *[f"  {x}" for x in notes.splitlines()]]
+          lines = [*lines[:start], *block, *lines[end:]]
+          build_file.write_text("\n".join(lines) + "\n", encoding="utf-8")
+          PY
+
+      - name: Update CHANGELOG.md
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 <<'PY'
+          from pathlib import Path
+          from datetime import datetime, timezone
+          import os
+
+          path = Path("CHANGELOG.md")
+          version = os.environ["NEXT_VERSION"]
+          release_url = os.environ["RELEASE_URL"]
+          compare_url = os.environ.get("COMPARE_URL", "").strip()
+          commits = Path(".release_commits.txt").read_text(encoding="utf-8").strip()
+          date_txt = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+
+          if not path.exists():
+              content = "# Changelog\n\nAll notable changes to this plugin are documented in this file.\n"
+          else:
+              content = path.read_text(encoding="utf-8").rstrip("\n")
+
+          if f"## v{version} -" in content:
+              raise SystemExit("CHANGELOG already contains this version")
+
+          lines = [
+              f"## v{version} - {date_txt}",
+              commits or "- Maintenance release",
+              f"- GitHub Release: {release_url}",
+          ]
+          if compare_url:
+              lines.append(f"- Compare: {compare_url}")
+          section = "\n".join(lines).strip()
+
+          marker = "\n## v"
+          if marker in content:
+              head, rest = content.split(marker, 1)
+              new_content = head.rstrip() + "\n\n" + section + "\n\n## v" + rest.lstrip()
+          else:
+              new_content = content.rstrip() + "\n\n" + section + "\n"
+
+          path.write_text(new_content.rstrip() + "\n", encoding="utf-8")
+          PY
+
+      - name: Commit and push release metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add build.yaml CHANGELOG.md
+          if git diff --cached --quiet; then
+            echo "No metadata changes to commit"
+          else
+            git commit -m "chore(release): v${NEXT_VERSION}"
+            git push origin HEAD:main
+          fi
+
+      - name: Create and push release tag
+        shell: bash
+        run: |
+          set -euo pipefail
+          git tag -a "${RELEASE_TAG}" -m "AniLiberty STRM ${NEXT_VERSION}"
+          git push origin "${RELEASE_TAG}"
+
+      - name: Build plugin zip
+        uses: oddstr13/jellyfin-plugin-repository-manager@v1.1.1
+        id: jprm
+        with:
+          dotnet-target: net9.0
+          version: ${{ env.NEXT_VERSION }}
+
+      - name: Generate checksums
+        shell: bash
+        run: |
+          set -euo pipefail
+          md5sum "${{ steps.jprm.outputs.artifact }}" > "${{ steps.jprm.outputs.artifact }}.md5"
+          sha256sum "${{ steps.jprm.outputs.artifact }}" > "${{ steps.jprm.outputs.artifact }}.sha256"
+
+      - name: Prepare release body
+        shell: bash
+        run: |
+          set -euo pipefail
+          {
+            echo "Automated stable release."
+            echo
+            echo "### Changes in this release"
+            cat .release_commits_short.txt
+            echo
+            echo "- Full changelog: ${CHANGELOG_URL}"
+            if [ -n "${COMPARE_URL}" ]; then
+              echo "- Compare with previous tag: ${COMPARE_URL}"
+            fi
+          } > RELEASE_BODY.md
+
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ env.RELEASE_TAG }}
+          name: AniLiberty STRM ${{ env.NEXT_VERSION }}
+          body_path: RELEASE_BODY.md
+          generate_release_notes: true
+          files: |
+            ${{ steps.jprm.outputs.artifact }}
+            ${{ steps.jprm.outputs.artifact }}.md5
+            ${{ steps.jprm.outputs.artifact }}.sha256
+
+      - name: Checkout gh-pages branch
+        uses: actions/checkout@v4
+        with:
+          ref: gh-pages
+          path: gh-pages
+
+      - name: Install jprm CLI
+        run: python -m pip install --quiet "git+https://github.com/oddstr13/jellyfin-plugin-repository-manager@v1.1.1"
+
+      - name: Update manifest/catalog on gh-pages
+        shell: bash
+        env:
+          PLUGIN_GUID: cce0798d-c8b7-4265-b08c-dc9e7bd3fc0f
+        run: |
+          set -euo pipefail
+
+          WORKSPACE="${GITHUB_WORKSPACE}"
+          PAGES_DIR="${WORKSPACE}/gh-pages"
+          PLUGINS_DIR="${PAGES_DIR}/plugins"
+          mkdir -p "${PLUGINS_DIR}"
+
+          ARTIFACT_PATH="${WORKSPACE}/${{ steps.jprm.outputs.artifact }}"
+          SHA_PATH="${WORKSPACE}/${{ steps.jprm.outputs.artifact }}.sha256"
+          ZIPNAME="$(basename "${ARTIFACT_PATH}")"
+          SHA256="$(cut -d' ' -f1 "${SHA_PATH}")"
+
+          BASE_URL="https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/plugins"
+          RELEASE_URL="${RELEASE_URL}"
+          CHANGELOG_URL="https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/CHANGELOG.md"
+          MANIFEST_NOTES="$(cat "${WORKSPACE}/.manifest_changelog.txt")"
+
+          cp "${ARTIFACT_PATH}" "${PLUGINS_DIR}/${ZIPNAME}"
+          cp "${WORKSPACE}/CHANGELOG.md" "${PAGES_DIR}/CHANGELOG.md"
+          mkdir -p "${PLUGINS_DIR}/aniliberty-strm-plugin"
+          cp "${WORKSPACE}/Resources/icon.png" "${PLUGINS_DIR}/aniliberty-strm-plugin/icon.png"
+
+          pushd "${PLUGINS_DIR}"
+          [ -f manifest.json ] || echo "[]" > manifest.json
+          jprm repo add . "./${ZIPNAME}"
+
+          jq \
+            --arg guid "${PLUGIN_GUID}" \
+            --arg version "${NEXT_VERSION}" \
+            --arg sourceUrl "${BASE_URL}/${ZIPNAME}" \
+            --arg checksum "${SHA256}" \
+            --arg notes "${MANIFEST_NOTES}" \
+            --arg releaseUrl "${RELEASE_URL}" \
+            --arg changelogUrl "${CHANGELOG_URL}" \
+            --arg iconUrl "${BASE_URL}/aniliberty-strm-plugin/icon.png" \
+            '
+            map(
+              if .guid == $guid then
+                .imageUrl = (if (.imageUrl | type == "string" and (.imageUrl | startswith("http"))) then .imageUrl else $iconUrl end) |
+                .versions |= map(
+                  if .version == $version then
+                    .sourceUrl = $sourceUrl |
+                    .checksum = $checksum |
+                    .changelog = $notes |
+                    .releaseUrl = $releaseUrl |
+                    .changelogUrl = $changelogUrl
+                  else . end
+                )
+              else . end
+            )
+            ' manifest.json > manifest.tmp
+          mv manifest.tmp manifest.json
+          popd
+
+      - name: Commit and push gh-pages changes
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd gh-pages
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add plugins/manifest.json plugins/*.zip plugins/aniliberty-strm-plugin/icon.png CHANGELOG.md
+          if git diff --cached --quiet; then
+            echo "No gh-pages changes to commit"
+          else
+            git commit -m "chore(repo): publish ${RELEASE_TAG}"
+            git push origin HEAD:gh-pages
+          fi

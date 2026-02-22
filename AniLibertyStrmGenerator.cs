@@ -77,6 +77,7 @@ public sealed class AniLibertyStrmGenerator(
         RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.IgnorePatternWhitespace);
 
     private static readonly ConcurrentDictionary<string, double> _hlsDurationCache = new();
+    private static readonly ConcurrentDictionary<string, string> _hlsProbeCache = new();
 
     // ────────────────────── 2.  media http (reuse) ──────────────────────
     private static readonly HttpClient _mediaHttp = CreateMediaHttp(TimeSpan.FromSeconds(20));
@@ -106,6 +107,7 @@ public sealed class AniLibertyStrmGenerator(
         if (list.Count == 0) return;
 
         var debugLogs = Plugin.Instance?.Configuration?.EnableDebugLogs == true;
+        var playbackDiag = Plugin.Instance?.Configuration?.EnablePlaybackDiagnostics == true;
 
         // Fallback-нумерация по году внутри групп одинаковых имён
         // В v1 год лежит в релизе (field "year"), а не season.year
@@ -168,11 +170,11 @@ public sealed class AniLibertyStrmGenerator(
             var displayRaw = rel.Name?.English ?? rel.Name?.Main ?? rel.Alias ?? "";
             if (LooksLikeMovie(rel, displayRaw))
             {
-                await GenerateMovieAsync(rel, basePath, resolution, token);
+                await GenerateMovieAsync(rel, basePath, resolution, playbackDiag, token);
             }
             else
             {
-                await GenerateStrmForTitle(rel, basePath, resolution, fallbackById, list, token);
+                await GenerateStrmForTitle(rel, basePath, resolution, fallbackById, list, playbackDiag, token);
             }
 
             progress?.Report(current / (double)total * 100.0);
@@ -241,6 +243,7 @@ public sealed class AniLibertyStrmGenerator(
         ReleaseResponse rel,
         string basePath,
         string resolution,
+        bool playbackDiag,
         CancellationToken token)
     {
         var ep = rel.Episodes?.FirstOrDefault();
@@ -263,10 +266,27 @@ public sealed class AniLibertyStrmGenerator(
         var movieDir = Path.Combine(basePath, folder);
         Directory.CreateDirectory(movieDir);
 
-        var url = ChooseHls(ep, resolution);
-        if (string.IsNullOrEmpty(url)) return;
-
         var strmPath = Path.Combine(movieDir, $"{folder}.strm");
+        var selectedRaw = ChooseHls(ep, resolution) ?? string.Empty;
+        var url = MakeFullUrl(selectedRaw);
+        if (string.IsNullOrWhiteSpace(url))
+        {
+            if (playbackDiag)
+                log.Warn("[PLAYBACK-DIAG] MOVIE relId={0} alias={1}: no HLS URL selected; hls1080=\"{2}\" hls720=\"{3}\" hls480=\"{4}\"",
+                    rel.Id, rel.Alias, TrimForLog(ep.Hls1080), TrimForLog(ep.Hls720), TrimForLog(ep.Hls480));
+            return;
+        }
+
+        if (playbackDiag)
+            await LogPlaybackDiagnosticsAsync(
+                $"MOVIE relId={rel.Id} alias={rel.Alias}",
+                ep,
+                resolution,
+                selectedRaw,
+                url,
+                strmPath,
+                token);
+
         if (!File.Exists(strmPath))
             await File.WriteAllTextAsync(strmPath, url, token);
 
@@ -295,6 +315,7 @@ public sealed class AniLibertyStrmGenerator(
         string resolution,
         Dictionary<int, int> fallbackById,
         IList<ReleaseResponse> allList,
+        bool playbackDiag,
         CancellationToken token)
     {
         if (rel.Episodes is null || rel.Episodes.Count == 0)
@@ -412,11 +433,30 @@ public sealed class AniLibertyStrmGenerator(
             token.ThrowIfCancellationRequested();
 
             var epNum = ep.Ordinal ?? autoNumber++;
-            var url = ChooseHls(ep, resolution);
-            if (string.IsNullOrEmpty(url)) continue;
-
             var strmFile = $"S{seasonNum:00}E{epNum:00}.strm";
             var strmPath = Path.Combine(seasonDir, strmFile);
+            var selectedRaw = ChooseHls(ep, resolution) ?? string.Empty;
+            var url = MakeFullUrl(selectedRaw);
+            if (string.IsNullOrWhiteSpace(url))
+            {
+                if (playbackDiag)
+                    log.Warn(
+                        "[PLAYBACK-DIAG] TV relId={0} alias={1} S{2:00}E{3:00}: no HLS URL selected; hls1080=\"{4}\" hls720=\"{5}\" hls480=\"{6}\"",
+                        rel.Id, rel.Alias, seasonNum, epNum,
+                        TrimForLog(ep.Hls1080), TrimForLog(ep.Hls720), TrimForLog(ep.Hls480));
+                continue;
+            }
+
+            if (playbackDiag)
+                await LogPlaybackDiagnosticsAsync(
+                    $"TV relId={rel.Id} alias={rel.Alias} S{seasonNum:00}E{epNum:00}",
+                    ep,
+                    resolution,
+                    selectedRaw,
+                    url,
+                    strmPath,
+                    token);
+
             if (!File.Exists(strmPath))
                 await File.WriteAllTextAsync(strmPath, url, token);
 
@@ -601,6 +641,95 @@ public sealed class AniLibertyStrmGenerator(
 
     // ─────────────────────── helpers ─────────────────────────────
 
+    private static string TrimForLog(string? text, int max = 220)
+    {
+        if (string.IsNullOrWhiteSpace(text)) return string.Empty;
+        var t = text.Trim();
+        return t.Length <= max ? t : t[..max] + "…";
+    }
+
+    private async Task LogPlaybackDiagnosticsAsync(
+        string context,
+        EpisodeItem ep,
+        string resolution,
+        string selectedRaw,
+        string normalizedUrl,
+        string strmPath,
+        CancellationToken ct)
+    {
+        log.Info(
+            "[PLAYBACK-DIAG] {0}; pref={1}; epId={2}; ordinal={3}; hls1080=\"{4}\"; hls720=\"{5}\"; hls480=\"{6}\"; selectedRaw=\"{7}\"; normalized=\"{8}\"",
+            context,
+            resolution,
+            TrimForLog(ep.Id, 64),
+            ep.Ordinal?.ToString() ?? "-",
+            TrimForLog(ep.Hls1080),
+            TrimForLog(ep.Hls720),
+            TrimForLog(ep.Hls480),
+            TrimForLog(selectedRaw),
+            TrimForLog(normalizedUrl, 320));
+
+        if (File.Exists(strmPath))
+        {
+            try
+            {
+                var existing = (await File.ReadAllTextAsync(strmPath, ct)).Trim();
+                var same = string.Equals(existing, normalizedUrl, StringComparison.Ordinal);
+                log.Info(
+                    "[PLAYBACK-DIAG] STRM exists: path=\"{0}\"; sameAsSelected={1}; existing=\"{2}\"",
+                    strmPath,
+                    same ? "yes" : "no",
+                    TrimForLog(existing, 320));
+            }
+            catch (Exception ex)
+            {
+                log.Warn(ex, "[PLAYBACK-DIAG] Failed to read existing STRM: {0}", strmPath);
+            }
+        }
+        else
+        {
+            log.Info("[PLAYBACK-DIAG] STRM create: path=\"{0}\"; value=\"{1}\"",
+                strmPath, TrimForLog(normalizedUrl, 320));
+        }
+
+        var probe = await ProbeHlsPlaylistAsync(normalizedUrl, ct);
+        log.Info("[PLAYBACK-DIAG] HLS probe: {0}; {1}", TrimForLog(normalizedUrl, 320), probe);
+    }
+
+    private async Task<string> ProbeHlsPlaylistAsync(string url, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(url)) return "empty-url";
+        if (_hlsProbeCache.TryGetValue(url, out var cached)) return cached;
+
+        string summary;
+        try
+        {
+            using var resp = await _hlsHttp.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, ct);
+            var code = (int)resp.StatusCode;
+            var contentType = resp.Content.Headers.ContentType?.MediaType ?? "-";
+
+            var body = await resp.Content.ReadAsStringAsync(ct);
+            var hasExtM3u = body.Contains("#EXTM3U", StringComparison.OrdinalIgnoreCase);
+            var hasExtInf = body.Contains("#EXTINF", StringComparison.OrdinalIgnoreCase);
+            var hasVariant = body.Contains("#EXT-X-STREAM-INF", StringComparison.OrdinalIgnoreCase);
+
+            var firstMediaUri = body
+                .Split('\n', StringSplitOptions.RemoveEmptyEntries)
+                .Select(x => x.Trim())
+                .FirstOrDefault(x => !x.StartsWith('#'));
+
+            summary =
+                $"http={code}; type={contentType}; bytes={body.Length}; extm3u={hasExtM3u}; variant={hasVariant}; segments={hasExtInf}; firstUri=\"{TrimForLog(firstMediaUri, 140)}\"";
+        }
+        catch (Exception ex)
+        {
+            summary = $"probe-failed: {ex.GetType().Name}: {TrimForLog(ex.Message, 180)}";
+        }
+
+        _hlsProbeCache[url] = summary;
+        return summary;
+    }
+
     private static string PickImageUrl(ImageBlock? img)
     {
         if (img is null) return string.Empty;
@@ -710,11 +839,17 @@ public sealed class AniLibertyStrmGenerator(
 
     private static string MakeFullUrl(string url)
     {
-        return string.IsNullOrWhiteSpace(url)
-            ? url
-            : (Uri.IsWellFormedUriString(url, UriKind.Absolute)
-                ? url
-                : "https://api.anilibria.app" + url);
+        if (string.IsNullOrWhiteSpace(url)) return url;
+
+        url = url.Trim();
+        if (Uri.IsWellFormedUriString(url, UriKind.Absolute)) return url;
+
+        if (url.StartsWith("//", StringComparison.Ordinal))
+            return "https:" + url;
+
+        return url.StartsWith("/", StringComparison.Ordinal)
+            ? "https://api.anilibria.app" + url
+            : "https://api.anilibria.app/" + url;
     }
 
     private static string MakeSafe(string s)

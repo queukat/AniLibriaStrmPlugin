@@ -1,0 +1,103 @@
+name: Nightly
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: nightly-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  nightly:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup .NET 9
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 9.0.x
+          cache: true
+          cache-dependency-path: |
+            **/*.csproj
+            **/packages.lock.json
+
+      - name: Run tests (excluding live integration)
+        run: dotnet test AniLibertyStrmPlugin.Tests/AniLibertyStrmPlugin.Tests.csproj -c Release --filter "Category!=Integration"
+
+      - name: Read base version from build.yaml
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE_VERSION=$(python3 - <<'PY'
+          import re
+          from pathlib import Path
+          text = Path("build.yaml").read_text(encoding="utf-8")
+          m = re.search(r'^\s*version:\s*"([^"]+)"\s*$', text, flags=re.MULTILINE)
+          if not m:
+              raise SystemExit("version not found in build.yaml")
+          print(m.group(1))
+          PY
+          )
+          echo "BASE_VERSION=$BASE_VERSION" >> "$GITHUB_ENV"
+
+      - name: Build plugin zip
+        uses: oddstr13/jellyfin-plugin-repository-manager@v1.1.1
+        id: jprm
+        with:
+          dotnet-target: net9.0
+          version: ${{ env.BASE_VERSION }}
+
+      - name: Prepare nightly assets
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp "${{ steps.jprm.outputs.artifact }}" "AniLibertyStrmPlugin_nightly.zip"
+          sha256sum "AniLibertyStrmPlugin_nightly.zip" > "AniLibertyStrmPlugin_nightly.zip.sha256"
+
+      - name: Move nightly tag
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --tags --force
+          git tag -f nightly "${GITHUB_SHA}"
+          git push origin refs/tags/nightly --force
+
+      - name: Prepare nightly release notes
+        shell: bash
+        env:
+          HEAD_COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
+        run: |
+          set -euo pipefail
+          {
+            echo "Automated nightly build from \`main\`."
+            echo
+            echo "- Commit: \`${GITHUB_SHA}\`"
+            echo "- Message: ${HEAD_COMMIT_MESSAGE:-manual dispatch}"
+            echo "- Base version: \`${BASE_VERSION}\`"
+            echo
+            echo "Use this prerelease for smoke testing only."
+          } > NIGHTLY_NOTES.md
+
+      - name: Publish nightly prerelease
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: nightly
+          name: AniLiberty STRM nightly
+          body_path: NIGHTLY_NOTES.md
+          prerelease: true
+          make_latest: false
+          overwrite_files: true
+          files: |
+            AniLibertyStrmPlugin_nightly.zip
+            AniLibertyStrmPlugin_nightly.zip.sha256

@@ -33,6 +33,9 @@ public class PluginConfiguration : BasePluginConfiguration
     // Включать ли “шумные” debug/trace логи (и подробный прогресс по тайтлам)
     public bool EnableDebugLogs { get; set; } = false;
 
+    // Диагностика проблем воспроизведения: подробные логи по HLS URL и .strm
+    public bool EnablePlaybackDiagnostics { get; set; } = false;
+
     // Сколько строк хранить в LastTaskLog
     public int LastLogMaxLines { get; set; } = 800; // можно 800–1500
 }

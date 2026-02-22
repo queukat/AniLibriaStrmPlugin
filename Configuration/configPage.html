@@ -350,6 +350,15 @@
                             When OFF: DEBUG/TRACE are not stored in UI logs, and per-title progress is throttled.
                         </div>
 
+                        <label class="checkboxContainer" style="margin-top:.6em">
+                            <input id="EnablePlaybackDiagnostics" is="emby-checkbox" type="checkbox">
+                            <span>Enable playback diagnostics logs</span>
+                        </label>
+                        <div class="fieldDescription">
+                            Adds per-episode HLS diagnostics: selected URL, normalized URL, existing/new .strm value and
+                            server-side HLS probe result.
+                        </div>
+
                         <div class="inputContainer" style="max-width:220px;margin-top:.8em">
                             <label for="LastLogMaxLines">Max UI log lines:</label>
                             <input id="LastLogMaxLines" is="emby-input" min="50" type="number">
@@ -536,6 +545,7 @@
                 $("LblCurrentOtp").textContent = cfg.CurrentOtpCode || "—";
                 $("UiMinLogLevel").value = cfg.UiMinLogLevel || "Information";
                 $("EnableDebugLogs").checked = cfg.EnableDebugLogs ?? false;
+                $("EnablePlaybackDiagnostics").checked = cfg.EnablePlaybackDiagnostics ?? false;
                 $("LastLogMaxLines").value = cfg.LastLogMaxLines ?? 800;
 
                 updateTokenBox(cfg.AniLibertyToken);
@@ -574,6 +584,7 @@
                 cfg.FavoritesMaxPages = +$("FavoritesMaxPages").value || 50;
                 cfg.UiMinLogLevel = $("UiMinLogLevel").value;
                 cfg.EnableDebugLogs = $("EnableDebugLogs").checked;
+                cfg.EnablePlaybackDiagnostics = $("EnablePlaybackDiagnostics").checked;
                 cfg.LastLogMaxLines = +$("LastLogMaxLines").value || 800;
                 await ApiClient.updatePluginConfiguration(pluginId, cfg);
                 notify("Settings saved");

@@ -12,9 +12,13 @@ using AniLibertyStrmPlugin.Models;
 
 namespace AniLibertyStrmPlugin.Tests
 {
+    [Trait("Category", "Integration")]
     public class IntegrationApiTests
     {
         private const string ApiBase = "https://api.anilibria.app/api/v1";
+        private static bool IsLiveApiEnabled =>
+            string.Equals(Environment.GetEnvironmentVariable("ANI_RUN_INTEGRATION_TESTS"), "1",
+                StringComparison.Ordinal);
 
         private static AniLibertyClient NewClient()
         {
@@ -27,6 +31,8 @@ namespace AniLibertyStrmPlugin.Tests
         [Fact(DisplayName = "GET /anime/releases/latest ё  ")]
         public async Task ReleasesLatest_Array_NotEmpty()
         {
+            if (!IsLiveApiEnabled) return;
+
             using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(15) };
             var raw = await http.GetStringAsync($"{ApiBase}/anime/releases/latest");
 
@@ -38,6 +44,8 @@ namespace AniLibertyStrmPlugin.Tests
         [Fact(DisplayName = "GET /anime/releases/{id}  200")]
         public async Task ReleaseById_Alive()
         {
+            if (!IsLiveApiEnabled) return;
+
             var client = NewClient();
 
             var list = await client.FetchAllTitlesAsync(1, 1, CancellationToken.None);
