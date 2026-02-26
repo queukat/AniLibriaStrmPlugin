@@ -1,9 +1,9 @@
-﻿# Jellyfin • AniLiberty STRM  – ция для JPRM
-# (build.yaml должен лежать рядом с .csproj)
+# Jellyfin • AniLiberty STRM manifest for JPRM
+# (build.yaml should be placed next to the .csproj file)
 
 category: "Metadata"
 
-artifacts: # DLL-ы, которые попадут в ZIP
+artifacts: # DLLs that will be included in the ZIP
   - "AniLibertyStrmPlugin.dll"
   - "Polly.dll"
   - "Polly.Core.dll"

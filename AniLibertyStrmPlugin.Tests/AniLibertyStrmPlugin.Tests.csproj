@@ -12,11 +12,11 @@
     <PackageReference Include="xunit"                             Version="2.9.*" />
     <PackageReference Include="xunit.runner.visualstudio"         Version="2.9.*" PrivateAssets="all" />
 
-    <!-- поднимаем до 9.0.10, чтобы не было даунгрейда относительно Jellyfin -->
+    <!-- Raise to 9.0.10 to avoid downgrade relative to Jellyfin -->
     <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="9.0.10" />
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions"            Version="9.0.10" />
 
-    <!-- чтобы видеть ILibraryManager / IChapterManager -->
+    <!-- Required to access ILibraryManager / IChapterManager -->
     <PackageReference Include="Jellyfin.Controller" Version="10.11.4" PrivateAssets="all" />
   </ItemGroup>
 

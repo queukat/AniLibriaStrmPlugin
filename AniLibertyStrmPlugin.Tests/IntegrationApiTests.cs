@@ -1,6 +1,5 @@
-﻿// ===== UPDATED FILE: IntegrationApiTests.cs =====
-// 2025-07-18  — ё «» latest-,
-//                    .
+// ===== UPDATED FILE: IntegrationApiTests.cs =====
+// Live API integration smoke tests.
 
 using System;
 using System.Net.Http;
@@ -28,7 +27,7 @@ namespace AniLibertyStrmPlugin.Tests
         }
 
         // ────────────────────────────────────────────────
-        [Fact(DisplayName = "GET /anime/releases/latest ё  ")]
+        [Fact(DisplayName = "GET /anime/releases/latest returns non-empty array")]
         public async Task ReleasesLatest_Array_NotEmpty()
         {
             if (!IsLiveApiEnabled) return;
@@ -37,11 +36,11 @@ namespace AniLibertyStrmPlugin.Tests
             var raw = await http.GetStringAsync($"{ApiBase}/anime/releases/latest");
 
             Assert.False(string.IsNullOrWhiteSpace(raw));
-            Assert.StartsWith("[", raw.TrimStart());   // API v2  JSON-
+            Assert.StartsWith("[", raw.TrimStart());   // API v2 returns a JSON array
         }
 
         // ────────────────────────────────────────────────
-        [Fact(DisplayName = "GET /anime/releases/{id}  200")]
+        [Fact(DisplayName = "GET /anime/releases/{id} returns 200")]
         public async Task ReleaseById_Alive()
         {
             if (!IsLiveApiEnabled) return;
@@ -49,7 +48,7 @@ namespace AniLibertyStrmPlugin.Tests
             var client = NewClient();
 
             var list = await client.FetchAllTitlesAsync(1, 1, CancellationToken.None);
-            if (list.Count == 0) return;   // API ,   —  OK
+            if (list.Count == 0) return;   // API may be temporarily empty; still OK
 
             var first = list[0];
             var raw   = await client.GetStringWithLoggingAsync(

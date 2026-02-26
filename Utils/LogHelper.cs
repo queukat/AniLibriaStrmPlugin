@@ -12,8 +12,8 @@ internal static class LogHelper
     {
         try
         {
-            // В обычном плагине Instance есть,
-            // в тестах — null, тогда просто выходим.
+            // In normal plugin runtime Instance is available;
+            // in tests it can be null, so we just exit.
             var plugin = Plugin.Instance;
             if (plugin is null)
                 return;
@@ -22,7 +22,7 @@ internal static class LogHelper
         }
         catch
         {
-            // Логирование НЕ должно ронять логику — гасим любые ошибки.
+            // Logging must never break business logic; swallow all exceptions.
         }
     }
 
@@ -69,7 +69,7 @@ internal static class LogHelper
     {
         if (log is null) return;
 
-        // Глобальный флажок “Debug logs” — если OFF, то не пишем debug вообще
+        // Global "Debug logs" switch: when OFF, skip debug logging completely.
         var cfg = Plugin.Instance?.Configuration;
         if (cfg?.EnableDebugLogs != true) return;
 
@@ -78,7 +78,7 @@ internal static class LogHelper
         var msg = string.Format(fmt, args);
         log.LogDebug(msg);
 
-        // DEBUG в UI-лог только при включённом EnableDebugLogs (и дальше ещё фильтруется UiMinLogLevel)
+        // DEBUG goes to UI log only when EnableDebugLogs is enabled (then filtered by UiMinLogLevel).
         AppendTaskLogSafe(LogLevel.Debug, "DBG", msg);
     }
 }

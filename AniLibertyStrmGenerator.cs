@@ -30,7 +30,7 @@ public sealed class AniLibertyStrmGenerator(
     IAniLibertyClient client)
     : IAniLibertyStrmGenerator
 {
-    // ────────────────────── 1.  очистка суффиксов ──────────────────────
+    // ────────────────────── 1. suffix cleanup ──────────────────────
     private static readonly Regex[] SuffixRules =
     {
         new(@"\s*(?:Season)\s*\d+\b.*$", RegexOptions.IgnoreCase),
@@ -41,7 +41,7 @@ public sealed class AniLibertyStrmGenerator(
         new(@"\s+[2-4]$", RegexOptions.IgnoreCase),
         new(@"\s+(?:OAD|OVA|OAV|Specials?|Movie)$", RegexOptions.IgnoreCase),
 
-        // NEW: сносим "Ω/omega/омега" в конце
+        // NEW: strip trailing Omega suffix variants
         new(@"\s*(?:Ω|ω|Omega|Омега)\b.*$", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)
     };
 
@@ -52,7 +52,7 @@ public sealed class AniLibertyStrmGenerator(
     private static readonly Regex _rxTrailingNum = new(@"(?:\s|\D)(\d{1,2})\s*$",
         RegexOptions.IgnoreCase);
 
-    // ────────────── вспомогательное: квартал для сортировки ───────────
+    // ────────────── helper: quarter index for sorting ───────────
     private static readonly Dictionary<string, int> _seasonOrder = new(StringComparer.OrdinalIgnoreCase)
     {
         ["winter"] = 1,
@@ -61,10 +61,10 @@ public sealed class AniLibertyStrmGenerator(
         ["autumn"] = 4
     };
 
-    // ─────────────────────── франшиза → номер сезона ───────────────────
+    // ─────────────────────── franchise -> season number ───────────────────
     private static readonly ConcurrentDictionary<int, List<FranchiseInfo>?> _franchiseCache = new();
 
-    // Ключевые слова, по которым TV-релиз считаем НЕ обычным сезоном
+    // Keywords that mark a TV release as NOT a regular season
     private static readonly Regex _rxNonSeasonTv = new(
         @"\b(?:
             specials? |
@@ -109,8 +109,8 @@ public sealed class AniLibertyStrmGenerator(
         var debugLogs = Plugin.Instance?.Configuration?.EnableDebugLogs == true;
         var playbackDiag = Plugin.Instance?.Configuration?.EnablePlaybackDiagnostics == true;
 
-        // Fallback-нумерация по году внутри групп одинаковых имён
-        // В v1 год лежит в релизе (field "year"), а не season.year
+        // Fallback numbering by year within groups of same titles
+        // In v1, year is on release level (field "year"), not season.year
         var fallbackById = new Dictionary<int, int>();
         foreach (var grp in list.GroupBy(GroupKey))
         {
@@ -136,12 +136,12 @@ public sealed class AniLibertyStrmGenerator(
 
             var display = rel0.Name?.English ?? rel0.Name?.Main ?? rel0.Alias;
 
-            // По умолчанию НЕ спамим “по каждому тайтлу” — иначе UI-лог раздувается.
-            // При Debug logs = ON — пишем каждый, иначе: 1й, каждый 25й и последний.
+            // By default, do NOT spam per-title logs to avoid bloating the UI log.
+            // When Debug logs = ON, log each title; otherwise: first, every 25th, and last.
             if (debugLogs || current == 1 || current == total || current % 25 == 0)
                 log.Info("({0}/{1}) \"{2}\"", current, total, display);
 
-            // Гидратация (если нет эпизодов в карточке каталога)
+            // Hydration (when catalog card has no episodes)
             var rel = rel0;
             if (rel.Episodes is null || rel.Episodes.Count == 0)
             {
@@ -187,7 +187,7 @@ public sealed class AniLibertyStrmGenerator(
 
         var cleaned = SuffixRules.Aggregate(name, (current, rx) => rx.Replace(current, ""));
         cleaned = Regex.Replace(cleaned, @"[\s\.\-_()]+$", "");
-        cleaned = Regex.Replace(cleaned, @"[\u03A9\u03C9]", ""); // убираем Ω внутри
+        cleaned = Regex.Replace(cleaned, @"[\u03A9\u03C9]", ""); // remove internal Ω characters
         return cleaned.Trim();
     }
 
@@ -228,7 +228,7 @@ public sealed class AniLibertyStrmGenerator(
 
     private static bool LooksLikeMovie(ReleaseResponse rel, string title)
     {
-        // В v1 есть type.value (MOVIE) — это надёжнее, чем матчить по словам.
+        // v1 has type.value (MOVIE), which is more reliable than matching title words.
         if (string.Equals(rel.Type?.Value, "MOVIE", StringComparison.OrdinalIgnoreCase))
             return true;
 
@@ -237,7 +237,7 @@ public sealed class AniLibertyStrmGenerator(
         return oneEp && hasMovieWord;
     }
 
-    // ─────────────────────── 4. генерация STRM → файлы ─────────────────────
+    // ─────────────────────── 4. STRM generation -> files ─────────────────────
 
     private async Task GenerateMovieAsync(
         ReleaseResponse rel,
@@ -332,7 +332,7 @@ public sealed class AniLibertyStrmGenerator(
 
         var rawName = engName ?? ruName ?? rel.Alias ?? $"Title_{rel.Id}";
 
-        // SPECIAL/OVA/OAD лучше класть в Season 00, даже если слово "special" в названии не присутствует
+        // SPECIAL/OVA/OAD should go to Season 00 even if "special" is not present in title.
         var isSpecialsType =
             string.Equals(rel.Type?.Value, "SPECIAL", StringComparison.OrdinalIgnoreCase) ||
             string.Equals(rel.Type?.Value, "OVA", StringComparison.OrdinalIgnoreCase) ||
@@ -346,7 +346,7 @@ public sealed class AniLibertyStrmGenerator(
 
         var safeName = NormalizeTitleForFs(rawName).ToLowerInvariant();
 
-        // ---- сезон -----------------------------------------------------
+        // ---- season -----------------------------------------------------
         int seasonNum;
         var hasFranchiseSeason = false;
 
@@ -371,7 +371,7 @@ public sealed class AniLibertyStrmGenerator(
             }
         }
 
-        // ---- директории ------------------------------------------------
+        // ---- directories ------------------------------------------------
         var showDir = Path.Combine(basePath, safeName);
         Directory.CreateDirectory(showDir);
 
@@ -379,7 +379,7 @@ public sealed class AniLibertyStrmGenerator(
         var seasonDir = Path.Combine(showDir, seasonFolder);
         Directory.CreateDirectory(seasonDir);
 
-        // ---- постер ----------------------------------------------------
+        // ---- poster ----------------------------------------------------
         var posterUrl = NormalizeImageUrlPreferJpg(MakeFullUrl(PickImageUrl(rel.Poster)));
         await DownloadIfAbsentAsync(posterUrl, Path.Combine(showDir, "folder.jpg"), token);
         await DownloadIfAbsentAsync(posterUrl, Path.Combine(showDir, $"{seasonFolder}-poster.jpg"), token);
@@ -393,8 +393,8 @@ public sealed class AniLibertyStrmGenerator(
             var sortTitle = engName ?? ruName ?? displayTitle;
             var plot = MakeSafeXml(rel.Description?.Trim() ?? string.Empty);
 
-            // В tvshow.nfo хорошо бы писать год, но showDir общий на все сезоны
-            // → берём минимальный год по группе (если он вообще есть)
+            // tvshow.nfo should include year, but showDir is shared across all seasons.
+            // Use the minimum year across the group (if any).
             var gk = GroupKey(rel);
             var showYear = allList
                 .Where(x => GroupKey(x) == gk)
@@ -428,7 +428,7 @@ public sealed class AniLibertyStrmGenerator(
             await File.WriteAllTextAsync(seasonNfo, seasonXml, Encoding.UTF8, token);
         }
 
-        var autoNumber = 1; // fallback порядковый номер
+        var autoNumber = 1; // fallback sequential episode number
 
         foreach (var ep in rel.Episodes)
         {
@@ -463,13 +463,13 @@ public sealed class AniLibertyStrmGenerator(
                 await File.WriteAllTextAsync(strmPath, url, token);
             await WriteEpisodeIdSidecarAsync(strmPath, ep.Id, token);
 
-            // превью (v1: preview.preview / preview.thumbnail)
+            // preview image (v1: preview.preview / preview.thumbnail)
             var epPreviewUrlRaw = MakeFullUrl(PickImageUrl(ep.Preview));
             var epPreviewUrl = NormalizeImageUrlPreferJpg(epPreviewUrlRaw);
 
             if (!string.IsNullOrWhiteSpace(epPreviewUrl))
             {
-                // ВАЖНО: URL часто бывает с query (?x=..), Path.GetExtension() тогда возвращает ".jpg?..."
+                // IMPORTANT: URL often contains query (?x=..), and Path.GetExtension() returns ".jpg?..."
                 var ext = GetSafeImageExtensionFromUrl(epPreviewUrl);
                 var thumbPath = Path.Combine(seasonDir, $"S{seasonNum:00}E{epNum:00}-thumb{ext}");
                 await DownloadIfAbsentAsync(epPreviewUrl, thumbPath, token);
@@ -512,7 +512,7 @@ public sealed class AniLibertyStrmGenerator(
                     ? ep.Duration
                     : await GetHlsDurationAsync(url, token);
 
-                // Вне Jellyfin (в тесте) library/chapters будут null → просто не трогаем главы
+                // Outside Jellyfin (tests), library/chapters are null -> skip chapter updates.
                 if (runtimeSec > segments.Max(s => s.stop) + 1 &&
                     library is not null &&
                     chapters is not null)
@@ -550,7 +550,7 @@ public sealed class AniLibertyStrmGenerator(
             }
 
             // episode.nfo -------------------------------------------------
-            // В v1 есть name/name_english + duration, но нет plot/описания эпизода.
+            // v1 has name/name_english + duration, but no episode plot/description.
             var nfoPath = Path.ChangeExtension(strmPath, ".nfo");
             if (!File.Exists(nfoPath))
             {
@@ -587,7 +587,7 @@ public sealed class AniLibertyStrmGenerator(
         }
     }
 
-    // ─────────────────────── франшизы → номер сезона ─────────────────────
+    // ─────────────────────── franchises -> season number ─────────────────────
 
     private async Task<int> DetectSeasonFromFranchiseAsync(int releaseId, CancellationToken ct)
     {
@@ -761,7 +761,7 @@ public sealed class AniLibertyStrmGenerator(
         static string First(params string?[] vals)
             => vals.FirstOrDefault(v => !string.IsNullOrWhiteSpace(v)) ?? string.Empty;
 
-        // Prefer non-optimized URLs first (обычно jpg), optimized часто бывает webp
+        // Prefer non-optimized URLs first (usually jpg); optimized is often webp
         return First(
             img.Src,
             img.Preview,
@@ -794,7 +794,7 @@ public sealed class AniLibertyStrmGenerator(
             // ignore
         }
 
-        // fallback (на случай, если пришла строка без валидного Uri)
+        // fallback (in case a non-URI string is returned)
         return url.EndsWith(".webp", StringComparison.OrdinalIgnoreCase)
             ? url[..^5] + ".jpg"
             : url;

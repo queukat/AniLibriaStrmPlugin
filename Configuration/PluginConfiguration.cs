@@ -3,51 +3,51 @@ using Microsoft.Extensions.Logging;
 
 namespace AniLibertyStrmPlugin.Configuration;
 
-/// <summary>  (AniLiberty STRM v2).</summary>
+/// <summary>Plugin configuration for AniLiberty STRM v2.</summary>
 public class PluginConfiguration : BasePluginConfiguration
 {
     public string StrmAllPath { get; set; } = @"D:\video\Anime\AniLibertySTRM";
     public string StrmFavoritesPath { get; set; } = @"D:\video\Anime\AniLibertySTRMFavorites";
     public string PreferredResolution { get; set; } = "1080";
 
-    /// <summary>JWT-  AniLiberty API v1.</summary>
+    /// <summary>JWT token for AniLiberty API v1.</summary>
     public string AniLibertyToken { get; set; } = string.Empty;
 
     public bool EnableFavorites { get; set; } = true;
     public bool EnableAll { get; set; } = true;
 
-    /* ---   () --- */
+    /* --- OTP/auth state --- */
     public string AniDeviceId { get; set; } = string.Empty;
     public string CurrentOtpCode { get; set; } = string.Empty;
     public string LastTaskLog { get; set; } = string.Empty;
 
-    /* ---  --- */
+    /* --- Paging settings --- */
     public int AllTitlesPageSize { get; set; } = 50;
     public int AllTitlesMaxPages { get; set; } = 100;
     public int FavoritesPageSize { get; set; } = 50;
     public int FavoritesMaxPages { get; set; } = 50;
 
-    // Минимальный уровень для попадания сообщений в LastTaskLog (UI)
+    // Minimum level for messages to be included in LastTaskLog (UI).
     public LogLevel UiMinLogLevel { get; set; } = LogLevel.Information;
 
-    // Включать ли “шумные” debug/trace логи (и подробный прогресс по тайтлам)
+    // Whether to enable verbose debug/trace logs (including detailed title progress).
     public bool EnableDebugLogs { get; set; } = false;
 
-    // Диагностика проблем воспроизведения: подробные логи по HLS URL и .strm
+    // Playback diagnostics: detailed logs for HLS URLs and .strm files.
     public bool EnablePlaybackDiagnostics { get; set; } = false;
 
-    // Отправлять прогресс просмотра эпизодов в AniLiberty (/accounts/users/me/views/timecodes)
+    // Push episode watch progress to AniLiberty (/accounts/users/me/views/timecodes).
     public bool EnableAniLibertyViewSync { get; set; } = false;
 
-    // Минимальный шаг прогресса (сек), чтобы не спамить API.
+    // Minimum progress delta (seconds) to avoid spamming the API.
     public int AniLibertyViewSyncMinDeltaSeconds { get; set; } = 30;
 
-    // Принудительно отправлять прогресс при остановке воспроизведения.
+    // Force sending progress when playback stops.
     public bool AniLibertyViewSyncOnStop { get; set; } = true;
 
-    // Для pull-sync: Jellyfin UserId, в чей профиль импортировать прогресс из AniLiberty.
+    // For pull sync: Jellyfin UserId to import AniLiberty progress into.
     public string AniLibertyViewSyncJellyfinUserId { get; set; } = string.Empty;
 
-    // Сколько строк хранить в LastTaskLog
-    public int LastLogMaxLines { get; set; } = 800; // можно 800–1500
+    // Number of lines to keep in LastTaskLog.
+    public int LastLogMaxLines { get; set; } = 800; // recommended: 800-1500
 }

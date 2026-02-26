@@ -10,7 +10,7 @@ using Microsoft.Extensions.Logging;
 namespace AniLibertyStrmPlugin;
 
 /// <summary>
-///     Основной класс плагина + хранитель конфигурации и буфера логов.
+///     Main plugin class and owner of configuration and task-log buffer.
 /// </summary>
 public sealed class Plugin : BasePlugin<PluginConfiguration>, IHasWebPages
 {
@@ -40,10 +40,10 @@ public sealed class Plugin : BasePlugin<PluginConfiguration>, IHasWebPages
 
     public void AppendTaskLog(string line, LogLevel level = LogLevel.Information)
     {
-        // UI фильтр (конфиг)
+        // UI filter (configuration-based)
         try
         {
-            // Debug/Trace по умолчанию НЕ пишем в UI-лог (слишком шумно)
+            // By default, do NOT write Debug/Trace to UI log (too noisy).
             if (Configuration != null &&
                 !Configuration.EnableDebugLogs &&
                 (level == LogLevel.Debug || level == LogLevel.Trace))
@@ -54,7 +54,7 @@ public sealed class Plugin : BasePlugin<PluginConfiguration>, IHasWebPages
         }
         catch
         {
-            // не роняем логику из-за логов
+            // Logging must never break main logic.
         }
 
         var ts = DateTime.Now.ToString("HH:mm:ss");
@@ -65,14 +65,14 @@ public sealed class Plugin : BasePlugin<PluginConfiguration>, IHasWebPages
             var max = Math.Max(50, Configuration?.LastLogMaxLines ?? 800);
             var existing = Configuration?.LastTaskLog ?? string.Empty;
 
-            // Быстро добавить и усечь хвост
+            // Append quickly and trim old lines.
             var joined = string.IsNullOrEmpty(existing) ? ln : existing + "\n" + ln;
             var arr = joined.Split('\n');
             if (arr.Length > max)
                 joined = string.Join('\n', arr.Skip(arr.Length - max));
 
             Configuration.LastTaskLog = joined;
-            // Не пишем на диск на каждый чих — дисковый flush делай там, где уже делал (например, в finally задач)
+            // Do not flush to disk on every line; flush in existing task-finally points.
         }
     }
 

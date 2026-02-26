@@ -1,16 +1,14 @@
-﻿// ===== File: ManualStrmGenerationTests.cs =====
-// Ручной тест: берёт избранные релизы и генерит все папки сериалов/сезонов.
-//
-// ВАЖНО:
-//  - Этот тест намеренно SKIP'нут по умолчанию, чтобы не запускаться в CI.
-//  - ТОКЕН НЕ ХРАНИМ В РЕПО.
-//
-// Как запустить локально:
-//  1) Задай переменные окружения:
+// ===== File: ManualStrmGenerationTests.cs =====
+// Manual test: fetches favorite releases and generates all show/season folders.
+// IMPORTANT:
+//  - This test is intentionally skipped by default to avoid running in CI.
+//  - DO NOT STORE TOKENS IN THE REPOSITORY.
+// How to run locally:
+//  1) Set environment variables:
 //     ANI_TOKEN      = <JWT AniLiberty>
-//     ANI_OUTPUT_DIR = <папка, куда складывать результат>
-//  2) Убери Skip у [Fact] (или временно закомментируй Skip строкой).
-//  3) Запусти тест.
+//     ANI_OUTPUT_DIR = <output folder>
+//  2) Remove Skip from [Fact] (or comment out Skip temporarily).
+//  3) Run the test.
 
 using System;
 using System.IO;
@@ -24,10 +22,10 @@ namespace AniLibertyStrmPlugin.Tests
 {
     public class ManualStrmGenerationTests
     {
-        // Какое разрешение предпочитать: "1080", "720" или "480"
+        // Preferred resolution: "1080", "720", or "480"
         private const string PreferredResolution = "1080";
 
-        // Параметры пагинации для избранного
+        // Favorites pagination parameters
         private const int PageSize = 50;
         private const int MaxPages = 20;
 
@@ -55,7 +53,7 @@ namespace AniLibertyStrmPlugin.Tests
             var client = NewClient();
             var genLogger = NullLogger<AniLibertyStrmGenerator>.Instance;
 
-            // В тесте Jellyfin-окружения нет → library/chapters = null! (генератор это переживёт)
+            // No Jellyfin runtime in tests -> library/chapters = null (generator handles this).
             IAniLibertyStrmGenerator generator = new AniLibertyStrmGenerator(
                 genLogger,
                 library: null!,
@@ -65,13 +63,13 @@ namespace AniLibertyStrmPlugin.Tests
 
             var ct = CancellationToken.None;
 
-            // 1) тянем избранное
+            // 1) Fetch favorites
             var favorites = await client.FetchFavoritesAsync(aniToken, PageSize, MaxPages, ct);
 
             if (favorites.Count == 0)
                 throw new InvalidOperationException("Избранное пустое или токен невалиден (API вернул 0 элементов).");
 
-            // 2) генерим STRM/папки/сезоны по тем же правилам, что и в плагине
+            // 2) Generate STRM/folders/seasons using the same rules as the plugin
             await generator.GenerateTitlesAsync(
                 favorites,
                 outputDir,

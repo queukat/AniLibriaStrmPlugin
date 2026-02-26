@@ -12,7 +12,7 @@ using Microsoft.Extensions.Logging;
 namespace AniLibertyStrmPlugin;
 
 /// <summary>
-///     REST-контроллер для входа (логин/пароль) и OTP по новому AniLiberty API v1.
+///     REST controller for login (username/password) and OTP using AniLiberty API v1.
 /// </summary>
 [ApiController]
 [Route("AniLibertyAuth")]
@@ -26,7 +26,7 @@ public class AniLibertyAuthController : ControllerBase
         _httpFactory = httpFactory;
     }
 
-    // ─────────────────────────── 1) Логин/пароль ───────────────────────────
+    // ─────────────────────────── 1) Username/password ───────────────────────────
 
     [HttpPost("SignInLoginPass")]
     public async Task<IActionResult> SignInLoginPass([FromBody] LoginRequest? req, CancellationToken ct)
@@ -82,7 +82,7 @@ public class AniLibertyAuthController : ControllerBase
 
             if (doc.RootElement.TryGetProperty("otp", out var otpEl))
             {
-                // на всякий случай поддержим и старый формат, если вдруг вернётся строка
+                // For safety, also support the legacy format if the API returns a string again.
                 if (otpEl.ValueKind == JsonValueKind.String)
                 {
                     otp = otpEl.GetString();
@@ -183,7 +183,7 @@ public class AniLibertyAuthController : ControllerBase
         }
     }
 
-    /// <summary>Единый формат ошибки, чтобы не плодить анонимные объекты c разной формой.</summary>
+    /// <summary>Unified error shape to avoid multiple anonymous object formats.</summary>
     private static object Fail(string error, HttpStatusCode status = 0, string? serverResponse = null)
     {
         return new
@@ -227,14 +227,14 @@ public class AniLibertyAuthController : ControllerBase
 
     private static void AppendLog(string msg)
     {
-        // Пишем только если включён Debug logs (иначе UI-лог быстро раздувает)
+        // Write only when Debug logs are enabled (otherwise UI log grows too fast).
         var cfg = Plugin.Instance?.Configuration;
         if (cfg?.EnableDebugLogs != true)
             return;
 
         Console.WriteLine($"[AniLibertyAuth] {DateTime.Now:HH:mm:ss} {msg}");
 
-        // В тестах/раньше инициализации плагина Instance может быть null.
+        // In tests or before plugin initialization, Instance may be null.
         Plugin.Instance?.AppendTaskLog("[AniLibertyAuth] " + msg, LogLevel.Debug);
     }
 }

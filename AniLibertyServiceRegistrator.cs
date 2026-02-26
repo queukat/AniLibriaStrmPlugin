@@ -10,7 +10,7 @@ using Polly.Extensions.Http;
 
 namespace AniLibertyStrmPlugin;
 
-/// <summary>DI для Jellyfin 10.11.</summary>
+/// <summary>DI wiring for Jellyfin 10.11.</summary>
 public class AniLibertyServiceRegistrator : IPluginServiceRegistrator
 {
     void IPluginServiceRegistrator.RegisterServices(IServiceCollection services, IServerApplicationHost _)

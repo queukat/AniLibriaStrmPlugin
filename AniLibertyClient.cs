@@ -241,7 +241,7 @@ public sealed record AniLibertyClient(HttpClient http, ILogger<AniLibertyClient>
         return result.Values.ToList();
     }
 
-    // NEW: подробности релиза с эпизодами
+    // NEW: release details with episodes
     public async Task<ReleaseResponse?> FetchReleaseByIdAsync(int id, CancellationToken ct)
     {
         var url = $"{ApiBase}/anime/releases/{id}";
@@ -262,7 +262,7 @@ public sealed record AniLibertyClient(HttpClient http, ILogger<AniLibertyClient>
         }
     }
 
-    // NEW: франшизы по релизу
+    // NEW: franchises by release
     public async Task<List<FranchiseInfo>?> FetchFranchisesForReleaseAsync(int releaseId, CancellationToken ct)
     {
         var url = $"{ApiBase}/anime/franchises/release/{releaseId}";

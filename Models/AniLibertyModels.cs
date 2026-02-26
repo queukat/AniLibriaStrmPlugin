@@ -4,11 +4,11 @@ using AniLibertyStrmPlugin.Converters;
 namespace AniLibertyStrmPlugin.Models;
 
 /// <summary>
-/// Основные модели AniLiberty API v1 (минимум нужный плагину).
-/// Важно:
-///  - в v1 year лежит на верхнем уровне релиза (поле "year"), а season НЕ содержит year
-///  - poster/preview — это image-схема с preview/thumbnail (+ optional optimized), а не "src"
-///  - у эпизода есть name/name_english, но нет description/plot
+/// Core AniLiberty API v1 models (minimum required by the plugin).
+/// Important:
+///  - In v1, <c>year</c> is on the top release level (field "year"), and <c>season</c> does NOT include year
+///  - <c>poster</c>/<c>preview</c> uses image schema with preview/thumbnail (+ optional optimized), not just "src"
+///  - Episodes provide name/name_english, but no description/plot
 /// </summary>
 public class ReleaseResponse
 {
@@ -17,7 +17,7 @@ public class ReleaseResponse
 
     [JsonPropertyName("type")] public ReleaseType? Type { get; set; }
 
-    // v1: год релиза — отдельное поле "year"
+    // v1: release year is a separate top-level field "year"
     [JsonPropertyName("year")] public int Year { get; set; }
 
     [JsonPropertyName("name")] public NameBlock Name { get; set; } = new();
@@ -27,7 +27,7 @@ public class ReleaseResponse
 
     [JsonPropertyName("description")] public string Description { get; set; } = string.Empty;
 
-    // v1: season = { value, description } (без year)
+    // v1: season = { value, description } (no year)
     [JsonPropertyName("season")] public SeasonBlock? Season { get; set; }
 
     [JsonPropertyName("episodes_total")]
@@ -42,7 +42,7 @@ public class SeasonBlock
     // winter / spring / summer / autumn
     [JsonPropertyName("value")] public string Value { get; set; } = string.Empty;
 
-    // например "Осень"
+    // for example, "Autumn"
     [JsonPropertyName("description")] public string Description { get; set; } = string.Empty;
 }
 
@@ -57,7 +57,7 @@ public class NameBlock
 /// Image schema (commons.v1.models.components.image.withOptimized):
 ///  - preview / thumbnail
 ///  - optional optimized (preview/thumbnail)
-/// Плюс оставляем "src" для обратной совместимости, если вдруг где-то ещё встречается.
+/// Keep "src" for backward compatibility in case it still appears somewhere.
 /// </summary>
 public class ImageBlock
 {
@@ -75,7 +75,7 @@ public class EpisodeItem
     // v1: guid/string
     [JsonPropertyName("id")] public string Id { get; set; } = string.Empty;
 
-    // v1: название эпизода
+    // v1: episode title
     [JsonPropertyName("name")] public string Name { get; set; } = string.Empty;
 
     [JsonPropertyName("name_english")] public string NameEnglish { get; set; } = string.Empty;
@@ -88,13 +88,13 @@ public class EpisodeItem
     [JsonPropertyName("hls_720")] public string? Hls720 { get; set; }
     [JsonPropertyName("hls_480")] public string? Hls480 { get; set; }
 
-    // docs: number (секунды)
+    // docs: number (seconds)
     public int Duration { get; set; }
 
     [JsonPropertyName("opening")] public OpeningBlock? Opening { get; set; }
     [JsonPropertyName("ending")] public OpeningBlock? Ending { get; set; }
 
-    // v1: preview — image schema, не src-строка
+    // v1: preview is an image schema, not a src string
     [JsonPropertyName("preview")] public ImageBlock? Preview { get; set; }
 
     [JsonPropertyName("sort_order")]
@@ -123,7 +123,7 @@ public class OpeningBlock
 }
 
 /* ─────────────────────────────────────────────────────────────
-   Франшизы (минимум, который нам нужен из /anime/franchises/release/{id})
+   Franchises (minimum data needed from /anime/franchises/release/{id})
    ───────────────────────────────────────────────────────────── */
 
 public class FranchiseInfo
@@ -155,7 +155,7 @@ public class FranchiseReleaseRef
 
     [JsonPropertyName("type")] public ReleaseType? Type { get; set; }
 
-    // В ответе бывает просто year на верхнем уровне
+    // Response can contain year directly at top level
     [JsonPropertyName("year")]
     [JsonConverter(typeof(IntNullableConverter))]
     public int? Year { get; set; }
