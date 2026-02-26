@@ -6,7 +6,19 @@
     "overview": "Generates STRM libraries for the full catalogue and/or user favourites, with EDL intro-skip and proper NFO metadata.\n",
     "owner": "queukat",
     "category": "Metadata",
+    "image": "icon.png",
+    "imageUrl": "https://queukat.github.io/AniLibriaStrmPlugin/plugins/aniliberty-strm-plugin/icon.png",
     "versions": [
+      {
+        "version": "2.0.0.6",
+        "changelog": "Release 2.0.0.6\n- release: fix pages (671a7d1)\n- Merge remote-tracking branch 'origin/aniLiberty-v2' into aniLiberty-v2 (5327aac)\n- fix(ci): make manifest jq update type-safe (6fa1961)\n- chore(release): v2.0.0.5 (3514fa1)\n- release: add AniLiberty watch progress sync (push + pull) with safe Jellyfin user mapping   - Added AniLiberty playback progress push sync via /accounts/users/me/views/timecodes.   - Added manual pull task to import AniLiberty watch progress into Jellyfin.   - Added .aniid sidecar + NFO uniqueid mapping for reliable episode matching.   - Added sync settings in plugin UI, including auto user selection for single-user Jellyfin servers. (d116df5)\n- release: automate stable/nightly releases and add playback diagnostics - Replace legacy build/publish workflows with a unified release pipeline:   - Nightly: build on every push to main and update a moving prerelease tag \"nightly\"   - Stable: when the head commit starts with \"release:\", bump 4-part version (X.Y.Z.W), tag vX.Y.Z.W and create a GitHub Release (b194dee)\n- Merge pull request #3 from queukat/codex/fill-changelog-from-release-notes (0954daf)\n- fix(ci): inject release notes into build.yaml changelog (91cca23)\n- fix (f1b049d)\n- fix yaml (623350b)\n- fix ver (af5b8d9)\n- flow (3b17fd4)\nGitHub Release: https://github.com/queukat/AniLibriaStrmPlugin/releases/tag/v2.0.0.6\nFull changelog: https://github.com/queukat/AniLibriaStrmPlugin/blob/aniLiberty-v2/CHANGELOG.md",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://queukat.github.io/AniLibriaStrmPlugin/plugins/aniliberty-strm-plugin_2.0.0.6.zip",
+        "checksum": "8a7c24f47ff4897afb8738c6d53d9a38a0742d7913fd6ef4434316b8464c6969",
+        "timestamp": "2026-02-26T12:22:12Z",
+        "releaseUrl": "https://github.com/queukat/AniLibriaStrmPlugin/releases/tag/v2.0.0.6",
+        "changelogUrl": "https://queukat.github.io/AniLibriaStrmPlugin/CHANGELOG.md"
+      },
       {
         "version": "2.0.0.4",
         "changelog": "# AniLiberty API v1 Alignment, Better Metadata & Quieter Logs\n\nThis update improves AniLiberty authentication reliability, aligns the plugin with AniLiberty API v1 responses, and enhances generated metadata while keeping UI logs under control.\n\n## Authentication & OTP\n- Improved login and OTP endpoints with proper HTTP status codes and safer request validation.\n- Updated OTP parsing to support the API v1 format (`otp.code`) and kept backward compatibility for older responses.\n- OTP flow in the settings UI is simplified to **Start → Sign In** (the “Accept OTP” UI action was removed).\n\n## Networking reliability\n- Switched API calls to a reusable, DI-managed `HttpClient` (`IHttpClientFactory`) with consistent headers (User-Agent / Accept / Accept-Language).\n- Added retry handling for rate limits (**HTTP 429**) and transient errors.\n- Optimized HTTP reads using `ResponseHeadersRead` to reduce overhead and improve responsiveness.\n\n## STRM generation & metadata quality\n- Better year handling for AniLiberty v1 (`release.year` instead of `season.year`), including TV show year selection across grouped seasons.\n- More accurate content classification:\n  - Detects **MOVIE** by API `type.value` when available.\n  - Routes **SPECIAL / OVA / OAD** into **Season 00** more reliably.\n- Improved image handling:\n  - Supports v1 image schema (`preview/thumbnail/optimized`) and prefers non-optimized URLs when possible.\n  - Normalizes `.webp` URLs to `.jpg` and safely determines thumbnail file extensions even when URLs contain query parameters.\n- Episode NFO improvements:\n  - Writes episode titles (RU/EN when available), runtime, year, and sets `lockdata=false`.\n\n## Logging & settings\n- Added **“Enable debug logs (very noisy)”** setting:\n  - When OFF: DEBUG/TRACE aren’t stored in UI logs and per-title progress logging is throttled to avoid bloating the UI log.\n- UI log filtering now respects minimum log level and the debug toggle.\n\n## Developer / maintenance\n- Manual generation test is now **skipped by default** and uses environment variables (`ANI_TOKEN`, `ANI_OUTPUT_DIR`) so tokens aren’t stored in the repo.\n- Internal null-safety improvements around plugin initialization.\n\n## Not included\n- No changes to library scanning behavior or broader UI redesign beyond the OTP/auth/logging settings shown above.\n",
@@ -15,8 +27,6 @@
         "checksum": "6a8c53e7cb7a6411675e63844ea34505",
         "timestamp": "2026-02-08T14:29:05Z"
       }
-    ],
-    "image": "icon.png",
-    "imageUrl": "https://queukat.github.io/AniLibriaStrmPlugin/plugins/aniliberty-strm-plugin/icon.png"
+    ]
   }
 ]
