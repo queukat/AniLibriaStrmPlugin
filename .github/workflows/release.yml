@@ -321,6 +321,8 @@ jobs:
 
       - name: Commit and push gh-pages changes
         shell: bash
+        env:
+          GH_PAGES_TOKEN: ${{ secrets.GH_PAGES_TOKEN }}
         run: |
           set -euo pipefail
           cd gh-pages
@@ -331,5 +333,8 @@ jobs:
             echo "No gh-pages changes to commit"
           else
             git commit -m "chore(repo): publish ${RELEASE_TAG}"
+            if [ -n "${GH_PAGES_TOKEN:-}" ]; then
+              git remote set-url origin "https://x-access-token:${GH_PAGES_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+            fi
             git push origin HEAD:gh-pages
           fi
