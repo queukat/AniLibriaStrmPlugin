@@ -260,9 +260,9 @@ jobs:
           mkdir -p "${PLUGINS_DIR}"
 
           ARTIFACT_PATH="${WORKSPACE}/${{ steps.jprm.outputs.artifact }}"
-          SHA_PATH="${WORKSPACE}/${{ steps.jprm.outputs.artifact }}.sha256"
+          MD5_PATH="${WORKSPACE}/${{ steps.jprm.outputs.artifact }}.md5"
           ZIPNAME="$(basename "${ARTIFACT_PATH}")"
-          SHA256="$(cut -d' ' -f1 "${SHA_PATH}")"
+          MD5="$(cut -d' ' -f1 "${MD5_PATH}")"
 
           BASE_URL="https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/plugins"
           RELEASE_URL="${RELEASE_URL}"
@@ -282,7 +282,7 @@ jobs:
             --arg guid "${PLUGIN_GUID}" \
             --arg version "${NEXT_VERSION}" \
             --arg sourceUrl "${BASE_URL}/${ZIPNAME}" \
-            --arg checksum "${SHA256}" \
+            --arg checksum "${MD5}" \
             --arg notes "${MANIFEST_NOTES}" \
             --arg releaseUrl "${RELEASE_URL}" \
             --arg changelogUrl "${CHANGELOG_URL}" \
