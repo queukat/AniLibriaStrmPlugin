@@ -3,7 +3,7 @@ name: Nightly
 on:
   push:
     branches:
-      - main
+      - aniLiberty-v2
   workflow_dispatch:
 
 permissions:
@@ -80,7 +80,7 @@ jobs:
         run: |
           set -euo pipefail
           {
-            echo "Automated nightly build from \`main\`."
+            echo "Automated nightly build from \`${GITHUB_REF_NAME}\`."
             echo
             echo "- Commit: \`${GITHUB_SHA}\`"
             echo "- Message: ${HEAD_COMMIT_MESSAGE:-manual dispatch}"

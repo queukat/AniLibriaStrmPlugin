@@ -85,6 +85,18 @@ public class StrmUrlNormalizationTests
             CancellationToken ct)
             => throw new NotSupportedException();
 
+        public Task<bool> UpdateViewTimecodesAsync(
+            string bearerToken,
+            IEnumerable<ViewTimecodeUpdateItem> updates,
+            CancellationToken ct)
+            => Task.FromResult(true);
+
+        public Task<List<ViewTimecodeEntry>> FetchViewTimecodesAsync(
+            string bearerToken,
+            DateTimeOffset? since,
+            CancellationToken ct)
+            => Task.FromResult(new List<ViewTimecodeEntry>());
+
         public Task<ReleaseResponse?> FetchReleaseByIdAsync(int id, CancellationToken ct)
             => Task.FromResult<ReleaseResponse?>(null);
 

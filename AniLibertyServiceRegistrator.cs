@@ -3,6 +3,7 @@ using AniLibertyStrmPlugin.Tasks;
 using MediaBrowser.Controller;
 using MediaBrowser.Controller.Plugins;
 using MediaBrowser.Model.Tasks;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.DependencyInjection;
 using Polly;
 using Polly.Extensions.Http;
@@ -42,6 +43,8 @@ public class AniLibertyServiceRegistrator : IPluginServiceRegistrator
         services.AddSingleton<IAniLibertyStrmGenerator, AniLibertyStrmGenerator>();
         services.AddSingleton<IScheduledTask, AniLibertyAllTask>();
         services.AddSingleton<IScheduledTask, AniLibertyFavoritesTask>();
+        services.AddSingleton<IScheduledTask, AniLibertyViewsPullTask>();
+        services.AddSingleton<IHostedService, AniLibertyViewSyncHostedService>();
     }
 }
 

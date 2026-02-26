@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Net.Http;
 using System.Net.Http.Headers;
+using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using AniLibertyStrmPlugin.Models;
@@ -17,6 +18,10 @@ public interface IAniLibertyClient
 
     Task<List<ReleaseResponse>> FetchFavoritesAsync(string bearerToken, int pageSize, int maxPages,
         CancellationToken ct);
+
+    Task<bool> UpdateViewTimecodesAsync(string bearerToken, IEnumerable<ViewTimecodeUpdateItem> updates,
+        CancellationToken ct);
+    Task<List<ViewTimecodeEntry>> FetchViewTimecodesAsync(string bearerToken, DateTimeOffset? since, CancellationToken ct);
 
     // NEW:
     Task<ReleaseResponse?> FetchReleaseByIdAsync(int id, CancellationToken ct);
@@ -146,6 +151,96 @@ public sealed record AniLibertyClient(HttpClient http, ILogger<AniLibertyClient>
         return result;
     }
 
+    public async Task<bool> UpdateViewTimecodesAsync(string bearerToken, IEnumerable<ViewTimecodeUpdateItem> updates,
+        CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(bearerToken))
+            return false;
+
+        var payloadItems = updates?.Where(x => !string.IsNullOrWhiteSpace(x.ReleaseEpisodeId)).ToList()
+                           ?? new List<ViewTimecodeUpdateItem>();
+        if (payloadItems.Count == 0)
+            return false;
+
+        var url = $"{ApiBase}/accounts/users/me/views/timecodes";
+        var json = JsonSerializer.Serialize(payloadItems, _jsonOpts);
+
+        using var req = new HttpRequestMessage(HttpMethod.Post, url);
+        req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", bearerToken);
+        req.Content = new StringContent(json, Encoding.UTF8, "application/json");
+
+        using var resp = await http.SendAsync(req, HttpCompletionOption.ResponseHeadersRead, ct);
+        var body = await SafeReadAsync(resp, ct);
+
+        if (!resp.IsSuccessStatusCode)
+        {
+            log.LogWarning("UpdateViewTimecodes failed HTTP {Code}: {Body}",
+                (int)resp.StatusCode, Truncate(body, 320));
+            return false;
+        }
+
+        return true;
+    }
+
+    public async Task<List<ViewTimecodeEntry>> FetchViewTimecodesAsync(string bearerToken, DateTimeOffset? since, CancellationToken ct)
+    {
+        var result = new Dictionary<string, ViewTimecodeEntry>(StringComparer.OrdinalIgnoreCase);
+        if (string.IsNullOrWhiteSpace(bearerToken))
+            return new List<ViewTimecodeEntry>();
+
+        var url = $"{ApiBase}/accounts/users/me/views/timecodes";
+        if (since.HasValue)
+            url += $"?since={Uri.EscapeDataString(since.Value.UtcDateTime.ToString("O"))}";
+
+        using var req = new HttpRequestMessage(HttpMethod.Get, url);
+        req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", bearerToken);
+
+        using var resp = await http.SendAsync(req, HttpCompletionOption.ResponseHeadersRead, ct);
+        var raw = await SafeReadAsync(resp, ct);
+        if (!resp.IsSuccessStatusCode)
+        {
+            log.LogWarning("FetchViewTimecodes failed HTTP {Code}: {Body}",
+                (int)resp.StatusCode, Truncate(raw, 320));
+            return new List<ViewTimecodeEntry>();
+        }
+
+        try
+        {
+            using var doc = JsonDocument.Parse(raw);
+            var root = doc.RootElement;
+            if (root.ValueKind == JsonValueKind.Object && root.TryGetProperty("data", out var dataEl))
+                root = dataEl;
+
+            if (root.ValueKind != JsonValueKind.Array)
+                return new List<ViewTimecodeEntry>();
+
+            foreach (var el in root.EnumerateArray())
+            {
+                if (!TryParseViewEntry(el, out var entry))
+                    continue;
+
+                if (!result.TryGetValue(entry.ReleaseEpisodeId, out var existing))
+                {
+                    result[entry.ReleaseEpisodeId] = entry;
+                    continue;
+                }
+
+                if (entry.Time >= existing.Time || entry.IsWatched && !existing.IsWatched)
+                {
+                    existing.Time = Math.Max(existing.Time, entry.Time);
+                    existing.IsWatched = existing.IsWatched || entry.IsWatched;
+                    result[entry.ReleaseEpisodeId] = existing;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            log.LogWarning(ex, "FetchViewTimecodes parse failed.");
+        }
+
+        return result.Values.ToList();
+    }
+
     // NEW: подробности релиза с эпизодами
     public async Task<ReleaseResponse?> FetchReleaseByIdAsync(int id, CancellationToken ct)
     {
@@ -201,6 +296,95 @@ public sealed record AniLibertyClient(HttpClient http, ILogger<AniLibertyClient>
     private static string Truncate(string? text, int max)
     {
         return string.IsNullOrEmpty(text) || text.Length <= max ? text ?? string.Empty : text[..max] + " …";
+    }
+
+    private static bool TryParseViewEntry(JsonElement el, out ViewTimecodeEntry entry)
+    {
+        entry = new ViewTimecodeEntry();
+
+        if (el.ValueKind == JsonValueKind.Object)
+        {
+            var okId = el.TryGetProperty("release_episode_id", out var idEl) && idEl.ValueKind == JsonValueKind.String;
+            var okTime = el.TryGetProperty("time", out var timeEl) &&
+                         (timeEl.ValueKind == JsonValueKind.Number || timeEl.ValueKind == JsonValueKind.String);
+            var okWatched = el.TryGetProperty("is_watched", out var watchedEl) &&
+                            (watchedEl.ValueKind == JsonValueKind.True ||
+                             watchedEl.ValueKind == JsonValueKind.False ||
+                             watchedEl.ValueKind == JsonValueKind.String);
+            if (!okId || !okTime || !okWatched)
+                return false;
+
+            var id = idEl.GetString()?.Trim() ?? string.Empty;
+            if (!Guid.TryParse(id, out _))
+                return false;
+
+            if (!TryGetDouble(timeEl, out var time))
+                return false;
+            if (!TryGetBool(watchedEl, out var watched))
+                return false;
+
+            entry.ReleaseEpisodeId = id;
+            entry.Time = Math.Max(0, time);
+            entry.IsWatched = watched;
+            return true;
+        }
+
+        // Some API variants may return tuple-like arrays: [release_episode_id, time, is_watched]
+        if (el.ValueKind == JsonValueKind.Array)
+        {
+            var arr = el.EnumerateArray().ToArray();
+            if (arr.Length < 3)
+                return false;
+
+            if (arr[0].ValueKind != JsonValueKind.String)
+                return false;
+
+            var id = arr[0].GetString()?.Trim() ?? string.Empty;
+            if (!Guid.TryParse(id, out _))
+                return false;
+            if (!TryGetDouble(arr[1], out var time))
+                return false;
+            if (!TryGetBool(arr[2], out var watched))
+                return false;
+
+            entry.ReleaseEpisodeId = id;
+            entry.Time = Math.Max(0, time);
+            entry.IsWatched = watched;
+            return true;
+        }
+
+        return false;
+    }
+
+    private static bool TryGetDouble(JsonElement el, out double value)
+    {
+        value = 0;
+        if (el.ValueKind == JsonValueKind.Number)
+            return el.TryGetDouble(out value);
+
+        if (el.ValueKind == JsonValueKind.String)
+        {
+            var txt = el.GetString();
+            return double.TryParse(txt, System.Globalization.NumberStyles.Float,
+                System.Globalization.CultureInfo.InvariantCulture, out value);
+        }
+
+        return false;
+    }
+
+    private static bool TryGetBool(JsonElement el, out bool value)
+    {
+        value = false;
+        if (el.ValueKind == JsonValueKind.True || el.ValueKind == JsonValueKind.False)
+        {
+            value = el.GetBoolean();
+            return true;
+        }
+
+        if (el.ValueKind == JsonValueKind.String)
+            return bool.TryParse(el.GetString(), out value);
+
+        return false;
     }
 }
 

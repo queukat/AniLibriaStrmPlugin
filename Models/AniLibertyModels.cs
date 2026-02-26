@@ -102,6 +102,20 @@ public class EpisodeItem
     public int? SortOrder { get; set; }
 }
 
+public sealed class ViewTimecodeUpdateItem
+{
+    [JsonPropertyName("time")] public double Time { get; set; }
+    [JsonPropertyName("is_watched")] public bool IsWatched { get; set; }
+    [JsonPropertyName("release_episode_id")] public string ReleaseEpisodeId { get; set; } = string.Empty;
+}
+
+public sealed class ViewTimecodeEntry
+{
+    public double Time { get; set; }
+    public bool IsWatched { get; set; }
+    public string ReleaseEpisodeId { get; set; } = string.Empty;
+}
+
 public class OpeningBlock
 {
     [JsonPropertyName("start")] public int? Start { get; set; }

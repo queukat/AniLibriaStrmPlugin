@@ -9,14 +9,19 @@ fansub site **AniLiberty / AniLibria** hosts — directly from your Jellyfin ser
 
 ## ✨ Features
 
-- **Two scheduled tasks**
+- **Three scheduled tasks**
   - **All titles** – mirrors the whole AniLiberty catalogue into a flat STRM library.
   - **Favourites only** – mirrors only what you added to favourites on the site (requires AniLiberty account / token).
+  - **Watch progress pull-sync** – imports AniLiberty progress into Jellyfin user profile (manual run).
 - **Per‑episode assets**
   - `SxxExx.strm` with HLS URL.
   - `SxxExx-thumb.jpg/png` (episode preview, if available).
   - `SxxExx.edl` (intro / credits skip).
   - `SxxExx.nfo` (episode metadata: title (RU/EN when available), runtime, year).
+  - `SxxExx.aniid` (AniLiberty `release_episode_id` for playback sync).
+- **AniLiberty view sync (optional)**
+  - Sends playback progress to AniLiberty API v1 (`/accounts/users/me/views/timecodes`).
+  - Uses saved AniLiberty JWT token and generated `.aniid` sidecar mapping.
 - **Intro‑skip**
   - Always generates classic **EDL** files.
   - On Jellyfin ≥ 10.11 additionally writes *Intro* / *Credits* chapter markers → native *Skip Intro* button.
@@ -105,6 +110,7 @@ Open **Dashboard → Plugins → AniLiberty STRM**.
 | **Update full catalogue**    | If unchecked, the “All titles” scheduled task will be skipped.         |
 | Pagination settings          | API paging; change only if you hit rate limits or need to throttle.    |
 | Logging options              | UI min log level, **Enable debug logs**, **Enable playback diagnostics logs**, and how many lines to keep. |
+| View sync options            | Enable progress sync to AniLiberty, sync step (seconds), stop-event push, and Jellyfin UserId for pull import. |
 
 ### Logging notes
 
@@ -115,6 +121,9 @@ Open **Dashboard → Plugins → AniLiberty STRM**.
 - **Enable playback diagnostics logs**:
   - Adds per-episode diagnostics to *Last Task Logs*:
     selected HLS URL, normalized URL, existing/new `.strm` value, and a server-side HLS probe summary.
+- **Sync playback progress to AniLiberty**:
+  - Sends periodic progress updates for played `.strm` items.
+  - If old libraries were generated before `.aniid` sidecars existed, run generation again to create mapping files.
 
 ### AniLiberty authentication
 
@@ -159,6 +168,14 @@ Two tasks appear under **Dashboard → Scheduled Tasks → AniLiberty**:
      **Favourites STRM Path**.
    - Has no default trigger; you can enable and schedule it as you like.
 
+3. **Sync AniLiberty watch progress to Jellyfin**
+   - Manual task (no default trigger).
+   - Pulls remote timecodes from AniLiberty and imports them into a selected Jellyfin user profile.
+   - Requires:
+     - valid `AniLibertyToken`
+     - `AniLibertyViewSyncJellyfinUserId` in plugin settings
+   - Uses `.aniid` sidecar mapping generated near `.strm` files.
+
 After saving settings you can run tasks manually or wait for the scheduler.
 
 ---
@@ -192,12 +209,12 @@ The repository already contains `build.yaml` and CI workflows that:
 The repository uses two workflows:
 
 - `.github/workflows/nightly.yml`
-  - Trigger: every push to `main`.
+  - Trigger: every push to `aniLiberty-v2` (plus manual `workflow_dispatch`).
   - Builds the plugin and updates a moving prerelease with tag `nightly`.
   - Replaces assets in that single prerelease (no new tag per commit).
 
 - `.github/workflows/release.yml`
-  - Trigger: push to `main` where the **head commit message starts with `release:`**.
+  - Trigger: push to `aniLiberty-v2` where the **head commit message starts with `release:`**, or manual `workflow_dispatch`.
   - Bumps patch part of 4-part version (`X.Y.Z.W`) in `build.yaml`.
   - Creates tag `vX.Y.Z.W`.
   - Creates GitHub Release with generated notes + commit summary since previous stable tag.
@@ -227,7 +244,7 @@ The repository uses two workflows:
 
 ### How to force stable release
 
-1. Push your changes to `main`.
+1. Push your changes to `aniLiberty-v2`.
 2. Ensure the last pushed commit message starts with `release:`.
 3. CI does the rest: bump version, tag, release, manifest, changelog.
 
@@ -242,12 +259,13 @@ release: fix Android TV playback diagnostics and manifest sync
 ## 🧯 CI Troubleshooting
 
 - `release.yml` did not run:
-  - Verify branch is `main`.
+  - Verify branch is `aniLiberty-v2`.
   - Verify the latest pushed commit message starts with `release:`.
 - Tag push or commit push failed from Actions:
   - Check branch protection rules allow `GITHUB_TOKEN` to push tags/commits.
 - Manifest not updated:
   - Check `gh-pages` branch exists and workflow has `contents: write`.
+  - Creating a GitHub Release manually does not update `plugins/manifest.json`; run `release.yml` (push `release:*` commit or use `workflow_dispatch`).
 - Jellyfin catalog shows old data:
   - GitHub Pages cache/refresh delay can take a few minutes.
   - Re-open Plugins Catalog in Jellyfin and refresh repositories.

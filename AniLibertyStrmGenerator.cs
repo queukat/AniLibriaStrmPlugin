@@ -289,6 +289,7 @@ public sealed class AniLibertyStrmGenerator(
 
         if (!File.Exists(strmPath))
             await File.WriteAllTextAsync(strmPath, url, token);
+        await WriteEpisodeIdSidecarAsync(strmPath, ep.Id, token);
 
         var posterUrl = NormalizeImageUrlPreferJpg(MakeFullUrl(PickImageUrl(rel.Poster)));
         await DownloadIfAbsentAsync(posterUrl, Path.Combine(movieDir, "cover.jpg"), token);
@@ -300,6 +301,7 @@ public sealed class AniLibertyStrmGenerator(
   <title>{MakeSafeXml(title)}</title>
   {(orig != title ? $"  <originaltitle>{MakeSafeXml(orig)}</originaltitle>" : "")}
   <year>{year}</year>
+  {(Guid.TryParse(ep.Id, out _) ? $"  <uniqueid type=\"aniliberty_episode_id\" default=\"false\">{MakeSafeXml(ep.Id)}</uniqueid>" : "")}
   {(plot.Length > 0 ? $"  <plot>{plot}</plot>" : "")}
   <lockdata>false</lockdata>
 </movie>";
@@ -459,6 +461,7 @@ public sealed class AniLibertyStrmGenerator(
 
             if (!File.Exists(strmPath))
                 await File.WriteAllTextAsync(strmPath, url, token);
+            await WriteEpisodeIdSidecarAsync(strmPath, ep.Id, token);
 
             // превью (v1: preview.preview / preview.thumbnail)
             var epPreviewUrlRaw = MakeFullUrl(PickImageUrl(ep.Preview));
@@ -571,6 +574,7 @@ public sealed class AniLibertyStrmGenerator(
   {(epTitleEn.Length > 0 && !string.Equals(epTitleEn, epTitleRu, StringComparison.OrdinalIgnoreCase)
       ? $"  <originaltitle>{MakeSafeXml(epTitleEn)}</originaltitle>"
       : string.Empty)}
+  {(Guid.TryParse(ep.Id, out _) ? $"  <uniqueid type=\"aniliberty_episode_id\" default=\"false\">{MakeSafeXml(ep.Id)}</uniqueid>" : string.Empty)}
   {(rel.Year > 0 ? $"  <year>{rel.Year}</year>" : string.Empty)}
   {(runtimeMin > 0 ? $"  <runtime>{runtimeMin}</runtime>" : string.Empty)}
   <showtitle>{MakeSafeXml(showTitle)}</showtitle>
@@ -640,6 +644,26 @@ public sealed class AniLibertyStrmGenerator(
     }
 
     // ─────────────────────── helpers ─────────────────────────────
+
+    private static async Task WriteEpisodeIdSidecarAsync(string strmPath, string? episodeId, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(strmPath) || string.IsNullOrWhiteSpace(episodeId))
+            return;
+
+        var normalized = episodeId.Trim();
+        if (!Guid.TryParse(normalized, out _))
+            return;
+
+        var sidecarPath = AniLibertyEpisodeIdResolver.GetSidecarPath(strmPath);
+        if (File.Exists(sidecarPath))
+        {
+            var oldVal = (await File.ReadAllTextAsync(sidecarPath, ct)).Trim();
+            if (string.Equals(oldVal, normalized, StringComparison.OrdinalIgnoreCase))
+                return;
+        }
+
+        await File.WriteAllTextAsync(sidecarPath, normalized, Encoding.UTF8, ct);
+    }
 
     private static string TrimForLog(string? text, int max = 220)
     {

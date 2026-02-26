@@ -3,18 +3,19 @@ name: Release
 on:
   push:
     branches:
-      - main
+      - aniLiberty-v2
+  workflow_dispatch:
 
 permissions:
   contents: write
 
 concurrency:
-  group: release-main
+  group: release-${{ github.ref_name }}
   cancel-in-progress: false
 
 jobs:
   stable-release:
-    if: startsWith(github.event.head_commit.message, 'release:')
+    if: github.event_name == 'workflow_dispatch' || startsWith(github.event.head_commit.message, 'release:')
     runs-on: ubuntu-latest
 
     steps:
@@ -68,7 +69,7 @@ jobs:
           NEXT_VERSION="${V1}.${V2}.${V3}.$((V4 + 1))"
           RELEASE_TAG="v${NEXT_VERSION}"
           RELEASE_URL="https://github.com/${GITHUB_REPOSITORY}/releases/tag/${RELEASE_TAG}"
-          CHANGELOG_URL="https://github.com/${GITHUB_REPOSITORY}/blob/main/CHANGELOG.md"
+          CHANGELOG_URL="https://github.com/${GITHUB_REPOSITORY}/blob/${GITHUB_REF_NAME}/CHANGELOG.md"
 
           if [ -n "${PREV_TAG}" ]; then
             COMPARE_URL="https://github.com/${GITHUB_REPOSITORY}/compare/${PREV_TAG}...${RELEASE_TAG}"
@@ -185,7 +186,7 @@ jobs:
             echo "No metadata changes to commit"
           else
             git commit -m "chore(release): v${NEXT_VERSION}"
-            git push origin HEAD:main
+            git push origin "HEAD:${GITHUB_REF_NAME}"
           fi
 
       - name: Create and push release tag

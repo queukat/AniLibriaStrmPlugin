@@ -36,6 +36,18 @@ public class PluginConfiguration : BasePluginConfiguration
     // Диагностика проблем воспроизведения: подробные логи по HLS URL и .strm
     public bool EnablePlaybackDiagnostics { get; set; } = false;
 
+    // Отправлять прогресс просмотра эпизодов в AniLiberty (/accounts/users/me/views/timecodes)
+    public bool EnableAniLibertyViewSync { get; set; } = false;
+
+    // Минимальный шаг прогресса (сек), чтобы не спамить API.
+    public int AniLibertyViewSyncMinDeltaSeconds { get; set; } = 30;
+
+    // Принудительно отправлять прогресс при остановке воспроизведения.
+    public bool AniLibertyViewSyncOnStop { get; set; } = true;
+
+    // Для pull-sync: Jellyfin UserId, в чей профиль импортировать прогресс из AniLiberty.
+    public string AniLibertyViewSyncJellyfinUserId { get; set; } = string.Empty;
+
     // Сколько строк хранить в LastTaskLog
     public int LastLogMaxLines { get; set; } = 800; // можно 800–1500
 }
