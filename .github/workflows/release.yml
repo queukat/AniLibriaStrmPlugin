@@ -289,16 +289,29 @@ jobs:
             --arg iconUrl "${BASE_URL}/aniliberty-strm-plugin/icon.png" \
             '
             map(
-              if .guid == $guid then
-                .imageUrl = (if (.imageUrl | type == "string" and (.imageUrl | startswith("http"))) then .imageUrl else $iconUrl end) |
-                .versions |= map(
-                  if .version == $version then
-                    .sourceUrl = $sourceUrl |
-                    .checksum = $checksum |
-                    .changelog = $notes |
-                    .releaseUrl = $releaseUrl |
-                    .changelogUrl = $changelogUrl
-                  else . end
+              if (type == "object" and .guid == $guid) then
+                (
+                  .imageUrl as $img
+                  | .imageUrl = (
+                      if (($img | type) == "string" and ($img | startswith("http"))) then
+                        $img
+                      else
+                        $iconUrl
+                      end
+                    )
+                  | if (.versions | type) == "array" then
+                      .versions |= map(
+                        if (type == "object" and .version == $version) then
+                          .sourceUrl = $sourceUrl |
+                          .checksum = $checksum |
+                          .changelog = $notes |
+                          .releaseUrl = $releaseUrl |
+                          .changelogUrl = $changelogUrl
+                        else . end
+                      )
+                    else
+                      .
+                    end
                 )
               else . end
             )
