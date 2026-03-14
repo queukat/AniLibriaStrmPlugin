@@ -2,6 +2,11 @@
 
 All notable changes to this plugin are documented in this file.
 
+## v2.0.0.8 - 2026-03-14
+- release: ship playback proxy and v2 stability updates (250992e)
+- GitHub Release: https://github.com/queukat/AniLibriaStrmPlugin/releases/tag/v2.0.0.8
+- Compare: https://github.com/queukat/AniLibriaStrmPlugin/compare/v2.0.0.7...v2.0.0.8
+
 ## v2.0.0.7 - 2026-02-26
 - release: fix comments   - chore: normalize project comments   - removed empty comments across source files (1f4236e)
 - release (0427582)
