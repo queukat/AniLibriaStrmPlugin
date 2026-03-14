@@ -10,9 +10,9 @@ fansub site **AniLiberty / AniLibria** hosts — directly from your Jellyfin ser
 ## ✨ Features
 
 - **Three scheduled tasks**
-  - **All titles** – mirrors the whole AniLiberty catalogue into a flat STRM library.
-  - **Favourites only** – mirrors only what you added to favourites on the site (requires AniLiberty account / token).
-  - **Watch progress pull-sync** – imports AniLiberty progress into Jellyfin user profile (manual run).
+  - **All titles** – mirrors the full AniLiberty catalog into a flat STRM library.
+  - **Favorites only** – mirrors only what you added to favorites on the site (requires AniLiberty account / token).
+  - **Watch progress pull sync** – imports AniLiberty progress into a Jellyfin user profile (manual run).
 - **Per‑episode assets**
   - `SxxExx.strm` with HLS URL.
   - `SxxExx-thumb.jpg/png` (episode preview, if available).
@@ -104,11 +104,11 @@ Open **Dashboard → Plugins → AniLiberty STRM**.
 
 | Field                        | Meaning                                                                 |
 |------------------------------|-------------------------------------------------------------------------|
-| **All Titles STRM Path**     | Where to write the global catalogue. Leave empty to disable.           |
-| **Favourites STRM Path**     | Separate folder for your AniLiberty favourites.                        |
+| **All Titles STRM Path**     | Where to write the full catalog library. Leave empty to disable.       |
+| **Favorites STRM Path**      | Separate folder for your AniLiberty favorites.                         |
 | **Preferred Resolution**     | 1080 / 720 / 480 – which HLS URL to prefer in generated `.strm`.       |
-| **Update favourites folder** | If unchecked, the “Favourites only” scheduled task will be skipped.    |
-| **Update full catalogue**    | If unchecked, the “All titles” scheduled task will be skipped.         |
+| **Generate favorites library** | If unchecked, the “Favorites only” scheduled task will be skipped.   |
+| **Generate full catalog library** | If unchecked, the “All titles” scheduled task will be skipped.   |
 | Pagination settings          | API paging; change only if you hit rate limits or need to throttle.    |
 | Logging options              | UI min log level, **Enable debug logs**, **Enable playback diagnostics logs**, and how many lines to keep. |
 | View sync options            | Enable progress sync to AniLiberty, sync step (seconds), stop-event push, and Jellyfin UserId for pull import. |
@@ -128,7 +128,7 @@ Open **Dashboard → Plugins → AniLiberty STRM**.
 
 ### AniLiberty authentication
 
-At the bottom of the config page there is an **“AniLiberty Authorization”** section.
+At the bottom of the config page there is an **“AniLiberty Authentication”** section.
 
 You have two flows:
 
@@ -139,7 +139,7 @@ You have two flows:
      (`AniLibertyToken`). The token is shown in the *Token* box.
 
 2. **OTP flow**
-   - Press **Start** – the plugin requests a one‑time code for your device id (the last received code is shown on the page).
+   - Press **Start OTP** – the plugin requests a one-time code for your device id (the last received code is shown on the page).
    - Enter the received code into the OTP field.
    - Press **Sign In** to exchange the code for a JWT and store it.
 
@@ -148,7 +148,7 @@ The token and device id are stored in the plugin configuration and reused by:
 - **Favorites task** – to fetch `/accounts/users/me/favorites/releases`.
 - Any future authenticated API calls.
 
-You can copy or clear the token from the same page.
+You can also refresh, copy, or clear the token from the same page.
 
 ---
 
@@ -165,8 +165,8 @@ Two tasks appear under **Dashboard → Scheduled Tasks → AniLiberty**:
 
 2. **Generate AniLiberty STRM (Favorites Only)**
    - Requires a valid `AniLibertyToken`.
-   - Fetches favourites and generates the same set of files under
-     **Favourites STRM Path**.
+   - Fetches favorites and generates the same set of files under
+     **Favorites STRM Path**.
    - Has no default trigger; you can enable and schedule it as you like.
 
 3. **Sync AniLiberty watch progress to Jellyfin**

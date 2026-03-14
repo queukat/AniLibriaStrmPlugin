@@ -62,8 +62,12 @@ public sealed class Plugin : BasePlugin<PluginConfiguration>, IHasWebPages
 
         lock (_logSync)
         {
-            var max = Math.Max(50, Configuration?.LastLogMaxLines ?? 800);
-            var existing = Configuration?.LastTaskLog ?? string.Empty;
+            var cfg = Configuration;
+            if (cfg is null)
+                return;
+
+            var max = Math.Max(50, cfg.LastLogMaxLines);
+            var existing = cfg.LastTaskLog ?? string.Empty;
 
             // Append quickly and trim old lines.
             var joined = string.IsNullOrEmpty(existing) ? ln : existing + "\n" + ln;
@@ -71,7 +75,7 @@ public sealed class Plugin : BasePlugin<PluginConfiguration>, IHasWebPages
             if (arr.Length > max)
                 joined = string.Join('\n', arr.Skip(arr.Length - max));
 
-            Configuration.LastTaskLog = joined;
+            cfg.LastTaskLog = joined;
             // Do not flush to disk on every line; flush in existing task-finally points.
         }
     }

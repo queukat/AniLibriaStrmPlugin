@@ -56,6 +56,8 @@ namespace AniLibertyStrmPlugin.Tests
             // No Jellyfin runtime in tests -> library/chapters = null (generator handles this).
             IAniLibertyStrmGenerator generator = new AniLibertyStrmGenerator(
                 genLogger,
+                serverHost: null!,
+                networkManager: null!,
                 library: null!,
                 chapters: null!,
                 client: client

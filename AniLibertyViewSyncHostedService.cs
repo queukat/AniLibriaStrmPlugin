@@ -12,8 +12,8 @@ internal sealed class AniLibertyViewSyncHostedService : IHostedService, IDisposa
 {
     private readonly IAniLibertyClient _client;
     private readonly ILogger<AniLibertyViewSyncHostedService> _log;
-    private readonly ConcurrentDictionary<string, long> _lastSentBySession = new();
     private readonly ISessionManager _sessionManager;
+    private readonly ViewSyncSessionCoordinator _sessionCoordinator = new();
     private int _isSubscribed;
 
     public AniLibertyViewSyncHostedService(
@@ -35,12 +35,14 @@ internal sealed class AniLibertyViewSyncHostedService : IHostedService, IDisposa
     public Task StopAsync(CancellationToken cancellationToken)
     {
         Unsubscribe();
+        _sessionCoordinator.CancelPending();
         return Task.CompletedTask;
     }
 
     public void Dispose()
     {
         Unsubscribe();
+        _sessionCoordinator.CancelPending();
     }
 
     private void Subscribe()
@@ -106,11 +108,6 @@ internal sealed class AniLibertyViewSyncHostedService : IHostedService, IDisposa
 
             var sessionKey = $"{releaseEpisodeId}|{args.PlaySessionId ?? "-"}";
             var minDelta = Math.Clamp(cfg.AniLibertyViewSyncMinDeltaSeconds, 5, 600);
-            if (!isStopEvent &&
-                _lastSentBySession.TryGetValue(sessionKey, out var lastSeconds) &&
-                positionSeconds < lastSeconds + minDelta)
-                return;
-
             var isWatched = playedToCompletion;
             if (!isWatched && args.Item?.RunTimeTicks is long runtimeTicks && runtimeTicks > 0)
             {
@@ -129,19 +126,24 @@ internal sealed class AniLibertyViewSyncHostedService : IHostedService, IDisposa
                 }
             };
 
-            var ok = await _client.UpdateViewTimecodesAsync(token, payload, CancellationToken.None);
-            if (!ok)
+            var sent = await _sessionCoordinator.TrySendAsync(
+                sessionKey,
+                positionSeconds,
+                minDelta,
+                isStopEvent,
+                ct => _client.UpdateViewTimecodesAsync(token, payload, ct));
+            if (!sent)
                 return;
-
-            _lastSentBySession[sessionKey] = positionSeconds;
-            if (isStopEvent)
-                _lastSentBySession.TryRemove(sessionKey, out _);
 
             _log.Debug("[WATCH-SYNC] Sent: epId={0}, time={1}s, watched={2}, stop={3}",
                 releaseEpisodeId,
                 positionSeconds,
                 isWatched ? "yes" : "no",
                 isStopEvent ? "yes" : "no");
+        }
+        catch (OperationCanceledException) when (_sessionCoordinator.IsStopping)
+        {
+            // Service is shutting down; suppress noisy warnings from canceled in-flight sync.
         }
         catch (Exception ex)
         {

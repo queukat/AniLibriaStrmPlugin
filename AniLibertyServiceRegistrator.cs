@@ -31,6 +31,16 @@ public class AniLibertyServiceRegistrator : IPluginServiceRegistrator
             })
             .AddPolicyHandler(PolicyHelpers.GetRetryPolicy());
 
+        services.AddHttpClient("AniLibertyMediaProxy", c =>
+            {
+                c.Timeout = TimeSpan.FromSeconds(120);
+                c.DefaultRequestHeaders.UserAgent
+                    .ParseAdd("Jellyfin-AniLibertyStrm/2.0 (+https://github.com/queukat/AniLibertyStrmPlugin)");
+                c.DefaultRequestHeaders.Accept.ParseAdd("*/*");
+                c.DefaultRequestHeaders.AcceptLanguage.ParseAdd("ru,en;q=0.8");
+            })
+            .AddPolicyHandler(PolicyHelpers.GetRetryPolicy());
+
         /* ---- AniLibertyClient ---- */
         services.AddTransient<IAniLibertyClient>(sp =>
         {

@@ -58,5 +58,20 @@
         <Message Text="Plugin DLL built at: $(TargetDir)$(TargetFileName)" Importance="high"/>
     </Target>
 
+    <Target Name="RemoveConflictingSharedAssemblies" AfterTargets="CopyFilesToPublishDirectory">
+        <ItemGroup>
+            <ConflictingPublishAssemblies Include="$(PublishDir)Microsoft.Extensions.Configuration.Abstractions.dll"/>
+            <ConflictingPublishAssemblies Include="$(PublishDir)Microsoft.Extensions.Configuration.Binder.dll"/>
+            <ConflictingPublishAssemblies Include="$(PublishDir)Microsoft.Extensions.DependencyInjection.Abstractions.dll"/>
+            <ConflictingPublishAssemblies Include="$(PublishDir)Microsoft.Extensions.DependencyInjection.dll"/>
+            <ConflictingPublishAssemblies Include="$(PublishDir)Microsoft.Extensions.Logging.Abstractions.dll"/>
+            <ConflictingPublishAssemblies Include="$(PublishDir)Microsoft.Extensions.Logging.dll"/>
+            <ConflictingPublishAssemblies Include="$(PublishDir)Microsoft.Extensions.Options.dll"/>
+            <ConflictingPublishAssemblies Include="$(PublishDir)Microsoft.Extensions.Primitives.dll"/>
+        </ItemGroup>
+
+        <Delete Files="@(ConflictingPublishAssemblies)" TreatErrorsAsWarnings="true"/>
+    </Target>
+
 
 </Project>

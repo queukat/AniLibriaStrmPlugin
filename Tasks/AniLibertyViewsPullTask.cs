@@ -53,7 +53,7 @@ public sealed class AniLibertyViewsPullTask(
                 return;
             }
 
-            var map = BuildEpisodeMap(cfg);
+            var map = ViewSyncPathMap.Build(cfg);
             log.Info("Remote timecodes: {0}; local episode map entries: {1}", remote.Count, map.Count);
 
             var applied = 0;
@@ -66,14 +66,14 @@ public sealed class AniLibertyViewsPullTask(
                 token.ThrowIfCancellationRequested();
                 var row = remote[i];
 
-                if (!map.TryGetValue(row.ReleaseEpisodeId, out var strmPath))
+                if (!map.TryGetValue(row.ReleaseEpisodeId, out var candidatePaths))
                 {
                     skippedNoMap++;
                     progress.Report((i + 1) / (double)remote.Count * 100.0);
                     continue;
                 }
 
-                var item = library.FindByPath(strmPath, false);
+                var item = ViewSyncPathMap.ResolveFirst(candidatePaths, path => library.FindByPath(path, false));
                 if (item is null)
                 {
                     skippedNoItem++;
@@ -153,51 +153,6 @@ public sealed class AniLibertyViewsPullTask(
         }
 
         return changed;
-    }
-
-    private static Dictionary<string, string> BuildEpisodeMap(Configuration.PluginConfiguration cfg)
-    {
-        var result = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-        var roots = new[] { cfg.StrmAllPath, cfg.StrmFavoritesPath }
-            .Where(x => !string.IsNullOrWhiteSpace(x))
-            .Select(x => x.Trim())
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .ToList();
-
-        foreach (var root in roots)
-        {
-            if (!Directory.Exists(root))
-                continue;
-
-            IEnumerable<string> files;
-            try
-            {
-                files = Directory.EnumerateFiles(root, "*.aniid", SearchOption.AllDirectories);
-            }
-            catch
-            {
-                continue;
-            }
-
-            foreach (var sidecar in files)
-            {
-                try
-                {
-                    var txt = (File.ReadAllText(sidecar) ?? string.Empty).Trim();
-                    if (!Guid.TryParse(txt, out _))
-                        continue;
-
-                    var strmPath = Path.ChangeExtension(sidecar, ".strm");
-                    result.TryAdd(txt, strmPath);
-                }
-                catch
-                {
-                    // ignore one broken sidecar
-                }
-            }
-        }
-
-        return result;
     }
 
     private static Jellyfin.Database.Implementations.Entities.User? ResolveTargetUser(

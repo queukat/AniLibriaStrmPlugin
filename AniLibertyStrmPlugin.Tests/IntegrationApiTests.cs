@@ -5,6 +5,7 @@ using System;
 using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Text.Json;
 using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 using AniLibertyStrmPlugin.Models;
@@ -56,6 +57,27 @@ namespace AniLibertyStrmPlugin.Tests
                 CancellationToken.None);
 
             Assert.Contains(first.Alias, raw, StringComparison.OrdinalIgnoreCase);
+        }
+
+        [Fact(DisplayName = "GET /accounts/users/me/favorites/releases accepts ANI_TOKEN")]
+        public async Task Favorites_WithToken_Alive()
+        {
+            if (!IsLiveApiEnabled) return;
+
+            var token = Environment.GetEnvironmentVariable("ANI_TOKEN");
+            if (string.IsNullOrWhiteSpace(token)) return;
+
+            var client = NewClient();
+            var raw = await client.GetStringAuthAsync(
+                $"{ApiBase}/accounts/users/me/favorites/releases?limit=1&page=1",
+                token,
+                CancellationToken.None);
+
+            Assert.False(string.IsNullOrWhiteSpace(raw));
+
+            using var doc = JsonDocument.Parse(raw);
+            Assert.True(doc.RootElement.TryGetProperty("data", out var dataEl));
+            Assert.Equal(JsonValueKind.Array, dataEl.ValueKind);
         }
     }
 }

@@ -1,5 +1,6 @@
 ﻿// --- File: AniLibertyAuthController.cs (updated) ---
 
+using System.Globalization;
 using System.Net;
 using System.Net.Http;
 using System.Net.Http.Headers;
@@ -114,13 +115,14 @@ public class AniLibertyAuthController : ControllerBase
     {
         if (req is null || string.IsNullOrWhiteSpace(req.Code))
             return BadRequest(Fail("No code"));
+        if (!OtpPayloadBuilder.TryCreateAcceptPayload(req.Code, out var body))
+            return BadRequest(Fail("Invalid code"));
 
         var plugin = RequirePlugin();
         var token = plugin.Configuration.AniLibertyToken;
         if (string.IsNullOrWhiteSpace(token))
             return BadRequest(Fail("No auth token"));
 
-        var body = JsonSerializer.Serialize(new { code = req.Code });
         var resp = await PostJsonAsync(
             $"{ApiBase}/accounts/otp/accept",
             body,
@@ -143,7 +145,9 @@ public class AniLibertyAuthController : ControllerBase
         if (string.IsNullOrWhiteSpace(cfg.AniDeviceId))
             return BadRequest(Fail("No deviceId"));
 
-        var body = JsonSerializer.Serialize(new { code = req.Code, device_id = cfg.AniDeviceId });
+        if (!OtpPayloadBuilder.TryCreateLoginPayload(req.Code, cfg.AniDeviceId, out var body))
+            return BadRequest(Fail("Invalid code"));
+
         var resp = await PostJsonAsync($"{ApiBase}/accounts/otp/login", body, bearer: null, ct);
 
         if (!resp.ok)
@@ -252,4 +256,36 @@ public sealed class LoginRequest
 
     [JsonPropertyName("passwd")]
     public string? Passwd { get; set; }
+}
+
+internal static class OtpPayloadBuilder
+{
+    public static bool TryCreateAcceptPayload(string? rawCode, out string json)
+    {
+        json = string.Empty;
+        if (!TryParseCode(rawCode, out var code))
+            return false;
+
+        json = JsonSerializer.Serialize(new { code });
+        return true;
+    }
+
+    public static bool TryCreateLoginPayload(string? rawCode, string? deviceId, out string json)
+    {
+        json = string.Empty;
+        if (!TryParseCode(rawCode, out var code) || string.IsNullOrWhiteSpace(deviceId))
+            return false;
+
+        json = JsonSerializer.Serialize(new { code, device_id = deviceId });
+        return true;
+    }
+
+    private static bool TryParseCode(string? rawCode, out int code)
+    {
+        code = 0;
+        var normalized = rawCode?.Trim();
+        return !string.IsNullOrWhiteSpace(normalized) &&
+               int.TryParse(normalized, NumberStyles.Integer, CultureInfo.InvariantCulture, out code) &&
+               code >= 0;
+    }
 }

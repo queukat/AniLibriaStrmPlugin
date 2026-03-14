@@ -36,6 +36,12 @@ public class PluginConfiguration : BasePluginConfiguration
     // Playback diagnostics: detailed logs for HLS URLs and .strm files.
     public bool EnablePlaybackDiagnostics { get; set; } = false;
 
+    // Route playback through a local Jellyfin HLS proxy instead of exposing AniLiberty CDN URLs directly.
+    public bool UseJellyfinPlaybackProxy { get; set; } = true;
+
+    // Optional manual override for the base URL used in generated playback proxy .strm links.
+    public string JellyfinPlaybackProxyBaseUrl { get; set; } = string.Empty;
+
     // Push episode watch progress to AniLiberty (/accounts/users/me/views/timecodes).
     public bool EnableAniLibertyViewSync { get; set; } = false;
 

@@ -5,15 +5,19 @@
     <title>AniLiberty STRM Plugin</title>
     <style>
         :root {
-            --narrow-width: 640px;
-            --auth-width: 640px;
+            --page-width: 780px;
+            --section-width: 720px;
+            --narrow-width: 320px;
+            --auth-width: 720px;
         }
 
         fieldset {
             border: 1px solid #555;
             padding: 1em;
-            margin: 1.4em 0 1.8em;
-            max-width: var(--narrow-width)
+            margin: 1.2em 0 1.6em;
+            max-width: var(--section-width);
+            width: 100%;
+            box-sizing: border-box
         }
 
         fieldset legend {
@@ -39,6 +43,17 @@
             display: flex;
             flex-wrap: wrap;
             gap: .6em
+        }
+
+        .page-shell {
+            max-width: var(--page-width)
+        }
+
+        .section-shell,
+        form#AniConfigForm {
+            max-width: var(--section-width);
+            width: 100%;
+            box-sizing: border-box
         }
 
         .dim {
@@ -77,13 +92,14 @@
 
         .folder-row {
             display: flex;
-            gap: .4em;
-            align-items: center;
-            max-width: var(--narrow-width)
+            gap: .6em;
+            align-items: flex-start;
+            flex-wrap: wrap;
+            max-width: var(--section-width)
         }
 
         .folder-row input {
-            flex: 1 1 auto
+            flex: 1 1 320px
         }
 
         .folder-btns {
@@ -93,8 +109,7 @@
         }
 
         .folder-btns button {
-            padding: 0 .65em;
-            min-width: 2.3em
+            min-width: 6.5em
         }
 
         .otp-row {
@@ -122,7 +137,11 @@
         }
 
         .auth-box {
-            min-width: 240px
+            min-width: 0;
+            padding: 1em;
+            border: 1px solid #444;
+            border-radius: .5em;
+            background: rgba(255, 255, 255, .02)
         }
 
         .auth-box h4 {
@@ -163,7 +182,7 @@
         .checkboxContainer.inline {
             display: inline-flex;
             align-items: center;
-            margin-left: .4em
+            margin-left: 0
         }
 
         .token-badge {
@@ -188,25 +207,68 @@
         }
 
         .dir-mode-toggle {
-            display: inline-flex;
+            display: flex;
             align-items: center;
-            font-size: .66em;
-            gap: .4em;
-            margin-left: .6em
+            min-height: 2.4em;
+            margin: 0
         }
 
         .dir-mode-toggle input {
             margin: 0
         }
 
-        /* Auth fieldset layout tuning */
-        form#AniConfigForm fieldset.auth-fieldset {
-            max-width: var(--auth-width) !important;
-            margin: 1.4em auto 1.8em !important;
-            /* Keep centered (requires display:block + margin:auto) */
-            display: block !important;
-            /* Include padding/border inside max width */
-            box-sizing: border-box !important;
+        .field-width-compact {
+            max-width: 320px
+        }
+
+        .field-width-narrow {
+            max-width: 260px
+        }
+
+        .field-width-medium {
+            max-width: 520px
+        }
+
+        .stack-top-sm {
+            margin-top: .4em
+        }
+
+        .stack-top-md {
+            margin-top: .6em
+        }
+
+        .stack-top-lg {
+            margin-top: .8em
+        }
+
+        .picker-note {
+            margin-top: .45em;
+            max-width: var(--section-width)
+        }
+
+        .section-help {
+            margin-top: .2em
+        }
+
+        .button-group > button[is="emby-button"],
+        .folder-btns > button[is="emby-button"],
+        .token-actions > button[is="emby-button"],
+        .log-topbar > button[is="emby-button"] {
+            min-width: 7rem
+        }
+
+        @media (max-width: 760px) {
+            .folder-btns,
+            .folder-row,
+            .otp-row,
+            .log-topbar {
+                width: 100%
+            }
+
+            .folder-btns > button[is="emby-button"],
+            .log-topbar > button[is="emby-button"] {
+                flex: 1 1 auto
+            }
         }
     </style>
 </head>
@@ -216,6 +278,7 @@
      id="aniLibertyConfigurationPage">
     <div data-role="content">
         <div class="content-primary">
+            <div class="page-shell">
 
             <!-- SETTINGS -->
             <form id="AniConfigForm">
@@ -234,17 +297,17 @@
                             <input autocomplete="off" id="StrmAllPath" is="emby-input" type="text">
                             <div class="folder-btns">
                                 <button class="raised" id="PickAllDirPicker" is="emby-button" title="Pick directory (showDirectoryPicker)"
-                                        type="button">🔍
+                                        type="button">Browse
                                 </button>
                             </div>
-                            <label class="dir-mode-toggle">
-                                <input id="ChkAllAppend" type="checkbox">
-                                <span>Append mode</span>
+                            <label class="checkboxContainer dir-mode-toggle">
+                                <input id="ChkAllAppend" is="emby-checkbox" type="checkbox">
+                                <span>Append picked folder</span>
                             </label>
                         </div>
-                        <div class="warn-inline">
-                            Directory picker cannot reveal full path (browser security). We only get the folder name.
-                            Append mode OFF = replace text with folder name; ON = append it.
+                        <div class="fieldDescription picker-note">
+                            The browser directory picker can only return the selected folder name.
+                            Enable append mode to add that folder name to the current path instead of replacing it.
                         </div>
                     </div>
 
@@ -254,17 +317,21 @@
                             <input autocomplete="off" id="StrmFavoritesPath" is="emby-input" type="text">
                             <div class="folder-btns">
                                 <button class="raised" id="PickFavDirPicker" is="emby-button" title="Pick directory (showDirectoryPicker)"
-                                        type="button">🔍
+                                        type="button">Browse
                                 </button>
                             </div>
-                            <label class="dir-mode-toggle">
-                                <input id="ChkFavAppend" type="checkbox">
-                                <span>Append mode</span>
+                            <label class="checkboxContainer dir-mode-toggle">
+                                <input id="ChkFavAppend" is="emby-checkbox" type="checkbox">
+                                <span>Append picked folder</span>
                             </label>
+                        </div>
+                        <div class="fieldDescription picker-note">
+                            The browser directory picker can only return the selected folder name.
+                            Enable append mode to add that folder name to the current path instead of replacing it.
                         </div>
                     </div>
 
-                    <div class="inputContainer" style="max-width:320px">
+                    <div class="inputContainer field-width-compact">
                         <label for="PreferredResolution">Preferred resolution:</label>
                         <select id="PreferredResolution" is="emby-select">
                             <option value="1080">1080p</option>
@@ -275,27 +342,24 @@
 
                     <label class="checkboxContainer">
                         <input id="EnableFavorites" is="emby-checkbox" type="checkbox">
-                        <span>Update favourites folder</span>
+                        <span>Generate favorites library</span>
                     </label>
 
                     <label class="checkboxContainer">
                         <input id="EnableAll" is="emby-checkbox" type="checkbox">
-                        <span>Update full catalogue folder</span>
+                        <span>Generate full catalog library</span>
                     </label>
 
                     <!-- All titles -->
                     <fieldset>
-                        <legend>All-titles fetch</legend>
+                        <legend>Full catalog fetch</legend>
                         <div class="inputContainer">
                             <label for="AllTitlesPageSize">Items/page:</label>
                             <input id="AllTitlesPageSize" is="emby-input" min="1" type="number">
                         </div>
-                        <div class="fieldDescription"
-                             style="color:#e88;font-style:italic;margin-top:-0.4em;margin-bottom:1em">
-                            ⚠️ Do not touch this unless you really know what you're doing! Setting this too high<br>
-                            may cause the server to hang forever, return nothing, crash scheduled tasks,<br>
-                            eat all your RAM, and possibly summon an ancient evil from the depths of the void.<br>
-                            50 is a safe value. You have been warned.
+                        <div class="fieldDescription warn-inline">
+                            Leave this at the default unless you need to work around rate limits or server instability.
+                            `50` is the recommended safe value.
                         </div>
                         <div class="inputContainer">
                             <label for="AllTitlesMaxPages">Max pages:</label>
@@ -310,12 +374,9 @@
                             <label for="FavoritesPageSize">Items/page:</label>
                             <input id="FavoritesPageSize" is="emby-input" min="1" type="number">
                         </div>
-                        <div class="fieldDescription"
-                             style="color:#e88;font-style:italic;margin-top:-0.4em;margin-bottom:1em">
-                            ⚠️ Increasing this without good reason is a fast track to misery.<br>
-                            The server may choke, your tasks may fail silently, or worse — flood you with empty
-                            files.<br>
-                            Stick to 50 unless you enjoy chaos.
+                        <div class="fieldDescription warn-inline">
+                            Leave this at the default unless you need to work around rate limits or server instability.
+                            `50` is the recommended safe value.
                         </div>
                         <div class="inputContainer">
                             <label for="FavoritesMaxPages">Max pages:</label>
@@ -326,7 +387,7 @@
                     <!-- Logging -->
                     <fieldset>
                         <legend>Logging</legend>
-                        <div class="inputContainer" style="max-width:320px">
+                        <div class="inputContainer field-width-compact">
                             <label for="UiMinLogLevel">Log verbosity (UI):</label>
                             <select id="UiMinLogLevel" is="emby-select">
                                 <option value="Trace">Trace</option>
@@ -340,7 +401,7 @@
                             </div>
                         </div>
 
-                        <label class="checkboxContainer" style="margin-top:.6em">
+                        <label class="checkboxContainer stack-top-md">
                             <input id="EnableDebugLogs" is="emby-checkbox" type="checkbox">
                             <span>Enable debug logs (very noisy)</span>
                         </label>
@@ -348,7 +409,7 @@
                             When OFF: DEBUG/TRACE are not stored in UI logs, and per-title progress is throttled.
                         </div>
 
-                        <label class="checkboxContainer" style="margin-top:.6em">
+                        <label class="checkboxContainer stack-top-md">
                             <input id="EnablePlaybackDiagnostics" is="emby-checkbox" type="checkbox">
                             <span>Enable playback diagnostics logs</span>
                         </label>
@@ -357,7 +418,28 @@
                             server-side HLS probe result.
                         </div>
 
-                        <label class="checkboxContainer" style="margin-top:.8em">
+                        <label class="checkboxContainer stack-top-md">
+                            <input id="UseJellyfinPlaybackProxy" is="emby-checkbox" type="checkbox">
+                            <span>Proxy playback through Jellyfin server</span>
+                        </label>
+                        <div class="fieldDescription">
+                            Rewrites generated `.strm` files to local Jellyfin HLS proxy URLs instead of exposing
+                            AniLiberty CDN URLs directly to the TV client.
+                        </div>
+
+                        <div class="inputContainer field-width-wide stack-top-sm">
+                            <label for="JellyfinPlaybackProxyBaseUrl">Proxy base URL override:</label>
+                            <input id="JellyfinPlaybackProxyBaseUrl"
+                                   is="emby-input"
+                                   type="text"
+                                   placeholder="http://192.168.100.6:8096">
+                            <div class="fieldDescription">
+                                Optional. Leave empty to auto-detect Jellyfin server URL. Set this if `.strm` should use
+                                a specific LAN or reverse-proxy address.
+                            </div>
+                        </div>
+
+                        <label class="checkboxContainer stack-top-lg">
                             <input id="EnableAniLibertyViewSync" is="emby-checkbox" type="checkbox">
                             <span>Sync playback progress to AniLiberty</span>
                         </label>
@@ -366,17 +448,17 @@
                             `.strm` episodes. Requires a valid AniLiberty token.
                         </div>
 
-                        <div class="inputContainer" style="max-width:260px;margin-top:.6em">
+                        <div class="inputContainer field-width-narrow stack-top-md">
                             <label for="AniLibertyViewSyncMinDeltaSeconds">Sync step (seconds):</label>
                             <input id="AniLibertyViewSyncMinDeltaSeconds" is="emby-input" min="5" type="number">
                         </div>
 
-                        <label class="checkboxContainer" style="margin-top:.4em">
+                        <label class="checkboxContainer stack-top-sm">
                             <input id="AniLibertyViewSyncOnStop" is="emby-checkbox" type="checkbox">
                             <span>Send final progress on stop</span>
                         </label>
 
-                        <div class="inputContainer" style="max-width:520px;margin-top:.7em">
+                        <div class="inputContainer field-width-medium stack-top-md">
                             <label for="AniLibertyViewSyncJellyfinUserId">Jellyfin UserId for pull sync:</label>
                             <input id="AniLibertyViewSyncJellyfinUserId"
                                    is="emby-input"
@@ -388,19 +470,19 @@
                             </div>
                         </div>
 
-                        <div class="inputContainer" style="max-width:220px;margin-top:.8em">
+                        <div class="inputContainer field-width-narrow stack-top-lg">
                             <label for="LastLogMaxLines">Max UI log lines:</label>
                             <input id="LastLogMaxLines" is="emby-input" min="50" type="number">
                         </div>
                     </fieldset>
 
 
-                    <div class="spaced-buttons">
+                    <div class="spaced-buttons button-group">
                         <button class="raised button-submit" data-theme="b" is="emby-button" type="submit">
-                            💾 <span>Save</span>
+                            <span>Save settings</span>
                         </button>
                         <button class="raised" id="BtnReloadCfg" is="emby-button" type="button">
-                            ⟳ <span>Reload</span>
+                            <span>Reload settings</span>
                         </button>
                     </div>
                     <div class="mini dim">Reload discards unsaved edits.</div>
@@ -410,12 +492,12 @@
             <hr>
 
             <!-- AUTHORIZATION -->
-            <fieldset class="auth-fieldset">
-                <legend>AniLiberty Authorization</legend>
-                <div class="note-block" style="margin-top:.2em">
-                    Two flows: <b>Login+Password</b> (immediate JWT) and <b>OTP</b> (device + code).
-                    Successful responses store <code>AniLibertyToken</code>; <code>DeviceId</code> & last OTP code
-                    persist.
+            <fieldset class="auth-fieldset section-shell">
+                <legend>AniLiberty Authentication</legend>
+                <div class="note-block section-help">
+                    Two flows: <b>Login + Password</b> (immediate JWT) and <b>OTP</b> (device + code).
+                    Successful responses store <code>AniLibertyToken</code>; <code>DeviceId</code> and the last OTP
+                    code stay in plugin settings.
                 </div>
 
                 <div class="auth-grid">
@@ -429,22 +511,21 @@
                             <label for="loginPass">Password:</label>
                             <input autocomplete="off" id="loginPass" is="emby-input" type="password">
                         </div>
-                        <div class="spaced-buttons" style="margin-top:.3em">
+                        <div class="spaced-buttons button-group stack-top-sm">
                             <button class="raised condensed" id="btnLoginAni" is="emby-button" type="button">
-                                🔐 <span>Log In</span>
+                                <span>Log in</span>
                             </button>
                         </div>
                     </div>
 
                     <div class="auth-box">
                         <h4>2. OTP Flow</h4>
-                        <div class="mini dim">Start → Sign In</div>
+                        <div class="mini dim">Start OTP → Sign in</div>
                         <div class="otp-row">
-                            <button class="raised condensed" id="BtnStartOtp" is="emby-button" type="button">➡️ Start
+                            <button class="raised condensed" id="BtnStartOtp" is="emby-button" type="button">Start OTP
                             </button>
                             <input id="OtpCodeInput" is="emby-input" placeholder="OTP code" type="text">
-                            <button class="raised condensed" id="BtnSignInOtp" is="emby-button" type="button">✅ Sign
-                                In
+                            <button class="raised condensed" id="BtnSignInOtp" is="emby-button" type="button">Sign in
                             </button>
                         </div>
                         <div class="mini">
@@ -457,16 +538,14 @@
                         <h4>Token</h4>
                         <div class="token-box dim" id="AniLibertyToken">(not acquired)</div>
                         <div class="token-actions">
-                            <button class="raised condensed" id="BtnCopyToken" is="emby-button" type="button">📋 Copy
+                            <button class="raised condensed" id="BtnCopyToken" is="emby-button" type="button">Copy token
                             </button>
-                            <button class="raised danger condensed" id="BtnClearToken" is="emby-button" type="button">🧨
-                                Clear
+                            <button class="raised danger condensed" id="BtnClearToken" is="emby-button" type="button">Clear token
                             </button>
-                            <button class="raised condensed" id="BtnRefreshTokenBox" is="emby-button" type="button">⟳
-                                Refresh
+                            <button class="raised condensed" id="BtnRefreshTokenBox" is="emby-button" type="button">Refresh token
                             </button>
                         </div>
-                        <div class="mini dim" id="AuthStatus" style="margin-top:.6em"></div>
+                        <div class="mini dim stack-top-md" id="AuthStatus"></div>
                     </div>
                 </div>
             </fieldset>
@@ -474,19 +553,16 @@
             <hr>
 
             <!-- LOGS -->
-            <div class="verticalSection verticalSection-extrabottompadding">
-                <div class="sectionTitleContainer flex align-items-center">
-                    <h2 class="sectionTitle">Last Task Logs</h2>
-                </div>
-
+            <fieldset class="section-shell">
+                <legend>Last task logs</legend>
                 <div class="log-topbar spaced-buttons">
-                    <button class="raised" id="btnShowLogs" is="emby-button" type="button">📄 <span>Show</span></button>
-                    <button class="raised" id="btnAutoLogs" is="emby-button" type="button">🔁 <span>Auto: OFF</span>
+                    <button class="raised" id="btnShowLogs" is="emby-button" type="button"><span>Show logs</span></button>
+                    <button class="raised" id="btnAutoLogs" is="emby-button" type="button"><span>Auto refresh: OFF</span>
                     </button>
-                    <button class="raised" id="btnToggleOrder" is="emby-button" type="button">⬆️ <span>Newest on top: OFF</span>
+                    <button class="raised" id="btnToggleOrder" is="emby-button" type="button"><span>Newest first: OFF</span>
                     </button>
-                    <button class="raised danger" id="btnClearDisplay" is="emby-button" type="button">🧹
-                        <span>Clear View</span></button>
+                    <button class="raised danger" id="btnClearDisplay" is="emby-button" type="button">
+                        <span>Clear view</span></button>
                     <label class="checkboxContainer inline">
                         <input id="chkRawMode" is="emby-checkbox" type="checkbox">
                         <span style="margin-left:.3em">Raw mode</span>
@@ -497,10 +573,11 @@
                 <div class="mini dim" style="margin-top:.6em">
                     * Source: <code>PluginConfiguration.LastTaskLog</code>.
                     * Raw mode shows original block.
-                    * “Newest on top” reverses render order only.
+                    * “Newest first” reverses render order only.
                 </div>
-            </div>
+            </fieldset>
 
+            </div>
         </div>
     </div>
 
@@ -575,6 +652,8 @@
                 $("UiMinLogLevel").value = cfg.UiMinLogLevel || "Information";
                 $("EnableDebugLogs").checked = cfg.EnableDebugLogs ?? false;
                 $("EnablePlaybackDiagnostics").checked = cfg.EnablePlaybackDiagnostics ?? false;
+                $("UseJellyfinPlaybackProxy").checked = cfg.UseJellyfinPlaybackProxy ?? true;
+                $("JellyfinPlaybackProxyBaseUrl").value = cfg.JellyfinPlaybackProxyBaseUrl || "";
                 $("EnableAniLibertyViewSync").checked = cfg.EnableAniLibertyViewSync ?? false;
                 $("AniLibertyViewSyncMinDeltaSeconds").value = cfg.AniLibertyViewSyncMinDeltaSeconds ?? 30;
                 $("AniLibertyViewSyncOnStop").checked = cfg.AniLibertyViewSyncOnStop ?? true;
@@ -618,6 +697,8 @@
                 cfg.UiMinLogLevel = $("UiMinLogLevel").value;
                 cfg.EnableDebugLogs = $("EnableDebugLogs").checked;
                 cfg.EnablePlaybackDiagnostics = $("EnablePlaybackDiagnostics").checked;
+                cfg.UseJellyfinPlaybackProxy = $("UseJellyfinPlaybackProxy").checked;
+                cfg.JellyfinPlaybackProxyBaseUrl = $("JellyfinPlaybackProxyBaseUrl").value.trim();
                 cfg.EnableAniLibertyViewSync = $("EnableAniLibertyViewSync").checked;
                 cfg.AniLibertyViewSyncMinDeltaSeconds = +$("AniLibertyViewSyncMinDeltaSeconds").value || 30;
                 cfg.AniLibertyViewSyncOnStop = $("AniLibertyViewSyncOnStop").checked;
@@ -790,18 +871,18 @@
             if (autoLogTimer) {
                 clearInterval(autoLogTimer);
                 autoLogTimer = null;
-                btn.innerHTML = "🔁 <span>Auto: OFF</span>";
+                btn.innerHTML = "<span>Auto refresh: OFF</span>";
             } else {
                 autoLogTimer = setInterval(showLogs, 5000);
-                btn.innerHTML = "🔁 <span>Auto: ON</span>";
+                btn.innerHTML = "<span>Auto refresh: ON</span>";
                 showLogs();
             }
         }
 
         function toggleOrder() {
             newestOnTop = !newestOnTop;
-            $("btnToggleOrder").innerHTML = (newestOnTop ? "⬇️" : "⬆️") +
-                ` <span>Newest on top: ${newestOnTop ? "ON" : "OFF"}</span>`;
+            $("btnToggleOrder").innerHTML =
+                `<span>Newest first: ${newestOnTop ? "ON" : "OFF"}</span>`;
             showLogs();
         }
 

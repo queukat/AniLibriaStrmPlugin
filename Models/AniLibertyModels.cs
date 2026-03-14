@@ -81,8 +81,8 @@ public class EpisodeItem
     [JsonPropertyName("name_english")] public string NameEnglish { get; set; } = string.Empty;
 
     [JsonPropertyName("ordinal")]
-    [JsonConverter(typeof(IntNullableConverter))]
-    public int? Ordinal { get; set; }
+    [JsonConverter(typeof(DoubleNullableConverter))]
+    public double? Ordinal { get; set; }
 
     [JsonPropertyName("hls_1080")] public string? Hls1080 { get; set; }
     [JsonPropertyName("hls_720")] public string? Hls720 { get; set; }

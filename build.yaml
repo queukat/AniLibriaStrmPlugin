@@ -28,12 +28,12 @@ changelog: |
   GitHub Release: https://github.com/queukat/AniLibriaStrmPlugin/releases/tag/v2.0.0.7
   Full changelog: https://github.com/queukat/AniLibriaStrmPlugin/blob/aniLiberty-v2/CHANGELOG.md
 description: >
-  Creates .strm / .edl / .nfo files for AniLiberty titles and favourites.
+  Creates .strm / .edl / .nfo files for AniLiberty titles and favorites.
 
 guid: "cce0798d-c8b7-4265-b08c-dc9e7bd3fc0f"
 name: "AniLiberty STRM Plugin"
 overview: >
-  Generates STRM libraries for the full catalogue and/or user favourites,
+  Generates STRM libraries for the full catalog and/or user favorites,
   with EDL intro-skip and proper NFO metadata.
 owner: "queukat"
 

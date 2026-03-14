@@ -1,10 +1,13 @@
 using System.Collections.Concurrent;
 using System.Globalization;
+using System.Net;
 using System.Security;
 using System.Text;
 using System.Text.RegularExpressions;
 using AniLibertyStrmPlugin.Models;
 using AniLibertyStrmPlugin.Utils;
+using MediaBrowser.Common.Net;
+using MediaBrowser.Controller;
 using MediaBrowser.Controller.Chapters;
 using MediaBrowser.Controller.Entities;
 using MediaBrowser.Controller.Library;
@@ -25,6 +28,8 @@ public interface IAniLibertyStrmGenerator
 
 public sealed class AniLibertyStrmGenerator(
     ILogger<AniLibertyStrmGenerator> log,
+    IServerApplicationHost serverHost,
+    INetworkManager networkManager,
     ILibraryManager library,
     IChapterManager chapters,
     IAniLibertyClient client)
@@ -102,6 +107,11 @@ public sealed class AniLibertyStrmGenerator(
         CancellationToken token)
     {
         if (titles == null) return;
+        if (string.IsNullOrWhiteSpace(basePath))
+        {
+            log.Warn("Skip generation because base path is empty.");
+            return;
+        }
 
         var list = titles as IList<ReleaseResponse> ?? titles.ToList();
         if (list.Count == 0) return;
@@ -268,7 +278,7 @@ public sealed class AniLibertyStrmGenerator(
 
         var strmPath = Path.Combine(movieDir, $"{folder}.strm");
         var selectedRaw = ChooseHls(ep, resolution) ?? string.Empty;
-        var url = MakeFullUrl(selectedRaw);
+        var url = MakePlaybackUrl(selectedRaw);
         if (string.IsNullOrWhiteSpace(url))
         {
             if (playbackDiag)
@@ -287,8 +297,7 @@ public sealed class AniLibertyStrmGenerator(
                 strmPath,
                 token);
 
-        if (!File.Exists(strmPath))
-            await File.WriteAllTextAsync(strmPath, url, token);
+        await WriteTextIfChangedAsync(strmPath, url, encoding: null, token);
         await WriteEpisodeIdSidecarAsync(strmPath, ep.Id, token);
 
         var posterUrl = NormalizeImageUrlPreferJpg(MakeFullUrl(PickImageUrl(rel.Poster)));
@@ -429,16 +438,19 @@ public sealed class AniLibertyStrmGenerator(
         }
 
         var autoNumber = 1; // fallback sequential episode number
+        var usedEpisodeNumbers = new HashSet<int>();
+        var useSortOrderFileNumbers = ShouldUseSortOrderFileNumbers(rel.Episodes);
 
         foreach (var ep in rel.Episodes)
         {
             token.ThrowIfCancellationRequested();
 
-            var epNum = ep.Ordinal ?? autoNumber++;
+            var episodeId = ResolveEpisodeIdentity(ep, ref autoNumber, usedEpisodeNumbers, useSortOrderFileNumbers);
+            var epNum = episodeId.FileEpisodeNumber;
             var strmFile = $"S{seasonNum:00}E{epNum:00}.strm";
             var strmPath = Path.Combine(seasonDir, strmFile);
             var selectedRaw = ChooseHls(ep, resolution) ?? string.Empty;
-            var url = MakeFullUrl(selectedRaw);
+            var url = MakePlaybackUrl(selectedRaw);
             if (string.IsNullOrWhiteSpace(url))
             {
                 if (playbackDiag)
@@ -459,8 +471,7 @@ public sealed class AniLibertyStrmGenerator(
                     strmPath,
                     token);
 
-            if (!File.Exists(strmPath))
-                await File.WriteAllTextAsync(strmPath, url, token);
+            await WriteTextIfChangedAsync(strmPath, url, encoding: null, token);
             await WriteEpisodeIdSidecarAsync(strmPath, ep.Id, token);
 
             // preview image (v1: preview.preview / preview.thumbnail)
@@ -486,27 +497,25 @@ public sealed class AniLibertyStrmGenerator(
             if (segments.Count > 0)
             {
                 var edlPath = Path.ChangeExtension(strmPath, ".edl");
-                if (!File.Exists(edlPath))
-                    await File.WriteAllLinesAsync(edlPath,
-                        segments.Select(s => $"{s.start} {s.stop} 0"), token);
+                var edlContent = string.Join(
+                    Environment.NewLine,
+                    segments.Select(s => $"{s.start} {s.stop} 0"));
+                await WriteTextIfChangedAsync(edlPath, edlContent, Encoding.UTF8, token);
 
                 var chXml = Path.ChangeExtension(strmPath, ".chapters.xml");
-                if (!File.Exists(chXml))
+                var sb = new StringBuilder();
+                sb.AppendLine(@"<?xml version=""1.0"" encoding=""utf-8""?>");
+                sb.AppendLine("<chapters>");
+                foreach (var (start, _, name) in segments)
                 {
-                    var sb = new StringBuilder();
-                    sb.AppendLine(@"<?xml version=""1.0"" encoding=""utf-8""?>");
-                    sb.AppendLine("<chapters>");
-                    foreach (var (start, _, name) in segments)
-                    {
-                        sb.AppendLine("  <chapter>");
-                        sb.AppendLine($"    <name>{name}</name>");
-                        sb.AppendLine($"    <time>{TimeSpan.FromSeconds(start):hh\\:mm\\:ss\\.fff}</time>");
-                        sb.AppendLine("  </chapter>");
-                    }
-
-                    sb.AppendLine("</chapters>");
-                    await File.WriteAllTextAsync(chXml, sb.ToString(), Encoding.UTF8, token);
+                    sb.AppendLine("  <chapter>");
+                    sb.AppendLine($"    <name>{name}</name>");
+                    sb.AppendLine($"    <time>{TimeSpan.FromSeconds(start):hh\\:mm\\:ss\\.fff}</time>");
+                    sb.AppendLine("  </chapter>");
                 }
+
+                sb.AppendLine("</chapters>");
+                await WriteTextIfChangedAsync(chXml, sb.ToString(), Encoding.UTF8, token);
 
                 var runtimeSec = ep.Duration > 0
                     ? ep.Duration
@@ -558,7 +567,7 @@ public sealed class AniLibertyStrmGenerator(
 
                 var epTitleRu = !string.IsNullOrWhiteSpace(ep.Name)
                     ? ep.Name.Trim()
-                    : $"Episode {epNum}";
+                    : $"Episode {episodeId.DisplayEpisodeNumber}";
 
                 var epTitleEn = !string.IsNullOrWhiteSpace(ep.NameEnglish)
                     ? ep.NameEnglish.Trim()
@@ -579,6 +588,7 @@ public sealed class AniLibertyStrmGenerator(
   {(runtimeMin > 0 ? $"  <runtime>{runtimeMin}</runtime>" : string.Empty)}
   <showtitle>{MakeSafeXml(showTitle)}</showtitle>
   <episode>{epNum}</episode>
+  {(episodeId.ShouldWriteDisplayEpisode ? $"  <displayepisode>{MakeSafeXml(episodeId.DisplayEpisodeNumber)}</displayepisode>" : string.Empty)}
   <season>{seasonNum}</season>
   <lockdata>false</lockdata>
 </episodedetails>";
@@ -664,6 +674,147 @@ public sealed class AniLibertyStrmGenerator(
 
         await File.WriteAllTextAsync(sidecarPath, normalized, Encoding.UTF8, ct);
     }
+
+    private static EpisodeIdentity ResolveEpisodeIdentity(
+        EpisodeItem ep,
+        ref int autoNumber,
+        HashSet<int> usedEpisodeNumbers,
+        bool useSortOrderFileNumbers)
+    {
+        var fileEpisodeNumber = ResolveEpisodeFileNumber(ep, ref autoNumber, usedEpisodeNumbers, useSortOrderFileNumbers);
+        var displayEpisodeNumber = FormatEpisodeDisplayNumber(ep.Ordinal, fileEpisodeNumber);
+        var shouldWriteDisplayEpisode = !string.Equals(
+            displayEpisodeNumber,
+            fileEpisodeNumber.ToString(CultureInfo.InvariantCulture),
+            StringComparison.Ordinal);
+
+        return new EpisodeIdentity(fileEpisodeNumber, displayEpisodeNumber, shouldWriteDisplayEpisode);
+    }
+
+    private static int ResolveEpisodeFileNumber(
+        EpisodeItem ep,
+        ref int autoNumber,
+        HashSet<int> usedEpisodeNumbers,
+        bool useSortOrderFileNumbers)
+    {
+        while (usedEpisodeNumbers.Contains(autoNumber))
+            autoNumber++;
+
+        foreach (var candidate in GetEpisodeFileNumberCandidates(ep, autoNumber, useSortOrderFileNumbers))
+        {
+            if (candidate <= 0 || !usedEpisodeNumbers.Add(candidate))
+                continue;
+
+            autoNumber = Math.Max(autoNumber, candidate + 1);
+            return candidate;
+        }
+
+        var fallback = autoNumber;
+        usedEpisodeNumbers.Add(fallback);
+        autoNumber++;
+        return fallback;
+    }
+
+    private static IEnumerable<int> GetEpisodeFileNumberCandidates(
+        EpisodeItem ep,
+        int autoNumber,
+        bool useSortOrderFileNumbers)
+    {
+        if (useSortOrderFileNumbers && ep.SortOrder is > 0)
+            yield return ep.SortOrder.Value;
+
+        if (!useSortOrderFileNumbers && TryGetWholeEpisodeNumber(ep.Ordinal, out var wholeEpisodeNumber))
+            yield return wholeEpisodeNumber;
+
+        if (!useSortOrderFileNumbers && ep.SortOrder is > 0)
+            yield return ep.SortOrder.Value;
+
+        if (!useSortOrderFileNumbers && ep.Ordinal is > 0)
+        {
+            var ceilEpisodeNumber = (int)Math.Ceiling(ep.Ordinal.Value);
+            if (ceilEpisodeNumber > 0)
+                yield return ceilEpisodeNumber;
+        }
+
+        yield return autoNumber;
+    }
+
+    private static bool ShouldUseSortOrderFileNumbers(IReadOnlyCollection<EpisodeItem> episodes)
+    {
+        return episodes.Count > 0 &&
+               episodes.Any(ep => HasFractionalOrdinal(ep.Ordinal)) &&
+               episodes.All(ep => ep.SortOrder is > 0);
+    }
+
+    private static bool HasFractionalOrdinal(double? ordinal)
+    {
+        if (!ordinal.HasValue || ordinal.Value <= 0)
+            return false;
+
+        return Math.Abs(ordinal.Value - Math.Round(ordinal.Value)) > 0.0001d;
+    }
+
+    private static bool TryGetWholeEpisodeNumber(double? ordinal, out int wholeEpisodeNumber)
+    {
+        wholeEpisodeNumber = 0;
+        if (!ordinal.HasValue || ordinal.Value <= 0)
+            return false;
+
+        var rounded = Math.Round(ordinal.Value);
+        if (Math.Abs(ordinal.Value - rounded) > 0.0001d)
+            return false;
+
+        if (rounded < 1 || rounded > int.MaxValue)
+            return false;
+
+        wholeEpisodeNumber = (int)rounded;
+        return true;
+    }
+
+    private static string FormatEpisodeDisplayNumber(double? ordinal, int fallbackEpisodeNumber)
+    {
+        if (!ordinal.HasValue || ordinal.Value <= 0)
+            return fallbackEpisodeNumber.ToString(CultureInfo.InvariantCulture);
+
+        if (TryGetWholeEpisodeNumber(ordinal, out var wholeEpisodeNumber))
+            return wholeEpisodeNumber.ToString(CultureInfo.InvariantCulture);
+
+        return ordinal.Value.ToString("0.###", CultureInfo.InvariantCulture);
+    }
+
+    private static async Task WriteTextIfChangedAsync(
+        string path,
+        string content,
+        Encoding? encoding,
+        CancellationToken ct)
+    {
+        if (File.Exists(path))
+        {
+            var existing = await File.ReadAllTextAsync(path, ct);
+            if (TextMatches(existing, content))
+                return;
+        }
+
+        if (encoding is null)
+            await File.WriteAllTextAsync(path, content, ct);
+        else
+            await File.WriteAllTextAsync(path, content, encoding, ct);
+    }
+
+    private static bool TextMatches(string existing, string content)
+    {
+        return NormalizeTextForCompare(existing) == NormalizeTextForCompare(content);
+    }
+
+    private static string NormalizeTextForCompare(string text)
+    {
+        return text.Replace("\r\n", "\n").TrimEnd('\n', '\r');
+    }
+
+    private readonly record struct EpisodeIdentity(
+        int FileEpisodeNumber,
+        string DisplayEpisodeNumber,
+        bool ShouldWriteDisplayEpisode);
 
     private static string TrimForLog(string? text, int max = 220)
     {
@@ -859,6 +1010,64 @@ public sealed class AniLibertyStrmGenerator(
             "720"  => ep.Hls720 ?? ep.Hls1080 ?? ep.Hls480,
             _      => ep.Hls480 ?? ep.Hls720 ?? ep.Hls1080
         };
+    }
+
+    private string MakePlaybackUrl(string rawUrl)
+    {
+        var upstreamUrl = MakeFullUrl(rawUrl);
+        if (string.IsNullOrWhiteSpace(upstreamUrl))
+            return upstreamUrl;
+
+        if (Plugin.Instance?.Configuration?.UseJellyfinPlaybackProxy != true)
+            return upstreamUrl;
+
+        var proxyEndpoint = TryGetPlaybackProxyEndpoint();
+        return string.IsNullOrWhiteSpace(proxyEndpoint)
+            ? upstreamUrl
+            : PlaybackProxyHelper.BuildProxyUrl(proxyEndpoint, upstreamUrl);
+    }
+
+    private string TryGetPlaybackProxyEndpoint()
+    {
+        try
+        {
+            var configuredBaseUrl = Plugin.Instance?.Configuration?.JellyfinPlaybackProxyBaseUrl?.Trim();
+            var baseUrl = configuredBaseUrl;
+            if (string.IsNullOrWhiteSpace(baseUrl))
+            {
+                var preferredIp = networkManager.GetInternalBindAddresses()
+                    .Select(x => x.Address)
+                    .FirstOrDefault(ip => ip is not null &&
+                                          !IPAddress.IsLoopback(ip) &&
+                                          ip.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork)
+                    ?? networkManager.GetInternalBindAddresses()
+                        .Select(x => x.Address)
+                        .FirstOrDefault(ip => ip is not null && !IPAddress.IsLoopback(ip));
+
+                if (preferredIp is not null)
+                    baseUrl = serverHost.GetApiUrlForLocalAccess(preferredIp, serverHost.ListenWithHttps);
+            }
+
+            if (string.IsNullOrWhiteSpace(baseUrl))
+                return string.Empty;
+
+            var route = serverHost.ReverseVirtualPath(PlaybackProxyHelper.ProxyRoute);
+            if (string.IsNullOrWhiteSpace(route))
+                route = PlaybackProxyHelper.ProxyRoute;
+
+            if (Uri.TryCreate(route, UriKind.Absolute, out var absoluteRoute))
+                return absoluteRoute.ToString();
+
+            if (!route.StartsWith("/", StringComparison.Ordinal))
+                route = "/" + route;
+
+            return baseUrl.TrimEnd('/') + route;
+        }
+        catch (Exception ex)
+        {
+            log.LogWarning(ex, "Unable to resolve AniLiberty playback proxy endpoint. Falling back to direct HLS URL.");
+            return string.Empty;
+        }
     }
 
     private static string MakeFullUrl(string url)
