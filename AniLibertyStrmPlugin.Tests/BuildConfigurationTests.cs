@@ -109,6 +109,23 @@ public class BuildConfigurationTests
         Assert.True(File.Exists(Path.Combine(root, "Resources", "readme", "operational-command-center.png")));
     }
 
+    [Fact]
+    public void ReleaseWorkflow_UsesCuratedReleaseNotesWhenPresent()
+    {
+        var root = FindRepoRoot();
+        var workflow = File.ReadAllText(Path.Combine(root, ".github", "workflows", "release.yml"));
+        var notes = File.ReadAllText(Path.Combine(root, ".github", "release-notes.md"));
+        var buildManifest = File.ReadAllText(Path.Combine(root, "build.yaml"));
+
+        Assert.Contains(".github/release-notes.md", workflow, StringComparison.Ordinal);
+        Assert.Contains(".release_notes_body.md", workflow, StringComparison.Ordinal);
+        Assert.Contains("cat .release_notes_body.md", workflow, StringComparison.Ordinal);
+        Assert.Contains("AniLiberty STRM Hardening System Release", notes, StringComparison.Ordinal);
+        Assert.Contains("AniLiberty STRM Hardening System Release", buildManifest, StringComparison.Ordinal);
+        Assert.DoesNotContain("release: fix locked Jellyfin restore", buildManifest, StringComparison.Ordinal);
+        Assert.DoesNotContain("release: harden AniLiberty STRM system", buildManifest, StringComparison.Ordinal);
+    }
+
     private static string FindRepoRoot()
     {
         var dir = new DirectoryInfo(AppContext.BaseDirectory);

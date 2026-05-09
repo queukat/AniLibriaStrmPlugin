@@ -107,9 +107,16 @@ jobs:
           fi
 
           head -n 12 .release_commits.txt > .release_commits_short.txt
+          if [ -s ".github/release-notes.md" ]; then
+            cp ".github/release-notes.md" .release_notes_body.md
+          else
+            cp .release_commits_short.txt .release_notes_body.md
+          fi
+
           {
             echo "Release ${NEXT_VERSION}"
-            cat .release_commits_short.txt
+            cat .release_notes_body.md
+            echo
             echo "GitHub Release: ${RELEASE_URL}"
             echo "Full changelog: ${CHANGELOG_URL}"
           } > .manifest_changelog.txt
@@ -186,7 +193,7 @@ jobs:
           version = os.environ["NEXT_VERSION"]
           release_url = os.environ["RELEASE_URL"]
           compare_url = os.environ.get("COMPARE_URL", "").strip()
-          commits = Path(".release_commits.txt").read_text(encoding="utf-8").strip()
+          notes = Path(".release_notes_body.md").read_text(encoding="utf-8").strip()
           date_txt = datetime.now(timezone.utc).strftime("%Y-%m-%d")
 
           if not path.exists():
@@ -199,7 +206,7 @@ jobs:
 
           lines = [
               f"## v{version} - {date_txt}",
-              commits or "- Maintenance release",
+              notes or "- Maintenance release",
               f"- GitHub Release: {release_url}",
           ]
           if compare_url:
@@ -256,11 +263,9 @@ jobs:
         run: |
           set -euo pipefail
           {
-            echo "Automated stable release."
+            cat .release_notes_body.md
             echo
-            echo "### Changes in this release"
-            cat .release_commits_short.txt
-            echo
+            echo "### Links"
             echo "- Full changelog: ${CHANGELOG_URL}"
             if [ -n "${COMPARE_URL}" ]; then
               echo "- Compare with previous tag: ${COMPARE_URL}"
