@@ -2,13 +2,23 @@
   {
     "guid": "cce0798d-c8b7-4265-b08c-dc9e7bd3fc0f",
     "name": "AniLiberty STRM Plugin",
-    "description": "Creates .strm / .edl / .nfo files for AniLiberty titles and favorites.\n",
-    "overview": "Generates STRM libraries for the full catalog and/or user favorites, with EDL intro-skip and proper NFO metadata.\n",
+    "description": "AniLiberty library reconstruction system for Jellyfin: acquisition, metadata governance, playback routing, and managed STRM distribution.\n",
+    "overview": "Controls AniLiberty catalog disorder through a Signal Acquisition Layer, Reconstruction Core, Mirror Governance Layer, Playback Proxy Rail, Operational Command Center, and CI Quality Gates.\n",
     "owner": "queukat",
     "category": "Metadata",
     "image": "icon.png",
     "imageUrl": "https://queukat.github.io/AniLibriaStrmPlugin/plugins/aniliberty-strm-plugin/icon.png",
     "versions": [
+      {
+        "version": "2.0.0.9",
+        "changelog": "Release 2.0.0.9\n- release: fix locked Jellyfin restore (92a0ac1)\n- release: harden AniLiberty STRM system (6fde564)\nGitHub Release: https://github.com/queukat/AniLibriaStrmPlugin/releases/tag/v2.0.0.9\nFull changelog: https://github.com/queukat/AniLibriaStrmPlugin/blob/aniLiberty-v2/CHANGELOG.md",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://queukat.github.io/AniLibriaStrmPlugin/plugins/aniliberty-strm-plugin_2.0.0.9.zip",
+        "checksum": "ad60c3ebb5bc6bffb4dd5234eacbb7eb",
+        "timestamp": "2026-05-09T20:28:41Z",
+        "releaseUrl": "https://github.com/queukat/AniLibriaStrmPlugin/releases/tag/v2.0.0.9",
+        "changelogUrl": "https://queukat.github.io/AniLibriaStrmPlugin/CHANGELOG.md"
+      },
       {
         "version": "2.0.0.8",
         "changelog": "Release 2.0.0.8\n- release: ship playback proxy and v2 stability updates (250992e)\nGitHub Release: https://github.com/queukat/AniLibriaStrmPlugin/releases/tag/v2.0.0.8\nFull changelog: https://github.com/queukat/AniLibriaStrmPlugin/blob/aniLiberty-v2/CHANGELOG.md",
