@@ -2,6 +2,12 @@
 
 All notable changes to this plugin are documented in this file.
 
+## v2.0.0.9 - 2026-05-09
+- release: fix locked Jellyfin restore (92a0ac1)
+- release: harden AniLiberty STRM system (6fde564)
+- GitHub Release: https://github.com/queukat/AniLibriaStrmPlugin/releases/tag/v2.0.0.9
+- Compare: https://github.com/queukat/AniLibriaStrmPlugin/compare/v2.0.0.8...v2.0.0.9
+
 ## v2.0.0.8 - 2026-03-14
 - release: ship playback proxy and v2 stability updates (250992e)
 - GitHub Release: https://github.com/queukat/AniLibriaStrmPlugin/releases/tag/v2.0.0.8

@@ -12,9 +12,10 @@ artifacts: # DLLs that will be included in the ZIP
   - "icon.png"
 
 changelog: |
-  Release 2.0.0.8
-  - release: ship playback proxy and v2 stability updates (250992e)
-  GitHub Release: https://github.com/queukat/AniLibriaStrmPlugin/releases/tag/v2.0.0.8
+  Release 2.0.0.9
+  - release: fix locked Jellyfin restore (92a0ac1)
+  - release: harden AniLiberty STRM system (6fde564)
+  GitHub Release: https://github.com/queukat/AniLibriaStrmPlugin/releases/tag/v2.0.0.9
   Full changelog: https://github.com/queukat/AniLibriaStrmPlugin/blob/aniLiberty-v2/CHANGELOG.md
 description: >
   AniLiberty library reconstruction system for Jellyfin: acquisition,
@@ -30,6 +31,6 @@ owner: "queukat"
 
 targetAbi: "10.11.0.0"
 
-version: "2.0.0.8"
+version: "2.0.0.9"
 
 image: Resources/icon.png
