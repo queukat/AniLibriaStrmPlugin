@@ -3,6 +3,13 @@ using Microsoft.Extensions.Logging;
 
 namespace AniLibertyStrmPlugin.Configuration;
 
+public enum StaleCleanupMode
+{
+    Off = 0,
+    DryRun = 1,
+    Delete = 2
+}
+
 /// <summary>Plugin configuration for AniLiberty STRM v2.</summary>
 public class PluginConfiguration : BasePluginConfiguration
 {
@@ -35,6 +42,9 @@ public class PluginConfiguration : BasePluginConfiguration
 
     // Playback diagnostics: detailed logs for HLS URLs and .strm files.
     public bool EnablePlaybackDiagnostics { get; set; } = false;
+
+    // Cleanup for generated files that are no longer present in the latest API response.
+    public StaleCleanupMode StaleCleanupMode { get; set; } = StaleCleanupMode.DryRun;
 
     // Route playback through a local Jellyfin HLS proxy instead of exposing AniLiberty CDN URLs directly.
     public bool UseJellyfinPlaybackProxy { get; set; } = true;

@@ -418,6 +418,18 @@
                             server-side HLS probe result.
                         </div>
 
+                        <div class="inputContainer field-width-compact stack-top-md">
+                            <label for="StaleCleanupMode">Stale generated files:</label>
+                            <select id="StaleCleanupMode" is="emby-select">
+                                <option value="Off">Keep</option>
+                                <option value="DryRun">Dry-run log</option>
+                                <option value="Delete">Delete managed stale files</option>
+                            </select>
+                            <div class="fieldDescription">
+                                Dry-run is the default. Delete only removes files previously generated and tracked by this plugin.
+                            </div>
+                        </div>
+
                         <label class="checkboxContainer stack-top-md">
                             <input id="UseJellyfinPlaybackProxy" is="emby-checkbox" type="checkbox">
                             <span>Proxy playback through Jellyfin server</span>
@@ -496,8 +508,7 @@
                 <legend>AniLiberty Authentication</legend>
                 <div class="note-block section-help">
                     Two flows: <b>Login + Password</b> (immediate JWT) and <b>OTP</b> (device + code).
-                    Successful responses store <code>AniLibertyToken</code>; <code>DeviceId</code> and the last OTP
-                    code stay in plugin settings.
+                    Successful responses store <code>AniLibertyToken</code> and <code>DeviceId</code>. OTP codes are shown only for the current flow.
                 </div>
 
                 <div class="auth-grid">
@@ -530,7 +541,7 @@
                         </div>
                         <div class="mini">
                             DeviceId: <code id="LblDeviceId">—</code><br>
-                            Last OTP: <code id="LblCurrentOtp">—</code>
+                            Current OTP: <code id="LblCurrentOtp">—</code>
                         </div>
                     </div>
 
@@ -539,6 +550,8 @@
                         <div class="token-box dim" id="AniLibertyToken">(not acquired)</div>
                         <div class="token-actions">
                             <button class="raised condensed" id="BtnCopyToken" is="emby-button" type="button">Copy token
+                            </button>
+                            <button class="raised condensed" id="BtnRevealToken" is="emby-button" type="button">Reveal token
                             </button>
                             <button class="raised danger condensed" id="BtnClearToken" is="emby-button" type="button">Clear token
                             </button>
@@ -562,7 +575,7 @@
                     <button class="raised" id="btnToggleOrder" is="emby-button" type="button"><span>Newest first: OFF</span>
                     </button>
                     <button class="raised danger" id="btnClearDisplay" is="emby-button" type="button">
-                        <span>Clear view</span></button>
+                        <span>Clear logs</span></button>
                     <label class="checkboxContainer inline">
                         <input id="chkRawMode" is="emby-checkbox" type="checkbox">
                         <span style="margin-left:.3em">Raw mode</span>
@@ -631,6 +644,9 @@
         }
 
         /* ========== CONFIG LOAD / SAVE ========== */
+        let currentAniToken = "";
+        let tokenRevealed = false;
+
         async function loadCfg(showToast = false) {
             Dashboard.showLoadingMsg();
             try {
@@ -648,10 +664,11 @@
                 $("FavoritesMaxPages").value = cfg.FavoritesMaxPages ?? 50;
 
                 $("LblDeviceId").textContent = cfg.AniDeviceId || "—";
-                $("LblCurrentOtp").textContent = cfg.CurrentOtpCode || "—";
+                $("LblCurrentOtp").textContent = "—";
                 $("UiMinLogLevel").value = cfg.UiMinLogLevel || "Information";
                 $("EnableDebugLogs").checked = cfg.EnableDebugLogs ?? false;
                 $("EnablePlaybackDiagnostics").checked = cfg.EnablePlaybackDiagnostics ?? false;
+                $("StaleCleanupMode").value = cfg.StaleCleanupMode || "DryRun";
                 $("UseJellyfinPlaybackProxy").checked = cfg.UseJellyfinPlaybackProxy ?? true;
                 $("JellyfinPlaybackProxyBaseUrl").value = cfg.JellyfinPlaybackProxyBaseUrl || "";
                 $("EnableAniLibertyViewSync").checked = cfg.EnableAniLibertyViewSync ?? false;
@@ -672,13 +689,31 @@
 
         function updateTokenBox(token) {
             const box = $("AniLibertyToken");
+            currentAniToken = token || "";
             if (token) {
-                box.textContent = token;
+                box.textContent = tokenRevealed ? token : maskToken(token);
                 box.classList.remove("dim");
             } else {
                 box.textContent = "(not acquired)";
                 box.classList.add("dim");
+                tokenRevealed = false;
             }
+            $("BtnRevealToken").textContent = tokenRevealed ? "Hide token" : "Reveal token";
+        }
+
+        function maskToken(token) {
+            if (!token) return "(not acquired)";
+            if (token.length <= 14) return token[0] + "..." + token[token.length - 1];
+            return token.slice(0, 8) + "..." + token.slice(-6);
+        }
+
+        function toggleTokenReveal() {
+            if (!currentAniToken) {
+                notify("No token to reveal");
+                return;
+            }
+            tokenRevealed = !tokenRevealed;
+            updateTokenBox(currentAniToken);
         }
 
         async function saveCfg() {
@@ -697,6 +732,7 @@
                 cfg.UiMinLogLevel = $("UiMinLogLevel").value;
                 cfg.EnableDebugLogs = $("EnableDebugLogs").checked;
                 cfg.EnablePlaybackDiagnostics = $("EnablePlaybackDiagnostics").checked;
+                cfg.StaleCleanupMode = $("StaleCleanupMode").value;
                 cfg.UseJellyfinPlaybackProxy = $("UseJellyfinPlaybackProxy").checked;
                 cfg.JellyfinPlaybackProxyBaseUrl = $("JellyfinPlaybackProxyBaseUrl").value.trim();
                 cfg.EnableAniLibertyViewSync = $("EnableAniLibertyViewSync").checked;
@@ -717,7 +753,7 @@
             const cfg = await ApiClient.getPluginConfiguration(pluginId);
             updateTokenBox(cfg.AniLibertyToken);
             $("LblDeviceId").textContent = cfg.AniDeviceId || "—";
-            $("LblCurrentOtp").textContent = cfg.CurrentOtpCode || "—";
+            $("LblCurrentOtp").textContent = "—";
         }
 
         /* ========== AUTH: LOGIN / PASSWORD ========== */
@@ -765,6 +801,7 @@
                 if (!data.success) throw new Error(data.error || ("HTTP " + resp.status));
                 await loadCfg(); // refresh code + device
                 $("OtpCodeInput").value = data.otp || "";
+                $("LblCurrentOtp").textContent = data.otp || "—";
                 setAuthStatus("StartOtp OK (code received).", "ok");
             } catch (e) {
                 setAuthStatus("StartOtp error: " + e.message, "err");
@@ -818,8 +855,8 @@
         }
 
         async function copyToken() {
-            const token = $("AniLibertyToken").textContent;
-            if (!token || token === "(not acquired)") {
+            const token = currentAniToken;
+            if (!token) {
                 notify("No token to copy");
                 return;
             }
@@ -863,6 +900,21 @@
                 renderLogs(cfg.LastTaskLog);
             } catch (e) {
                 renderLogs("Error: " + e.message);
+            }
+        }
+
+        async function clearLogs() {
+            Dashboard.showLoadingMsg();
+            try {
+                const cfg = await ApiClient.getPluginConfiguration(pluginId);
+                cfg.LastTaskLog = "";
+                await ApiClient.updatePluginConfiguration(pluginId, cfg);
+                renderLogs("(cleared)");
+                notify("Logs cleared");
+            } catch (e) {
+                notify("Clear logs error: " + e.message);
+            } finally {
+                Dashboard.hideLoadingMsg();
             }
         }
 
@@ -915,6 +967,7 @@
         $("BtnStartOtp").addEventListener("click", startOtp);
         $("BtnSignInOtp").addEventListener("click", signInOtp);
         $("BtnCopyToken").addEventListener("click", copyToken);
+        $("BtnRevealToken").addEventListener("click", toggleTokenReveal);
         $("BtnClearToken").addEventListener("click", clearToken);
         $("BtnRefreshTokenBox").addEventListener("click", refreshTokenOnly);
 
@@ -922,7 +975,7 @@
         $("btnShowLogs").addEventListener("click", showLogs);
         $("btnAutoLogs").addEventListener("click", toggleAutoLogs);
         $("btnToggleOrder").addEventListener("click", toggleOrder);
-        $("btnClearDisplay").addEventListener("click", () => renderLogs("(cleared)"));
+        $("btnClearDisplay").addEventListener("click", clearLogs);
         $("chkRawMode").addEventListener("change", showLogs);
 
         // Directory pick (only 🔍)

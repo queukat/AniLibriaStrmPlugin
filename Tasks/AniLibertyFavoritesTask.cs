@@ -70,9 +70,15 @@ public sealed class AniLibertyFavoritesTask(
 
             FavoritesCache.Update(titles.Select(t => t.Id));
         }
+        catch (OperationCanceledException)
+        {
+            _log.Warn("AniLibertyFavoritesTask canceled.");
+            throw;
+        }
         catch (Exception ex)
         {
             _log.Err(ex, "AniLibertyFavoritesTask failed");
+            throw;
         }
         finally
         {

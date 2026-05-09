@@ -9,22 +9,27 @@
         <CopyLocalLockFileAssemblies>True</CopyLocalLockFileAssemblies>
         <GenerateTargetFrameworkAttribute>false</GenerateTargetFrameworkAttribute>
         <RootNamespace>AniLibertyStrmPlugin</RootNamespace>
+        <Version>2.0.0.8</Version>
+        <AssemblyVersion>2.0.0.8</AssemblyVersion>
+        <FileVersion>2.0.0.8</FileVersion>
+        <InformationalVersion>2.0.0.8</InformationalVersion>
+        <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
     </PropertyGroup>
 
     <ItemGroup>
 
         <!--   Jellyfin -->
         <!--    10.11 -->
-        <PackageReference Include="Jellyfin.Controller" Version="10.11.*-*" PrivateAssets="all"/>
-        <PackageReference Include="Jellyfin.Model" Version="10.11.*-*" PrivateAssets="all"/>
+        <PackageReference Include="Jellyfin.Controller" Version="10.11.0" PrivateAssets="all"/>
+        <PackageReference Include="Jellyfin.Model" Version="10.11.0" PrivateAssets="all"/>
 
         <!--  ,     -->
-        <PackageReference Include="Jellyfin.Database.Implementations" Version="10.11.*-*" PrivateAssets="all"/>
-        <PackageReference Include="Jellyfin.MediaEncoding.Keyframes" Version="10.11.*-*" PrivateAssets="all"/>
+        <PackageReference Include="Jellyfin.Database.Implementations" Version="10.11.0" PrivateAssets="all"/>
+        <PackageReference Include="Jellyfin.MediaEncoding.Keyframes" Version="10.11.0" PrivateAssets="all"/>
 
 
         <!-- Polly   HTTP -->
-        <PackageReference Include="Polly" Version="8.6.*">
+        <PackageReference Include="Polly" Version="8.6.6">
             <PrivateAssets>none</PrivateAssets>
         </PackageReference>
         <PackageReference Include="Microsoft.Extensions.Http.Polly" Version="9.0.0">

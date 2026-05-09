@@ -102,6 +102,10 @@ public sealed record AniLibertyClient(HttpClient http, ILogger<AniLibertyClient>
                     break;
                 }
             }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
             catch (Exception ex)
             {
                 log.LogError(ex, "❌ Deserialization failed (page {Page}). Raw length={Len}. First 300:\n{Raw}",
@@ -139,6 +143,10 @@ public sealed record AniLibertyClient(HttpClient http, ILogger<AniLibertyClient>
                 }
 
                 result.AddRange(parsed!.Data);
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
             }
             catch (Exception ex)
             {
@@ -233,6 +241,10 @@ public sealed record AniLibertyClient(HttpClient http, ILogger<AniLibertyClient>
                 }
             }
         }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
         catch (Exception ex)
         {
             log.LogWarning(ex, "FetchViewTimecodes parse failed.");
@@ -255,6 +267,10 @@ public sealed record AniLibertyClient(HttpClient http, ILogger<AniLibertyClient>
                 log.LogWarning("Deserialize of release {Id} returned null", id);
             return full;
         }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
         catch (Exception ex)
         {
             log.LogError(ex, "Failed to fetch release {Id}", id);
@@ -274,6 +290,10 @@ public sealed record AniLibertyClient(HttpClient http, ILogger<AniLibertyClient>
             var data = JsonSerializer.Deserialize<List<FranchiseInfo>>(raw, _jsonOpts);
             return data;
         }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
         catch (Exception ex)
         {
             log.LogError(ex, "Failed to fetch franchises for release {Id}", releaseId);
@@ -286,6 +306,10 @@ public sealed record AniLibertyClient(HttpClient http, ILogger<AniLibertyClient>
         try
         {
             return await resp.Content.ReadAsStringAsync(ct);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
         }
         catch
         {

@@ -33,8 +33,37 @@ jobs:
             **/*.csproj
             **/packages.lock.json
 
+      - name: Restore locked packages
+        run: dotnet restore AniLibertyStrmPlugin.sln --locked-mode
+
+      - name: Verify Jellyfin package pins
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 <<'PY'
+          import json
+          import sys
+          import xml.etree.ElementTree as ET
+          from pathlib import Path
+
+          expected = "10.11.0"
+          for project_path in Path(".").glob("**/*.csproj"):
+              project = ET.parse(project_path)
+              for item in project.findall(".//PackageReference"):
+                  include = item.attrib.get("Include", "")
+                  if include.startswith("Jellyfin.") and item.attrib.get("Version") != expected:
+                      raise SystemExit(f"{project_path}: {include} must be pinned to {expected}")
+
+          for lock_path in Path(".").glob("**/packages.lock.json"):
+              lock = json.loads(lock_path.read_text(encoding="utf-8"))
+              deps = lock["dependencies"]["net9.0"]
+              for name, meta in deps.items():
+                  if name.startswith("Jellyfin.") and meta.get("resolved") != expected:
+                      raise SystemExit(f"{lock_path}: {name} resolved {meta.get('resolved')}, expected {expected}")
+          PY
+
       - name: Run tests (excluding live integration)
-        run: dotnet test AniLibertyStrmPlugin.Tests/AniLibertyStrmPlugin.Tests.csproj -c Release --filter "Category!=Integration"
+        run: dotnet test AniLibertyStrmPlugin.Tests/AniLibertyStrmPlugin.Tests.csproj -c Release --no-restore --filter "Category!=Integration"
 
       - name: Compute next version and release notes inputs
         shell: bash
@@ -99,8 +128,10 @@ jobs:
           python3 <<'PY'
           from pathlib import Path
           import os
+          import re
 
           build_file = Path("build.yaml")
+          project_file = Path("AniLibertyStrmPlugin.csproj")
           notes = Path(".manifest_changelog.txt").read_text(encoding="utf-8").rstrip("\n")
           version = os.environ["NEXT_VERSION"]
 
@@ -130,6 +161,16 @@ jobs:
           block = ["changelog: |", *[f"  {x}" for x in notes.splitlines()]]
           lines = [*lines[:start], *block, *lines[end:]]
           build_file.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+          project_text = project_file.read_text(encoding="utf-8")
+          for tag in ("Version", "AssemblyVersion", "FileVersion", "InformationalVersion"):
+              project_text = re.sub(
+                  rf"<{tag}>[^<]+</{tag}>",
+                  f"<{tag}>{version}</{tag}>",
+                  project_text,
+                  count=1,
+              )
+          project_file.write_text(project_text, encoding="utf-8")
           PY
 
       - name: Update CHANGELOG.md
@@ -181,7 +222,7 @@ jobs:
           set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add build.yaml CHANGELOG.md
+          git add build.yaml CHANGELOG.md AniLibertyStrmPlugin.csproj
           if git diff --cached --quiet; then
             echo "No metadata changes to commit"
           else

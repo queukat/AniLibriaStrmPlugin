@@ -32,8 +32,36 @@ jobs:
             **/*.csproj
             **/packages.lock.json
 
+      - name: Restore locked packages
+        run: dotnet restore AniLibertyStrmPlugin.sln --locked-mode
+
+      - name: Verify Jellyfin package pins
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 <<'PY'
+          import json
+          import xml.etree.ElementTree as ET
+          from pathlib import Path
+
+          expected = "10.11.0"
+          for project_path in Path(".").glob("**/*.csproj"):
+              project = ET.parse(project_path)
+              for item in project.findall(".//PackageReference"):
+                  include = item.attrib.get("Include", "")
+                  if include.startswith("Jellyfin.") and item.attrib.get("Version") != expected:
+                      raise SystemExit(f"{project_path}: {include} must be pinned to {expected}")
+
+          for lock_path in Path(".").glob("**/packages.lock.json"):
+              lock = json.loads(lock_path.read_text(encoding="utf-8"))
+              deps = lock["dependencies"]["net9.0"]
+              for name, meta in deps.items():
+                  if name.startswith("Jellyfin.") and meta.get("resolved") != expected:
+                      raise SystemExit(f"{lock_path}: {name} resolved {meta.get('resolved')}, expected {expected}")
+          PY
+
       - name: Run tests (excluding live integration)
-        run: dotnet test AniLibertyStrmPlugin.Tests/AniLibertyStrmPlugin.Tests.csproj -c Release --filter "Category!=Integration"
+        run: dotnet test AniLibertyStrmPlugin.Tests/AniLibertyStrmPlugin.Tests.csproj -c Release --no-restore --filter "Category!=Integration"
 
       - name: Read base version from build.yaml
         shell: bash

@@ -20,6 +20,17 @@ public class OtpPayloadBuilderTests
     }
 
     [Fact]
+    public void TryCreateAcceptPayload_TrimsNumericCode()
+    {
+        var ok = OtpPayloadBuilder.TryCreateAcceptPayload("  000042  ", out var json);
+
+        Assert.True(ok);
+
+        using var doc = JsonDocument.Parse(json);
+        Assert.Equal(42, doc.RootElement.GetProperty("code").GetInt32());
+    }
+
+    [Fact]
     public void TryCreateLoginPayload_IncludesDeviceId()
     {
         var ok = OtpPayloadBuilder.TryCreateLoginPayload("54233", "device-1", out var json);
@@ -40,6 +51,18 @@ public class OtpPayloadBuilderTests
     public void TryCreateAcceptPayload_RejectsInvalidCode(string? code)
     {
         var ok = OtpPayloadBuilder.TryCreateAcceptPayload(code, out var json);
+
+        Assert.False(ok);
+        Assert.Equal(string.Empty, json);
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void TryCreateLoginPayload_RejectsMissingDeviceId(string? deviceId)
+    {
+        var ok = OtpPayloadBuilder.TryCreateLoginPayload("123456", deviceId, out var json);
 
         Assert.False(ok);
         Assert.Equal(string.Empty, json);

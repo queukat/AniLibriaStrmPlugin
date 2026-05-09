@@ -1,5 +1,3 @@
-﻿// --- File: AniLibertyAuthController.cs (updated) ---
-
 using System.Globalization;
 using System.Net;
 using System.Net.Http;
@@ -27,12 +25,10 @@ public class AniLibertyAuthController : ControllerBase
         _httpFactory = httpFactory;
     }
 
-    // ─────────────────────────── 1) Username/password ───────────────────────────
-
     [HttpPost("SignInLoginPass")]
     public async Task<IActionResult> SignInLoginPass([FromBody] LoginRequest? req, CancellationToken ct)
     {
-        AppendLog($"SignInLoginPass called. login={req?.Mail ?? "null"}");
+        AppendLog("SignInLoginPass called.");
 
         if (req is null || string.IsNullOrWhiteSpace(req.Mail) || string.IsNullOrWhiteSpace(req.Passwd))
             return BadRequest(Fail("No login/pass"));
@@ -50,12 +46,11 @@ public class AniLibertyAuthController : ControllerBase
         var plugin = RequirePlugin();
         var cfg = plugin.Configuration;
         cfg.AniLibertyToken = token;
+        cfg.CurrentOtpCode = string.Empty;
         plugin.UpdateConfiguration(cfg);
 
         return Ok(new { success = true, token, serverResponse = resp.body });
     }
-
-    // ────────────────────────────── 2) OTP ────────────────────────────────
 
     [HttpPost("StartOtp")]
     public async Task<IActionResult> StartOtp(CancellationToken ct)
@@ -104,7 +99,7 @@ public class AniLibertyAuthController : ControllerBase
         if (string.IsNullOrWhiteSpace(otp))
             return StatusCode(ToStatusCode(resp.status), Fail("No otp in response", resp.status, resp.body));
 
-        cfg.CurrentOtpCode = otp;
+        cfg.CurrentOtpCode = string.Empty;
         plugin.UpdateConfiguration(cfg);
 
         return Ok(new { success = true, otp, serverResponse = resp.body });
@@ -158,12 +153,11 @@ public class AniLibertyAuthController : ControllerBase
             return StatusCode(ToStatusCode(resp.status), Fail("No token in response", resp.status, resp.body));
 
         cfg.AniLibertyToken = token;
+        cfg.CurrentOtpCode = string.Empty;
         plugin.UpdateConfiguration(cfg);
 
         return Ok(new { success = true, token, serverResponse = resp.body });
     }
-
-    // ──────────────────────────── helpers ─────────────────────────────
 
     private static Plugin RequirePlugin()
         => Plugin.Instance ?? throw new InvalidOperationException("Plugin instance is not initialized.");
@@ -235,8 +229,6 @@ public class AniLibertyAuthController : ControllerBase
         var cfg = Plugin.Instance?.Configuration;
         if (cfg?.EnableDebugLogs != true)
             return;
-
-        Console.WriteLine($"[AniLibertyAuth] {DateTime.Now:HH:mm:ss} {msg}");
 
         // In tests or before plugin initialization, Instance may be null.
         Plugin.Instance?.AppendTaskLog("[AniLibertyAuth] " + msg, LogLevel.Debug);

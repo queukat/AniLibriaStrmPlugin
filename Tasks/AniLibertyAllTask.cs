@@ -82,9 +82,15 @@ public sealed class AniLibertyAllTask : IScheduledTask
                 progress,
                 token);
         }
+        catch (OperationCanceledException)
+        {
+            _log.Warn("AniLibertyAllTask canceled.");
+            throw;
+        }
         catch (Exception ex)
         {
             _log.LogError(ex, "AniLibertyAllTask failed");
+            throw;
         }
         finally
         {

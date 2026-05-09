@@ -2,45 +2,73 @@
 
 ![icon](Resources/icon.png)
 
-Generate **`.strm` / `.nfo` / `.edl`** (and optionally native *Skip Intro* markers) for every title that the Russian
-fansub site **AniLiberty / AniLibria** hosts — directly from your Jellyfin server (via the AniLiberty API v1).
+![AniLiberty STRM Plugin reconstruction core](Resources/readme/hero-reconstruction-core.png)
+
+AniLiberty STRM Plugin is a Jellyfin library reconstruction system for **AniLiberty** releases.
+It turns AniLiberty API v1 signals into a governed Jellyfin media surface: STRM playback entries,
+metadata, skip-control markers, artwork, favorites mirroring, and optional watch-progress sync.
+
+The result is a controlled library pipeline rather than a loose folder dump: acquisition, reconstruction,
+playback routing, manifest governance, telemetry, and release distribution all operate as one system.
 
 ---
 
-## ✨ Features
+## System Capabilities
 
-- **Three scheduled tasks**
-  - **All titles** – mirrors the full AniLiberty catalog into a flat STRM library.
-  - **Favorites only** – mirrors only what you added to favorites on the site (requires AniLiberty account / token).
-  - **Watch progress pull sync** – imports AniLiberty progress into a Jellyfin user profile (manual run).
-- **Per‑episode assets**
-  - `SxxExx.strm` with HLS URL.
-  - `SxxExx-thumb.jpg/png` (episode preview, if available).
-  - `SxxExx.edl` (intro / credits skip).
-  - `SxxExx.nfo` (episode metadata: title (RU/EN when available), runtime, year).
-  - `SxxExx.aniid` (AniLiberty `release_episode_id` for playback sync).
-- **AniLiberty view sync (optional)**
-  - Sends playback progress to AniLiberty API v1 (`/accounts/users/me/views/timecodes`).
-  - Uses saved AniLiberty JWT token and generated `.aniid` sidecar mapping.
-- **Intro‑skip**
-  - Always generates classic **EDL** files.
-  - On Jellyfin ≥ 10.11 additionally writes *Intro* / *Credits* chapter markers → native *Skip Intro* button.
-- **API v1 aware metadata**
-  - Uses `release.year` (API v1) for movies and show grouping (season object does **not** contain a year in v1).
-  - Better type handling: **MOVIE** is detected by `type.value`; **SPECIAL / OVA / OAD** are routed into **Season 00**.
-- **Robust HTTP layer**
-  - DI-managed `HttpClient` for the AniLiberty API (consistent headers, `ResponseHeadersRead`).
-  - Auto‑retry with exponential back‑off (Polly) for transient errors **and HTTP 429 (Too Many Requests)**.
-  - Reused HTTP clients for media/image downloads to reduce overhead.
-- **Image handling**
-  - Supports API v1 image schema (`preview/thumbnail/optimized`) and prefers non‑optimized URLs when possible.
-  - Normalizes `.webp` URLs to `.jpg` and safely picks extensions even when URLs contain query parameters.
-- **Built‑in auth helper**
-  - Login via **e‑mail + password** or **OTP** against AniLiberty API v1.
-  - Plugin stores a **JWT** (`AniLibertyToken`) and device id; you don’t have to paste cookies manually.
-- **UI logs that don’t explode**
-  - Full logging into the plugin’s configuration page (Last Task Logs).
-  - Optional **Enable debug logs** switch (very noisy): when OFF, DEBUG/TRACE aren’t stored in UI logs and per‑title progress is throttled.
+- **Signal Acquisition Layer**
+  - Detects API instability, rate-limit pressure, and ambiguous client identity.
+  - Introduces a governed `HttpClient` pipeline with `ResponseHeadersRead`, retry/back-off, and a canonical
+    `AniLibertyStrmPlugin/<version>` User-Agent for every AniLiberty request path.
+  - Users see steadier catalog intake, explicit API courtesy, and fewer anonymous traffic patterns.
+
+- **Context-Aware Reconstruction Core**
+  - Detects catalog disorder: movie/series ambiguity, specials, fractional episode ordinals, API v1 year placement,
+    image schema variation, and missing detail payloads.
+  - Introduces a reconstruction policy for Jellyfin-ready folder structure, `SxxExx.strm`, `.nfo`, `.edl`,
+    `.chapters.xml`, `.aniid`, and artwork.
+  - Users see a Jellyfin library that behaves like curated media, including native Skip Intro markers on Jellyfin 10.11+.
+
+- **Playback Proxy Rail**
+  - Detects direct HLS exposure and redirect drift before playback traffic leaves Jellyfin.
+  - Introduces upstream allow-list validation, playlist rewriting, and streaming segment/key delivery through
+    Jellyfin without buffering entire media objects in memory.
+  - Users see safer STRM playback routes with the original AniLiberty CDN structure kept behind a controlled proxy surface.
+
+- **Mirror Governance Layer**
+  - Detects metadata debris, stale generated files, and the dangerous boundary between plugin output and user-authored files.
+  - Introduces `.aniliberty-strm-plugin/manifest.json`, generated-file markers, dry-run stale analysis, and opt-in deletion
+    limited to manifest-managed files.
+  - Users see metadata refreshes that preserve custom `.nfo` and artwork while exposing cleanup decisions before destruction.
+
+- **Identity and Access Command Center**
+  - Detects token leakage risk and OTP persistence risk inside the administration surface.
+  - Introduces masked JWT display, explicit reveal/copy actions, login/password and OTP flows, and non-persistent OTP codes.
+  - Users see account access handled as an intentional control surface rather than hidden configuration state.
+
+- **Operational Command Center**
+  - Detects silent sync failures, noisy debug streams, playback URL drift, and unclear task outcomes.
+  - Introduces UI log levels, debug gating, playback diagnostics, progress reporting, and persisted log review.
+  - Users see recovery signals, failure visibility, and review-ready operational state in the plugin page.
+
+- **Distribution Rail and Quality Gates**
+  - Detect Jellyfin ABI drift, package resolution drift, and release/catalog mismatch.
+  - Introduce Jellyfin `10.11.0` package pins, committed lock files, locked restore in CI, package-resolution checks,
+    synchronized release versioning, and automated catalog publishing.
+  - Users see releases aligned to a declared Jellyfin ABI with a plugin manifest that remains in step with the build.
+
+## Visual System Map
+
+![AniLiberty STRM Plugin capability layers](Resources/readme/system-capability-layers.png)
+
+The pipeline is presented as six cooperating control layers: signal acquisition, context-aware reconstruction,
+playback routing, mirror governance, operational command, and release quality gates. Each layer takes a specific
+kind of media-library disorder and turns it into a controlled Jellyfin-facing outcome.
+
+![AniLiberty STRM Plugin operational command center](Resources/readme/operational-command-center.png)
+
+The administration surface is treated as a command center: authentication state, diagnostics, cleanup policy,
+playback routing, and sync visibility stay in one operational frame instead of scattering across hidden files
+and silent background work.
 
 ---
 
@@ -52,8 +80,8 @@ fansub site **AniLiberty / AniLibria** hosts — directly from your Jellyfin ser
 | .NET runtime    | `net9.0` (bundled with Jellyfin 10.11+ server builds) |
 | OS              | Anything Jellyfin runs on (Windows / Linux / macOS)   |
 
-Older Jellyfin 10.10 builds are **not** supported: the plugin is compiled against 10.11
-(Jellyfin.Controller / Jellyfin.Model 10.11.*).
+Older Jellyfin 10.10 builds are **not** supported: the plugin is compiled against the minimum
+Jellyfin 10.11.0 ABI (`Jellyfin.*` packages are pinned to `10.11.0`, not wildcard ranges).
 
 ---
 
@@ -72,6 +100,7 @@ Older Jellyfin 10.10 builds are **not** supported: the plugin is compiled agains
 4. Find **“AniLiberty STRM Plugin”**, click **Install**, restart Jellyfin.
 
 The repository and manifest are built automatically by GitHub Actions from this repo.
+The GitHub repository keeps the legacy `AniLibriaStrmPlugin` URL because the main branch still hosts the previous AniLibria plugin line; this branch and release line are branded as AniLiberty.
 
 ### Option B — manual ZIP
 
@@ -100,30 +129,34 @@ The repository and manifest are built automatically by GitHub Actions from this 
 
 Open **Dashboard → Plugins → AniLiberty STRM**.
 
-### Paths and behaviour
+### Control Surface
 
 | Field                        | Meaning                                                                 |
 |------------------------------|-------------------------------------------------------------------------|
-| **All Titles STRM Path**     | Where to write the full catalog library. Leave empty to disable.       |
-| **Favorites STRM Path**      | Separate folder for your AniLiberty favorites.                         |
-| **Preferred Resolution**     | 1080 / 720 / 480 – which HLS URL to prefer in generated `.strm`.       |
-| **Generate favorites library** | If unchecked, the “Favorites only” scheduled task will be skipped.   |
-| **Generate full catalog library** | If unchecked, the “All titles” scheduled task will be skipped.   |
-| Pagination settings          | API paging; change only if you hit rate limits or need to throttle.    |
-| Logging options              | UI min log level, **Enable debug logs**, **Enable playback diagnostics logs**, and how many lines to keep. |
-| View sync options            | Enable progress sync to AniLiberty, sync step (seconds), stop-event push, and Jellyfin UserId for pull import. |
+| **All Titles STRM Path**     | Root for the full-catalog reconstruction rail. Leave empty to disable. |
+| **Favorites STRM Path**      | Root for the favorites reconstruction rail.                            |
+| **Preferred Resolution**     | HLS quality policy for STRM playback entries: 1080 / 720 / 480.        |
+| **Generate favorites library** | Enables the favorites orchestration rail.                            |
+| **Generate full catalog library** | Enables the full-catalog orchestration rail.                       |
+| Pagination settings          | Signal pacing controls for catalog acquisition pressure.               |
+| Logging options              | Operational Command Center controls: UI level, debug stream, playback diagnostics, and retention. |
+| Stale generated files        | Mirror Governance mode: `Dry-run log` by default; `Delete` is limited to manifest-managed files. |
+| View sync options            | Watch-state exchange policy for AniLiberty and the selected Jellyfin user. |
 
 ### Logging notes
 
-- **UiMinLogLevel** controls what gets stored in *Last Task Logs*.
+- **UiMinLogLevel** controls what enters the Operational Command Center surface.
 - **Enable debug logs (very noisy)**:
   - When **OFF**: DEBUG/TRACE messages are not stored in UI logs; per‑title progress logging is throttled.
   - When **ON**: UI logs become much more verbose (use it for troubleshooting).
 - **Enable playback diagnostics logs**:
   - Adds per-episode diagnostics to *Last Task Logs*:
     selected HLS URL, normalized URL, existing/new `.strm` value, and a server-side HLS probe summary.
+- **Stale generated files**:
+  - `Dry-run log` reports managed files that disappeared from the latest API response.
+  - `Delete` removes only files listed in `.aniliberty-strm-plugin/manifest.json`; untracked user files are left alone.
 - **Sync playback progress to AniLiberty**:
-  - Sends periodic progress updates for played `.strm` items.
+  - Exchanges periodic progress signals for played `.strm` items.
   - If old libraries were generated before `.aniid` sidecars existed, run generation again to create mapping files.
 
 ### AniLiberty authentication
@@ -135,15 +168,15 @@ You have two flows:
 1. **Login + password**
    - Enter your AniLiberty **e‑mail** and **password**.
    - Press **Log In**.
-   - On success, the plugin receives a JWT token and saves it into config
-     (`AniLibertyToken`). The token is shown in the *Token* box.
+   - On success, the Command Center receives a JWT token and stores it as
+     `AniLibertyToken`. The token is masked in the *Token* box unless you reveal it.
 
 2. **OTP flow**
-   - Press **Start OTP** – the plugin requests a one-time code for your device id (the last received code is shown on the page).
+   - Press **Start OTP** – the plugin requests a one-time code for your device id and shows it for the current flow only.
    - Enter the received code into the OTP field.
    - Press **Sign In** to exchange the code for a JWT and store it.
 
-The token and device id are stored in the plugin configuration and reused by:
+The token and device id are retained in the plugin configuration and reused by:
 
 - **Favorites task** – to fetch `/accounts/users/me/favorites/releases`.
 - Any future authenticated API calls.
@@ -152,32 +185,31 @@ You can also refresh, copy, or clear the token from the same page.
 
 ---
 
-## 📅 Scheduled tasks
+## Orchestration Rails
 
-Two tasks appear under **Dashboard → Scheduled Tasks → AniLiberty**:
+Three orchestration rails appear under **Dashboard → Scheduled Tasks → AniLiberty**:
 
-1. **Generate AniLiberty STRM library**
-   - Fetches *all* titles from AniLiberty (`/anime/catalog/releases`).
-   - Respects `AllTitlesPageSize` and `AllTitlesMaxPages`.
-   - Generates `.strm`, `.nfo`, `.edl`, thumbnails and optional chapters
+1. **Full Catalog Reconstruction Rail**
+   - Acquires the complete AniLiberty catalog signal from `/anime/catalog/releases`.
+   - Applies `AllTitlesPageSize` and `AllTitlesMaxPages` as acquisition pressure controls.
+   - Produces STRM playback entries, metadata, skip markers, thumbnails, and optional chapters
      under **All Titles STRM Path**.
-   - By default runs **once per day** (interval trigger).
+   - By default runs **once per day**.
 
-2. **Generate AniLiberty STRM (Favorites Only)**
+2. **Favorites Reconstruction Rail**
    - Requires a valid `AniLibertyToken`.
-   - Fetches favorites and generates the same set of files under
-     **Favorites STRM Path**.
+   - Converts the authenticated favorites signal into the same governed media surface under **Favorites STRM Path**.
    - Has no default trigger; you can enable and schedule it as you like.
 
-3. **Sync AniLiberty watch progress to Jellyfin**
-   - Manual task (no default trigger).
-   - Pulls remote timecodes from AniLiberty and imports them into a selected Jellyfin user profile.
+3. **Watch-State Recovery Rail**
+   - Manual rail with no default trigger.
+   - Imports AniLiberty timecode state into a selected Jellyfin user profile.
    - Requires:
      - valid `AniLibertyToken`
      - `AniLibertyViewSyncJellyfinUserId` in plugin settings
    - Uses `.aniid` sidecar mapping generated near `.strm` files.
 
-After saving settings you can run tasks manually or wait for the scheduler.
+After saving settings you can run rails manually or let the scheduler operate them.
 
 ---
 
@@ -188,9 +220,10 @@ After saving settings you can run tasks manually or wait for the scheduler.
 git clone https://github.com/queukat/AniLibriaStrmPlugin.git
 cd AniLibriaStrmPlugin
 
-# build & test
-dotnet build -c Release
-dotnet test  -c Release
+# restore, build & test
+dotnet restore --locked-mode
+dotnet build -c Release --no-restore
+dotnet test  -c Release --no-build
 
 # package with JPRM (build.yaml is already included)
 jprm build .
@@ -199,7 +232,8 @@ jprm build .
 
 The repository already contains `build.yaml` and CI workflows that:
 
-- Compile the plugin for **net9.0 / Jellyfin 10.11**.
+- Compile the plugin for **net9.0 / Jellyfin 10.11.0 ABI**.
+- Restore packages from committed lock files and verify `Jellyfin.*` packages remain pinned to `10.11.0`.
 - Package it together with dependencies (`Polly`, `Microsoft.Extensions.Http.Polly`, `icon.png`).
 - Publish the ZIP and `manifest.json` to GitHub Pages.
 
@@ -216,7 +250,7 @@ The repository uses two workflows:
 
 - `.github/workflows/release.yml`
   - Trigger: push to `aniLiberty-v2` where the **head commit message starts with `release:`**, or manual `workflow_dispatch`.
-  - Bumps patch part of 4-part version (`X.Y.Z.W`) in `build.yaml`.
+  - Bumps patch part of 4-part version (`X.Y.Z.W`) in `build.yaml` and the project assembly/package version.
   - Creates tag `vX.Y.Z.W`.
   - Creates GitHub Release with generated notes + commit summary since previous stable tag.
   - Updates `gh-pages/plugins/manifest.json` and publishes release asset + checksum.
@@ -226,7 +260,7 @@ The repository uses two workflows:
 
 - Version is stored in `build.yaml` (`version: "X.Y.Z.W"`).
 - Stable release bumps the **4th part** (`W`) by default.
-- Manifest/catalog version is produced from the same release version and kept in sync automatically.
+- Manifest/catalog version and assembly informational version are produced from the same release version and kept in sync automatically.
 
 ### Manifest and changelog visibility in Jellyfin
 

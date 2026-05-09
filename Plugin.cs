@@ -24,7 +24,7 @@ public sealed class Plugin : BasePlugin<PluginConfiguration>, IHasWebPages
 
     public static Plugin? Instance { get; private set; }
 
-    public override string Name => "AniLiberty STRM Plugin";
+    public override string Name => PluginIdentity.DisplayName;
     public override Guid Id => Guid.Parse("cce0798d-c8b7-4265-b08c-dc9e7bd3fc0f");
 
     public ImageFormat ThumbImageFormat => ImageFormat.Png;

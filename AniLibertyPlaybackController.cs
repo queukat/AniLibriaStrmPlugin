@@ -45,9 +45,13 @@ public sealed class AniLibertyPlaybackController(
                 return Content(rewritten, "application/vnd.apple.mpegurl");
             }
 
-            var bytes = await upstream.Content.ReadAsByteArrayAsync(ct);
             var fileContentType = contentType ?? "application/octet-stream";
-            return File(bytes, fileContentType);
+            Response.ContentType = fileContentType;
+            if (upstream.Content.Headers.ContentLength is long contentLength)
+                Response.ContentLength = contentLength;
+
+            await upstream.Content.CopyToAsync(Response.Body, ct);
+            return new EmptyResult();
         }
         catch (OperationCanceledException)
         {

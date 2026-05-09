@@ -109,10 +109,12 @@ public sealed class AniLibertyViewsPullTask(
         catch (OperationCanceledException)
         {
             log.Warn("AniLibertyViewsPullTask canceled.");
+            throw;
         }
         catch (Exception ex)
         {
             log.Err(ex, "AniLibertyViewsPullTask failed");
+            throw;
         }
         finally
         {
@@ -146,6 +148,9 @@ public sealed class AniLibertyViewsPullTask(
             return false;
 
         var ticks = (long)Math.Max(0, Math.Round(row.Time * TimeSpan.TicksPerSecond));
+        if (ticks <= userData.PlaybackPositionTicks)
+            return false;
+
         if (userData.PlaybackPositionTicks != ticks)
         {
             userData.PlaybackPositionTicks = ticks;

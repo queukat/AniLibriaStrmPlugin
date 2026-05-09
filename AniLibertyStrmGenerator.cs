@@ -4,6 +4,7 @@ using System.Net;
 using System.Security;
 using System.Text;
 using System.Text.RegularExpressions;
+using AniLibertyStrmPlugin.Configuration;
 using AniLibertyStrmPlugin.Models;
 using AniLibertyStrmPlugin.Utils;
 using MediaBrowser.Common.Net;
@@ -91,8 +92,7 @@ public sealed class AniLibertyStrmGenerator(
     private static HttpClient CreateMediaHttp(TimeSpan timeout)
     {
         var http = new HttpClient { Timeout = timeout };
-        http.DefaultRequestHeaders.UserAgent.ParseAdd(
-            "Jellyfin-AniLibertyStrm/2.0 (+https://github.com/queukat/AniLibertyStrmPlugin)");
+        http.DefaultRequestHeaders.UserAgent.ParseAdd(PluginIdentity.UserAgent);
         http.DefaultRequestHeaders.Accept.ParseAdd("*/*");
         http.DefaultRequestHeaders.AcceptLanguage.ParseAdd("ru,en;q=0.8");
         return http;
@@ -118,6 +118,8 @@ public sealed class AniLibertyStrmGenerator(
 
         var debugLogs = Plugin.Instance?.Configuration?.EnableDebugLogs == true;
         var playbackDiag = Plugin.Instance?.Configuration?.EnablePlaybackDiagnostics == true;
+        var cleanupMode = Plugin.Instance?.Configuration?.StaleCleanupMode ?? StaleCleanupMode.DryRun;
+        var manifest = await ManagedLibraryManifest.LoadAsync(basePath, token);
 
         // Fallback numbering by year within groups of same titles
         // In v1, year is on release level (field "year"), not season.year
@@ -169,6 +171,10 @@ public sealed class AniLibertyStrmGenerator(
                         continue;
                     }
                 }
+                catch (OperationCanceledException)
+                {
+                    throw;
+                }
                 catch (Exception ex)
                 {
                     log.LogWarning(ex, "Skip {Id} – failed to fetch details", rel.Id);
@@ -180,15 +186,18 @@ public sealed class AniLibertyStrmGenerator(
             var displayRaw = rel.Name?.English ?? rel.Name?.Main ?? rel.Alias ?? "";
             if (LooksLikeMovie(rel, displayRaw))
             {
-                await GenerateMovieAsync(rel, basePath, resolution, playbackDiag, token);
+                await GenerateMovieAsync(rel, basePath, resolution, playbackDiag, manifest, token);
             }
             else
             {
-                await GenerateStrmForTitle(rel, basePath, resolution, fallbackById, list, playbackDiag, token);
+                await GenerateStrmForTitle(rel, basePath, resolution, fallbackById, list, playbackDiag, manifest, token);
             }
 
             progress?.Report(current / (double)total * 100.0);
         }
+
+        await manifest.ApplyCleanupAsync(cleanupMode, log, token);
+        await manifest.SaveAsync(cleanupMode, token);
     }
 
     private static string CleanShowName(string name)
@@ -254,6 +263,7 @@ public sealed class AniLibertyStrmGenerator(
         string basePath,
         string resolution,
         bool playbackDiag,
+        ManagedLibraryManifest manifest,
         CancellationToken token)
     {
         var ep = rel.Episodes?.FirstOrDefault();
@@ -297,15 +307,32 @@ public sealed class AniLibertyStrmGenerator(
                 strmPath,
                 token);
 
-        await WriteTextIfChangedAsync(strmPath, url, encoding: null, token);
-        await WriteEpisodeIdSidecarAsync(strmPath, ep.Id, token);
+        await WriteManagedTextIfChangedAsync(
+            manifest,
+            strmPath,
+            url,
+            encoding: null,
+            kind: "strm",
+            releaseId: rel.Id,
+            episodeId: ep.Id,
+            source: selectedRaw,
+            respectUnmanagedExisting: false,
+            token);
+        await WriteEpisodeIdSidecarAsync(manifest, strmPath, ep.Id, rel.Id, token);
 
         var posterUrl = NormalizeImageUrlPreferJpg(MakeFullUrl(PickImageUrl(rel.Poster)));
-        await DownloadIfAbsentAsync(posterUrl, Path.Combine(movieDir, "cover.jpg"), token);
+        await DownloadManagedImageAsync(
+            manifest,
+            posterUrl,
+            Path.Combine(movieDir, "cover.jpg"),
+            "movie-cover",
+            rel.Id,
+            ep.Id,
+            token);
 
         var plot = MakeSafeXml(rel.Description ?? "");
         var orig = engName ?? ruName ?? title;
-        var nfo = $@"<?xml version=""1.0"" encoding=""utf-8"" standalone=""yes""?>
+        var nfo = AddGeneratedXmlMarker($@"<?xml version=""1.0"" encoding=""utf-8"" standalone=""yes""?>
 <movie>
   <title>{MakeSafeXml(title)}</title>
   {(orig != title ? $"  <originaltitle>{MakeSafeXml(orig)}</originaltitle>" : "")}
@@ -313,11 +340,20 @@ public sealed class AniLibertyStrmGenerator(
   {(Guid.TryParse(ep.Id, out _) ? $"  <uniqueid type=\"aniliberty_episode_id\" default=\"false\">{MakeSafeXml(ep.Id)}</uniqueid>" : "")}
   {(plot.Length > 0 ? $"  <plot>{plot}</plot>" : "")}
   <lockdata>false</lockdata>
-</movie>";
+</movie>");
 
         var nfoPath = Path.Combine(movieDir, $"{folder}.nfo");
-        if (!File.Exists(nfoPath))
-            await File.WriteAllTextAsync(nfoPath, nfo, Encoding.UTF8, token);
+        await WriteManagedTextIfChangedAsync(
+            manifest,
+            nfoPath,
+            nfo,
+            Encoding.UTF8,
+            "movie-nfo",
+            rel.Id,
+            ep.Id,
+            source: null,
+            respectUnmanagedExisting: true,
+            token);
     }
 
     private async Task GenerateStrmForTitle(
@@ -327,6 +363,7 @@ public sealed class AniLibertyStrmGenerator(
         Dictionary<int, int> fallbackById,
         IList<ReleaseResponse> allList,
         bool playbackDiag,
+        ManagedLibraryManifest manifest,
         CancellationToken token)
     {
         if (rel.Episodes is null || rel.Episodes.Count == 0)
@@ -390,12 +427,11 @@ public sealed class AniLibertyStrmGenerator(
 
         // ---- poster ----------------------------------------------------
         var posterUrl = NormalizeImageUrlPreferJpg(MakeFullUrl(PickImageUrl(rel.Poster)));
-        await DownloadIfAbsentAsync(posterUrl, Path.Combine(showDir, "folder.jpg"), token);
-        await DownloadIfAbsentAsync(posterUrl, Path.Combine(showDir, $"{seasonFolder}-poster.jpg"), token);
+        await DownloadManagedImageAsync(manifest, posterUrl, Path.Combine(showDir, "folder.jpg"), "show-poster", rel.Id, null, token);
+        await DownloadManagedImageAsync(manifest, posterUrl, Path.Combine(showDir, $"{seasonFolder}-poster.jpg"), "season-poster", rel.Id, null, token);
 
         // ---- tvshow.nfo ------------------------------------------------
         var tvshowNfo = Path.Combine(showDir, "tvshow.nfo");
-        if (!File.Exists(tvshowNfo))
         {
             var displayTitle = ruName ?? engName ?? safeName;
             var originalTitle = altName ?? engName ?? displayTitle;
@@ -412,7 +448,7 @@ public sealed class AniLibertyStrmGenerator(
                 .DefaultIfEmpty(0)
                 .Min();
 
-            var xml = $@"<?xml version=""1.0"" encoding=""utf-8"" standalone=""yes""?>
+            var xml = AddGeneratedXmlMarker($@"<?xml version=""1.0"" encoding=""utf-8"" standalone=""yes""?>
 <tvshow>
   <title>{MakeSafeXml(displayTitle)}</title>
   {(originalTitle != displayTitle ? $"  <originaltitle>{MakeSafeXml(originalTitle)}</originaltitle>" : string.Empty)}
@@ -420,21 +456,40 @@ public sealed class AniLibertyStrmGenerator(
   {(showYear > 0 ? $"  <year>{showYear}</year>" : string.Empty)}
   {(plot.Length > 0 ? $"  <plot>{plot}</plot><outline>{plot}</outline>" : string.Empty)}
   <lockdata>false</lockdata>
-</tvshow>";
-            await File.WriteAllTextAsync(tvshowNfo, xml, Encoding.UTF8, token);
+</tvshow>");
+            await WriteManagedTextIfChangedAsync(
+                manifest,
+                tvshowNfo,
+                xml,
+                Encoding.UTF8,
+                "tvshow-nfo",
+                rel.Id,
+                episodeId: null,
+                source: null,
+                respectUnmanagedExisting: true,
+                token);
         }
 
         // ---- season.nfo -----------------------------------------------
         var seasonNfo = Path.Combine(seasonDir, "season.nfo");
-        if (!File.Exists(seasonNfo))
         {
-            var seasonXml = $@"<?xml version=""1.0"" encoding=""utf-8"" standalone=""yes""?>
+            var seasonXml = AddGeneratedXmlMarker($@"<?xml version=""1.0"" encoding=""utf-8"" standalone=""yes""?>
 <season>
   <title>Season {seasonNum}</title>
   <seasonnumber>{seasonNum}</seasonnumber>
   <lockdata>false</lockdata>
-</season>";
-            await File.WriteAllTextAsync(seasonNfo, seasonXml, Encoding.UTF8, token);
+</season>");
+            await WriteManagedTextIfChangedAsync(
+                manifest,
+                seasonNfo,
+                seasonXml,
+                Encoding.UTF8,
+                "season-nfo",
+                rel.Id,
+                episodeId: null,
+                source: null,
+                respectUnmanagedExisting: true,
+                token);
         }
 
         var autoNumber = 1; // fallback sequential episode number
@@ -471,8 +526,18 @@ public sealed class AniLibertyStrmGenerator(
                     strmPath,
                     token);
 
-            await WriteTextIfChangedAsync(strmPath, url, encoding: null, token);
-            await WriteEpisodeIdSidecarAsync(strmPath, ep.Id, token);
+            await WriteManagedTextIfChangedAsync(
+                manifest,
+                strmPath,
+                url,
+                encoding: null,
+                kind: "strm",
+                releaseId: rel.Id,
+                episodeId: ep.Id,
+                source: selectedRaw,
+                respectUnmanagedExisting: false,
+                token);
+            await WriteEpisodeIdSidecarAsync(manifest, strmPath, ep.Id, rel.Id, token);
 
             // preview image (v1: preview.preview / preview.thumbnail)
             var epPreviewUrlRaw = MakeFullUrl(PickImageUrl(ep.Preview));
@@ -483,7 +548,7 @@ public sealed class AniLibertyStrmGenerator(
                 // IMPORTANT: URL often contains query (?x=..), and Path.GetExtension() returns ".jpg?..."
                 var ext = GetSafeImageExtensionFromUrl(epPreviewUrl);
                 var thumbPath = Path.Combine(seasonDir, $"S{seasonNum:00}E{epNum:00}-thumb{ext}");
-                await DownloadIfAbsentAsync(epPreviewUrl, thumbPath, token);
+                await DownloadManagedImageAsync(manifest, epPreviewUrl, thumbPath, "episode-thumb", rel.Id, ep.Id, token);
             }
 
             // ───── Skip-Intro / Credits ─────
@@ -500,7 +565,17 @@ public sealed class AniLibertyStrmGenerator(
                 var edlContent = string.Join(
                     Environment.NewLine,
                     segments.Select(s => $"{s.start} {s.stop} 0"));
-                await WriteTextIfChangedAsync(edlPath, edlContent, Encoding.UTF8, token);
+                await WriteManagedTextIfChangedAsync(
+                    manifest,
+                    edlPath,
+                    edlContent,
+                    Encoding.UTF8,
+                    "edl",
+                    rel.Id,
+                    ep.Id,
+                    source: null,
+                    respectUnmanagedExisting: false,
+                    token);
 
                 var chXml = Path.ChangeExtension(strmPath, ".chapters.xml");
                 var sb = new StringBuilder();
@@ -515,7 +590,17 @@ public sealed class AniLibertyStrmGenerator(
                 }
 
                 sb.AppendLine("</chapters>");
-                await WriteTextIfChangedAsync(chXml, sb.ToString(), Encoding.UTF8, token);
+                await WriteManagedTextIfChangedAsync(
+                    manifest,
+                    chXml,
+                    sb.ToString(),
+                    Encoding.UTF8,
+                    "chapters",
+                    rel.Id,
+                    ep.Id,
+                    source: null,
+                    respectUnmanagedExisting: false,
+                    token);
 
                 var runtimeSec = ep.Duration > 0
                     ? ep.Duration
@@ -551,6 +636,10 @@ public sealed class AniLibertyStrmGenerator(
 #endif
                         }
                     }
+                    catch (OperationCanceledException)
+                    {
+                        throw;
+                    }
                     catch (Exception ex)
                     {
                         log.Warn(ex, "Unable to save chapters for {0}", strmPath);
@@ -561,7 +650,6 @@ public sealed class AniLibertyStrmGenerator(
             // episode.nfo -------------------------------------------------
             // v1 has name/name_english + duration, but no episode plot/description.
             var nfoPath = Path.ChangeExtension(strmPath, ".nfo");
-            if (!File.Exists(nfoPath))
             {
                 var showTitle = ruName ?? engName ?? safeName;
 
@@ -577,7 +665,7 @@ public sealed class AniLibertyStrmGenerator(
                     ? (int)Math.Round(ep.Duration / 60.0, MidpointRounding.AwayFromZero)
                     : 0;
 
-                var xml = $@"<?xml version=""1.0"" encoding=""utf-8"" standalone=""yes""?>
+                var xml = AddGeneratedXmlMarker($@"<?xml version=""1.0"" encoding=""utf-8"" standalone=""yes""?>
 <episodedetails>
   <title>{MakeSafeXml(epTitleRu)}</title>
   {(epTitleEn.Length > 0 && !string.Equals(epTitleEn, epTitleRu, StringComparison.OrdinalIgnoreCase)
@@ -591,8 +679,18 @@ public sealed class AniLibertyStrmGenerator(
   {(episodeId.ShouldWriteDisplayEpisode ? $"  <displayepisode>{MakeSafeXml(episodeId.DisplayEpisodeNumber)}</displayepisode>" : string.Empty)}
   <season>{seasonNum}</season>
   <lockdata>false</lockdata>
-</episodedetails>";
-                await File.WriteAllTextAsync(nfoPath, xml, Encoding.UTF8, token);
+</episodedetails>");
+                await WriteManagedTextIfChangedAsync(
+                    manifest,
+                    nfoPath,
+                    xml,
+                    Encoding.UTF8,
+                    "episode-nfo",
+                    rel.Id,
+                    ep.Id,
+                    source: null,
+                    respectUnmanagedExisting: true,
+                    token);
             }
         }
     }
@@ -655,7 +753,12 @@ public sealed class AniLibertyStrmGenerator(
 
     // ─────────────────────── helpers ─────────────────────────────
 
-    private static async Task WriteEpisodeIdSidecarAsync(string strmPath, string? episodeId, CancellationToken ct)
+    private static async Task WriteEpisodeIdSidecarAsync(
+        ManagedLibraryManifest manifest,
+        string strmPath,
+        string? episodeId,
+        int releaseId,
+        CancellationToken ct)
     {
         if (string.IsNullOrWhiteSpace(strmPath) || string.IsNullOrWhiteSpace(episodeId))
             return;
@@ -669,10 +772,14 @@ public sealed class AniLibertyStrmGenerator(
         {
             var oldVal = (await File.ReadAllTextAsync(sidecarPath, ct)).Trim();
             if (string.Equals(oldVal, normalized, StringComparison.OrdinalIgnoreCase))
+            {
+                manifest.TrackText(sidecarPath, "aniid", normalized, Encoding.UTF8, releaseId, normalized, source: null);
                 return;
+            }
         }
 
         await File.WriteAllTextAsync(sidecarPath, normalized, Encoding.UTF8, ct);
+        manifest.TrackText(sidecarPath, "aniid", normalized, Encoding.UTF8, releaseId, normalized, source: null);
     }
 
     private static EpisodeIdentity ResolveEpisodeIdentity(
@@ -806,6 +913,43 @@ public sealed class AniLibertyStrmGenerator(
         return NormalizeTextForCompare(existing) == NormalizeTextForCompare(content);
     }
 
+    private static async Task WriteManagedTextIfChangedAsync(
+        ManagedLibraryManifest manifest,
+        string path,
+        string content,
+        Encoding? encoding,
+        string kind,
+        int releaseId,
+        string? episodeId,
+        string? source,
+        bool respectUnmanagedExisting,
+        CancellationToken ct)
+    {
+        if (respectUnmanagedExisting && File.Exists(path) && !manifest.IsManaged(path))
+        {
+            var existing = await File.ReadAllTextAsync(path, ct);
+            if (!ManagedLibraryManifest.HasGeneratedXmlMarker(existing))
+                return;
+        }
+
+        await WriteTextIfChangedAsync(path, content, encoding, ct);
+        manifest.TrackText(path, kind, content, encoding, releaseId, episodeId, source);
+    }
+
+    private static string AddGeneratedXmlMarker(string xml)
+    {
+        const string marker = "<!-- generated-by AniLibertyStrmPlugin -->";
+        if (xml.Contains(marker, StringComparison.Ordinal))
+            return xml;
+
+        var declarationEnd = xml.IndexOf("?>", StringComparison.Ordinal);
+        if (declarationEnd < 0)
+            return marker + Environment.NewLine + xml;
+
+        var insertAt = declarationEnd + 2;
+        return xml.Insert(insertAt, Environment.NewLine + marker);
+    }
+
     private static string NormalizeTextForCompare(string text)
     {
         return text.Replace("\r\n", "\n").TrimEnd('\n', '\r');
@@ -856,6 +1000,10 @@ public sealed class AniLibertyStrmGenerator(
                     same ? "yes" : "no",
                     TrimForLog(existing, 320));
             }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
             catch (Exception ex)
             {
                 log.Warn(ex, "[PLAYBACK-DIAG] Failed to read existing STRM: {0}", strmPath);
@@ -895,6 +1043,10 @@ public sealed class AniLibertyStrmGenerator(
 
             summary =
                 $"http={code}; type={contentType}; bytes={body.Length}; extm3u={hasExtM3u}; variant={hasVariant}; segments={hasExtInf}; firstUri=\"{TrimForLog(firstMediaUri, 140)}\"";
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
         }
         catch (Exception ex)
         {
@@ -978,27 +1130,76 @@ public sealed class AniLibertyStrmGenerator(
         return ext2 is ".jpg" or ".jpeg" or ".png" ? ext2 : ".jpg";
     }
 
-    private async Task DownloadIfAbsentAsync(string url, string path, CancellationToken ct)
+    private async Task DownloadManagedImageAsync(
+        ManagedLibraryManifest manifest,
+        string url,
+        string path,
+        string kind,
+        int releaseId,
+        string? episodeId,
+        CancellationToken ct)
     {
-        if (string.IsNullOrEmpty(url) || File.Exists(path)) return;
+        if (string.IsNullOrWhiteSpace(url))
+            return;
+
+        var exists = File.Exists(path);
+        if (exists && !manifest.IsManaged(path))
+            return;
 
         try
         {
             using var resp = await _mediaHttp.GetAsync(url, ct);
-            if (!resp.IsSuccessStatusCode) return;
+            if (!resp.IsSuccessStatusCode)
+            {
+                if (exists)
+                    manifest.TrackExisting(path, kind, releaseId, episodeId, url);
+                return;
+            }
 
             var bytes = await resp.Content.ReadAsByteArrayAsync(ct);
-            if (bytes.Length < 4) return;
+            if (bytes.Length < 4)
+            {
+                if (exists)
+                    manifest.TrackExisting(path, kind, releaseId, episodeId, url);
+                return;
+            }
 
             var isJpg = bytes[0] == 0xFF && bytes[1] == 0xD8;
             var isPng = bytes[0] == 0x89 && bytes[1] == 0x50 && bytes[2] == 0x4E && bytes[3] == 0x47;
-            if (!isJpg && !isPng) return;
+            if (!isJpg && !isPng)
+            {
+                if (exists)
+                    manifest.TrackExisting(path, kind, releaseId, episodeId, url);
+                return;
+            }
 
-            await File.WriteAllBytesAsync(path, bytes, ct);
+            if (!exists || !BytesMatch(path, bytes))
+                await File.WriteAllBytesAsync(path, bytes, ct);
+
+            manifest.TrackBytes(path, kind, bytes, releaseId, episodeId, url);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
         }
         catch (Exception ex)
         {
+            if (exists)
+                manifest.TrackExisting(path, kind, releaseId, episodeId, url);
             log.Warn(ex, "Download image failed: {0}", url);
+        }
+    }
+
+    private static bool BytesMatch(string path, byte[] bytes)
+    {
+        try
+        {
+            var existing = File.ReadAllBytes(path);
+            return existing.AsSpan().SequenceEqual(bytes);
+        }
+        catch
+        {
+            return false;
         }
     }
 
@@ -1153,6 +1354,10 @@ public sealed class AniLibertyStrmGenerator(
 
             _hlsDurationCache[url] = sum;
             return sum;
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
         }
         catch (HttpRequestException ex) when ((int?)ex.StatusCode == 429)
         {

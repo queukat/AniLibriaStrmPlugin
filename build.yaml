@@ -17,13 +17,15 @@ changelog: |
   GitHub Release: https://github.com/queukat/AniLibriaStrmPlugin/releases/tag/v2.0.0.8
   Full changelog: https://github.com/queukat/AniLibriaStrmPlugin/blob/aniLiberty-v2/CHANGELOG.md
 description: >
-  Creates .strm / .edl / .nfo files for AniLiberty titles and favorites.
+  AniLiberty library reconstruction system for Jellyfin: acquisition,
+  metadata governance, playback routing, and managed STRM distribution.
 
 guid: "cce0798d-c8b7-4265-b08c-dc9e7bd3fc0f"
 name: "AniLiberty STRM Plugin"
 overview: >
-  Generates STRM libraries for the full catalog and/or user favorites,
-  with EDL intro-skip and proper NFO metadata.
+  Controls AniLiberty catalog disorder through a Signal Acquisition Layer,
+  Reconstruction Core, Mirror Governance Layer, Playback Proxy Rail,
+  Operational Command Center, and CI Quality Gates.
 owner: "queukat"
 
 targetAbi: "10.11.0.0"
