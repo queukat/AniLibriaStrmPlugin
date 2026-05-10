@@ -204,6 +204,38 @@ server path. For Docker and headless servers, type the real server-visible path 
 **Append picked folder** only when the current text box already contains the parent path and you
 want the picker to append one child folder name.
 
+### Full Catalog and Favorites Are Separate Rails
+
+AniLiberty STRM Plugin deliberately writes the full catalog and favorites into different output
+roots:
+
+- **All Titles STRM Path** is the full-catalog reconstruction rail.
+- **Favorites STRM Path** is the personal favorites reconstruction rail.
+
+The rails are operated separately:
+
+- **Generate full catalog library** enables or disables the full-catalog rail.
+- **Generate favorites library** enables or disables the favorites rail.
+- **Generate AniLiberty STRM library** updates only the full-catalog root.
+- **Generate AniLiberty STRM (Favorites Only)** updates only the favorites root and requires a valid
+  AniLiberty token.
+
+Running a scheduled task is not enough by itself. If the matching enable flag is off, or the matching
+path is empty, that task exits without generating files. Save plugin settings before running either
+task.
+
+This is not duplication by accident. Favorites are often a smaller, authenticated operational
+surface that you may want to scan, schedule, or expose separately from the full catalog. In Jellyfin
+you can add them as two separate libraries, for example:
+
+- `/media/aniliberty-strm/all`
+- `/media/aniliberty-strm/favorites`
+
+Do not point **All Titles STRM Path** and **Favorites STRM Path** at the same directory. Each output
+root owns its own `.aniliberty-strm-plugin/manifest.json`; cleanup decisions are made per root. If
+both rails share one folder, one rail can treat the other rail's generated files as stale, especially
+when **Stale generated files** is set to `Delete managed stale files`.
+
 Recommended first run:
 
 1. Open **Dashboard → Plugins → AniLiberty STRM**.
@@ -223,14 +255,17 @@ The first successful run creates the governance manifest
 artwork, and skip-control files where the upstream signal contains them.
 
 For favorites, complete **AniLiberty authentication** first, set **Favorites STRM Path** to a
-container-visible path such as `/media/aniliberty-strm/favorites`, then run
-**Generate AniLiberty STRM (Favorites Only)**.
+container-visible path such as `/media/aniliberty-strm/favorites`, keep **Generate favorites
+library** enabled, then run **Generate AniLiberty STRM (Favorites Only)**. Add that favorites path
+as a separate Jellyfin library if you want a dedicated favorites surface.
 
 If the output directory stays empty, check these control points:
 
 - The plugin path is the Docker container path, not the host path.
 - The mounted folder is writable by the Jellyfin container user.
 - The selected rail is enabled in plugin settings.
+- The scheduled task matches the path you expect: full catalog task writes only **All Titles STRM Path**,
+  favorites task writes only **Favorites STRM Path**.
 - The scheduled task was run after saving settings.
 - Favorites generation has a valid AniLiberty token.
 - Playback clients can reach **Jellyfin Playback Proxy Base URL** if the playback proxy is enabled.
@@ -295,8 +330,8 @@ Open **Dashboard → Plugins → AniLiberty STRM**.
 
 | Field                        | Meaning                                                                 |
 |------------------------------|-------------------------------------------------------------------------|
-| **All Titles STRM Path**     | Root for the full-catalog reconstruction rail. Leave empty to disable. |
-| **Favorites STRM Path**      | Root for the favorites reconstruction rail.                            |
+| **All Titles STRM Path**     | Dedicated root for the full-catalog reconstruction rail. Leave empty to disable. |
+| **Favorites STRM Path**      | Dedicated root for the favorites reconstruction rail. Keep it separate from the full-catalog root. |
 | **Preferred Resolution**     | HLS quality policy for STRM playback entries: 1080 / 720 / 480.        |
 | **Generate favorites library** | Enables the favorites orchestration rail.                            |
 | **Generate full catalog library** | Enables the full-catalog orchestration rail.                       |
@@ -378,14 +413,18 @@ Three orchestration rails appear under **Dashboard → Scheduled Tasks → AniLi
 
 1. **Full Catalog Reconstruction Rail**
    - Acquires the complete AniLiberty catalog signal from `/anime/catalog/releases`.
+   - Requires **Generate full catalog library** to be enabled.
    - Applies `AllTitlesPageSize` and `AllTitlesMaxPages` as acquisition pressure controls.
    - Produces STRM playback entries, metadata, skip markers, thumbnails, and optional chapters
      under **All Titles STRM Path**.
+   - Does nothing when **All Titles STRM Path** is empty.
    - By default runs **once per day**.
 
 2. **Favorites Reconstruction Rail**
    - Requires a valid `AniLibertyToken`.
+   - Requires **Generate favorites library** to be enabled.
    - Converts the authenticated favorites signal into the same governed media surface under **Favorites STRM Path**.
+   - Does nothing when **Favorites STRM Path** is empty.
    - Has no default trigger; you can enable and schedule it as you like.
 
 3. **Watch-State Recovery Rail**

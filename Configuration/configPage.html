@@ -306,6 +306,7 @@
                             </label>
                         </div>
                         <div class="fieldDescription picker-note">
+                            Use a dedicated full-catalog output root. Do not reuse the favorites path.
                             The browser directory picker can only return the selected folder name.
                             Enable append mode to add that folder name to the current path instead of replacing it.
                         </div>
@@ -326,6 +327,7 @@
                             </label>
                         </div>
                         <div class="fieldDescription picker-note">
+                            Use a dedicated favorites output root. Do not reuse the full-catalog path.
                             The browser directory picker can only return the selected folder name.
                             Enable append mode to add that folder name to the current path instead of replacing it.
                         </div>
@@ -344,11 +346,17 @@
                         <input id="EnableFavorites" is="emby-checkbox" type="checkbox">
                         <span>Generate favorites library</span>
                     </label>
+                    <div class="fieldDescription">
+                        Controls the Favorites scheduled task. When OFF, the task exits without updating Favorites STRM Path.
+                    </div>
 
                     <label class="checkboxContainer">
                         <input id="EnableAll" is="emby-checkbox" type="checkbox">
                         <span>Generate full catalog library</span>
                     </label>
+                    <div class="fieldDescription">
+                        Controls the full-catalog scheduled task. When OFF, the task exits without updating All Titles STRM Path.
+                    </div>
 
                     <!-- All titles -->
                     <fieldset>
