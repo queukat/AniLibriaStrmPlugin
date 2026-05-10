@@ -1,0 +1,89 @@
+name: Docker path / permission support
+description: Files are not generated, paths look confusing, or Docker permissions may block output.
+title: "[Docker]: "
+labels:
+  - docker
+  - support
+  - needs-support-bundle
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this when Jellyfin runs in Docker and generated files do not appear.
+
+        Core rule: the plugin output path and the Jellyfin media library path must both use the path visible inside the container. If the volume is `/srv/aniliberty-strm:/strm`, use `/strm/all` in the plugin and `/strm/all` in the Jellyfin library.
+  - type: input
+    id: plugin-version
+    attributes:
+      label: Plugin version
+      placeholder: "2.0.0.11"
+    validations:
+      required: true
+  - type: input
+    id: jellyfin-image
+    attributes:
+      label: Jellyfin Docker image
+      placeholder: "jellyfin/jellyfin:10.11.0 or lscr.io/linuxserver/jellyfin:latest"
+    validations:
+      required: true
+  - type: input
+    id: jellyfin-version
+    attributes:
+      label: Jellyfin server version
+      placeholder: "10.11.0"
+    validations:
+      required: true
+  - type: textarea
+    id: compose
+    attributes:
+      label: docker-compose or docker run
+      description: Paste only the Jellyfin service. Remove passwords, tokens, and private hostnames if needed.
+      render: yaml
+    validations:
+      required: true
+  - type: textarea
+    id: paths
+    attributes:
+      label: Plugin paths and Jellyfin library paths
+      description: Use the exact paths from the plugin page and Jellyfin library settings.
+      placeholder: |
+        All Titles STRM Path:
+        Favorites STRM Path:
+        Jellyfin library path for All Titles:
+        Jellyfin library path for Favorites:
+    validations:
+      required: true
+  - type: input
+    id: puid-pgid
+    attributes:
+      label: Container user / PUID / PGID
+      placeholder: "PUID=1000, PGID=1000"
+    validations:
+      required: false
+  - type: textarea
+    id: host-permissions
+    attributes:
+      label: Host folder permissions
+      description: Optional but useful. Example command: `ls -ld /.strm /.strm/all /.strm/favorites`.
+      render: shell
+    validations:
+      required: false
+  - type: textarea
+    id: support-bundle
+    attributes:
+      label: Support bundle
+      description: Enable `Huge trace`, rerun the generation task, then paste `Copy support bundle`.
+      render: text
+    validations:
+      required: true
+  - type: checkboxes
+    id: confirmation
+    attributes:
+      label: Checks
+      options:
+        - label: The plugin output path uses the container path, not the host path.
+          required: true
+        - label: The Jellyfin media library points to the same container path.
+          required: true
+        - label: I restarted Jellyfin after installing or updating the plugin.
+          required: true

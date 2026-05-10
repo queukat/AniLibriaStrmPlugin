@@ -1,0 +1,45 @@
+name: Capability request
+description: Propose a new control layer, workflow, or product capability.
+title: "[Capability]: "
+labels:
+  - enhancement
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Describe the capability in product terms: what disorder it controls, what result it gives users, and how it fits the AniLiberty STRM system.
+  - type: textarea
+    id: chaos
+    attributes:
+      label: What disorder does this detect?
+      placeholder: "Example: generated metadata becomes stale after AniLiberty changes a release..."
+    validations:
+      required: true
+  - type: textarea
+    id: control
+    attributes:
+      label: What control should the plugin introduce?
+      placeholder: "Example: a safe refresh policy with previewable changes..."
+    validations:
+      required: true
+  - type: textarea
+    id: result
+    attributes:
+      label: What should the user see?
+      placeholder: "Example: a clear review surface before generated files are changed..."
+    validations:
+      required: true
+  - type: textarea
+    id: fit
+    attributes:
+      label: Why does this belong in the system?
+      placeholder: "How does it connect to generation, playback, metadata governance, diagnostics, or distribution?"
+    validations:
+      required: true
+  - type: textarea
+    id: extra
+    attributes:
+      label: Extra context
+      description: Screenshots, examples, links, or current workarounds.
+    validations:
+      required: false

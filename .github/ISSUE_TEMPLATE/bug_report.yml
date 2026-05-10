@@ -1,0 +1,101 @@
+name: Generation or playback problem
+description: STRM generation, Jellyfin scanning, metadata, proxy, or playback is not working.
+title: "[Bug]: "
+labels:
+  - bug
+  - diagnostics
+  - needs-support-bundle
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting a problem.
+
+        Before posting, please update AniLiberty STRM Plugin to the latest release, restart Jellyfin, reproduce the issue once, and attach the support bundle from the plugin page.
+
+        Support flow:
+        1. Open AniLiberty STRM Plugin settings.
+        2. Click `Huge trace: OFF` so it becomes `ON`.
+        3. Run the failing scheduled task again.
+        4. Return to plugin settings.
+        5. Click `Copy support bundle`.
+        6. Paste the bundle below. Tokens are not included.
+  - type: input
+    id: plugin-version
+    attributes:
+      label: Plugin version
+      description: Example: 2.0.0.11
+      placeholder: "2.0.0.11"
+    validations:
+      required: true
+  - type: input
+    id: jellyfin-version
+    attributes:
+      label: Jellyfin version
+      description: Jellyfin server version from Dashboard.
+      placeholder: "10.11.0"
+    validations:
+      required: true
+  - type: dropdown
+    id: affected-layer
+    attributes:
+      label: Affected area
+      options:
+        - STRM generation
+        - Jellyfin library scan
+        - Playback proxy / HLS playback
+        - Metadata / NFO / artwork
+        - Authentication / OTP / token
+        - Favorites / watch sync
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: Describe the visible failure and what you expected instead.
+      placeholder: "The task runs, but /strm/all remains empty..."
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: List the shortest path that triggers the issue.
+      placeholder: |
+        1. Configure All Titles STRM Path as ...
+        2. Run Generate AniLiberty STRM library.
+        3. Open ...
+    validations:
+      required: true
+  - type: textarea
+    id: support-bundle
+    attributes:
+      label: Support bundle
+      description: Paste the output from `Copy support bundle`. Remove only private hostnames/paths if needed; do not paste tokens.
+      render: text
+      placeholder: |
+        AniLiberty STRM Plugin support bundle
+        Generated at: ...
+    validations:
+      required: true
+  - type: textarea
+    id: jellyfin-log
+    attributes:
+      label: Relevant Jellyfin server log
+      description: Optional. Paste only the lines around the failure.
+      render: text
+    validations:
+      required: false
+  - type: checkboxes
+    id: confirmation
+    attributes:
+      label: Checks
+      options:
+        - label: I restarted Jellyfin after installing or updating the plugin.
+          required: true
+        - label: I ran the scheduled task again after enabling Huge trace.
+          required: true
+        - label: I did not paste AniLiberty tokens, passwords, or cookies.
+          required: true

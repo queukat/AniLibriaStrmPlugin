@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Installation and Docker path guide
+    url: https://github.com/queukat/AniLibriaStrmPlugin/tree/aniLiberty-v2#first-launch-flight-check
+    about: Check the supported install flow, container-visible paths, media library setup, and proxy notes.
+  - name: Latest release
+    url: https://github.com/queukat/AniLibriaStrmPlugin/releases/latest
+    about: Update to the latest release before opening a diagnostic issue.
