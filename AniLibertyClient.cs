@@ -4,6 +4,7 @@ using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using AniLibertyStrmPlugin.Utils;
 using AniLibertyStrmPlugin.Models;
 using Microsoft.Extensions.Logging;
 
@@ -46,7 +47,7 @@ public sealed record AniLibertyClient(HttpClient http, ILogger<AniLibertyClient>
         var body = await SafeReadAsync(resp, ct);
 
         if (!resp.IsSuccessStatusCode)
-            log.LogError("HTTP {Code} for \"{Url}\": {Body}", (int)resp.StatusCode, url, Truncate(body, 300));
+            log.Warn("HTTP {0} for \"{1}\": {2}", (int)resp.StatusCode, url, Truncate(body, 300));
 
         resp.EnsureSuccessStatusCode();
         return body;
@@ -61,7 +62,7 @@ public sealed record AniLibertyClient(HttpClient http, ILogger<AniLibertyClient>
         var body = await SafeReadAsync(resp, ct);
 
         if (!resp.IsSuccessStatusCode)
-            log.LogError("HTTP {Code} for \"{Url}\": {Body}", (int)resp.StatusCode, url, Truncate(body, 300));
+            log.Warn("HTTP {0} for \"{1}\": {2}", (int)resp.StatusCode, url, Truncate(body, 300));
 
         resp.EnsureSuccessStatusCode();
         return body;
@@ -79,7 +80,9 @@ public sealed record AniLibertyClient(HttpClient http, ILogger<AniLibertyClient>
 
             try
             {
+                log.Debug("ALL page {0}/{1}: requesting catalog releases, limit={2}", page, maxPages, pageSize);
                 raw = await GetStringWithLoggingAsync(url, ct);
+                log.Debug("ALL page {0}: response received, {1} bytes", page, raw.Length);
 
                 List<ReleaseResponse>? pageData = null;
                 try
@@ -95,10 +98,12 @@ public sealed record AniLibertyClient(HttpClient http, ILogger<AniLibertyClient>
                 if (pageData is { Count: > 0 })
                 {
                     result.AddRange(pageData);
+                    log.Debug("ALL page {0}: parsed {1} titles, total={2}", page, pageData.Count, result.Count);
                     if (pageData.Count < pageSize) break;
                 }
                 else
                 {
+                    log.Debug("ALL page {0}: no titles returned, stopping.", page);
                     break;
                 }
             }
@@ -108,7 +113,7 @@ public sealed record AniLibertyClient(HttpClient http, ILogger<AniLibertyClient>
             }
             catch (Exception ex)
             {
-                log.LogError(ex, "❌ Deserialization failed (page {Page}). Raw length={Len}. First 300:\n{Raw}",
+                log.Err(ex, "ALL page {0}: fetch/parse failed. Raw length={1}. First 300: {2}",
                     page, raw?.Length ?? 0, Truncate(raw, 300));
                 break;
             }
@@ -133,12 +138,12 @@ public sealed record AniLibertyClient(HttpClient http, ILogger<AniLibertyClient>
                 var got = parsed?.Data?.Count ?? 0;
 
                 sw.Stop();
-                log.LogInformation("FAV page {Page}: OK, {Items} items, {Ms} ms", page, got, sw.ElapsedMilliseconds);
+                log.Debug("FAV page {0}: OK, {1} items, {2} ms", page, got, sw.ElapsedMilliseconds);
 
                 if (got == 0)
                 {
                     if (page == 1)
-                        log.LogWarning("API вернуло 0 избранного — проверьте токен или наличие избранного.");
+                        log.Warn("API returned 0 favorites — check token or favorites content.");
                     break;
                 }
 
@@ -151,7 +156,7 @@ public sealed record AniLibertyClient(HttpClient http, ILogger<AniLibertyClient>
             catch (Exception ex)
             {
                 sw.Stop();
-                log.LogError(ex, "FAV page {Page} failed after {Ms} ms", page, sw.ElapsedMilliseconds);
+                log.Err(ex, "FAV page {0} failed after {1} ms", page, sw.ElapsedMilliseconds);
                 break;
             }
         }
@@ -182,7 +187,7 @@ public sealed record AniLibertyClient(HttpClient http, ILogger<AniLibertyClient>
 
         if (!resp.IsSuccessStatusCode)
         {
-            log.LogWarning("UpdateViewTimecodes failed HTTP {Code}: {Body}",
+            log.Warn("UpdateViewTimecodes failed HTTP {0}: {1}",
                 (int)resp.StatusCode, Truncate(body, 320));
             return false;
         }
@@ -207,7 +212,7 @@ public sealed record AniLibertyClient(HttpClient http, ILogger<AniLibertyClient>
         var raw = await SafeReadAsync(resp, ct);
         if (!resp.IsSuccessStatusCode)
         {
-            log.LogWarning("FetchViewTimecodes failed HTTP {Code}: {Body}",
+            log.Warn("FetchViewTimecodes failed HTTP {0}: {1}",
                 (int)resp.StatusCode, Truncate(raw, 320));
             return new List<ViewTimecodeEntry>();
         }
@@ -247,7 +252,7 @@ public sealed record AniLibertyClient(HttpClient http, ILogger<AniLibertyClient>
         }
         catch (Exception ex)
         {
-            log.LogWarning(ex, "FetchViewTimecodes parse failed.");
+            log.Warn(ex, "FetchViewTimecodes parse failed.");
         }
 
         return result.Values.ToList();
@@ -264,7 +269,7 @@ public sealed record AniLibertyClient(HttpClient http, ILogger<AniLibertyClient>
             var raw = await GetStringWithLoggingAsync(url, ct);
             var full = JsonSerializer.Deserialize<ReleaseResponse>(raw, _jsonOpts);
             if (full == null)
-                log.LogWarning("Deserialize of release {Id} returned null", id);
+                log.Warn("Deserialize of release {0} returned null", id);
             return full;
         }
         catch (OperationCanceledException)
@@ -273,7 +278,7 @@ public sealed record AniLibertyClient(HttpClient http, ILogger<AniLibertyClient>
         }
         catch (Exception ex)
         {
-            log.LogError(ex, "Failed to fetch release {Id}", id);
+            log.Err(ex, "Failed to fetch release {0}", id);
             return null;
         }
     }
@@ -296,7 +301,7 @@ public sealed record AniLibertyClient(HttpClient http, ILogger<AniLibertyClient>
         }
         catch (Exception ex)
         {
-            log.LogError(ex, "Failed to fetch franchises for release {Id}", releaseId);
+            log.Err(ex, "Failed to fetch franchises for release {0}", releaseId);
             return null;
         }
     }

@@ -27,6 +27,8 @@ public class PluginConfiguration : BasePluginConfiguration
     public string AniDeviceId { get; set; } = string.Empty;
     public string CurrentOtpCode { get; set; } = string.Empty;
     public string LastTaskLog { get; set; } = string.Empty;
+    public string LastRawTaskLog { get; set; } = string.Empty;
+    public bool EnableRawSupportLogs { get; set; } = false;
 
     /* --- Paging settings --- */
     public int AllTitlesPageSize { get; set; } = 50;
@@ -66,4 +68,7 @@ public class PluginConfiguration : BasePluginConfiguration
 
     // Number of lines to keep in LastTaskLog.
     public int LastLogMaxLines { get; set; } = 800; // recommended: 800-1500
+
+    // Number of unfiltered support lines to keep for issue triage.
+    public int LastRawLogMaxLines { get; set; } = 20000;
 }

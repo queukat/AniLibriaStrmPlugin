@@ -117,6 +117,7 @@ public sealed class AniLibertyStrmGenerator(
         if (list.Count == 0) return;
 
         var debugLogs = Plugin.Instance?.Configuration?.EnableDebugLogs == true;
+        var supportTrace = Plugin.Instance?.Configuration?.EnableRawSupportLogs == true;
         var playbackDiag = Plugin.Instance?.Configuration?.EnablePlaybackDiagnostics == true;
         var cleanupMode = Plugin.Instance?.Configuration?.StaleCleanupMode ?? StaleCleanupMode.DryRun;
         var manifest = await ManagedLibraryManifest.LoadAsync(basePath, token);
@@ -151,7 +152,13 @@ public sealed class AniLibertyStrmGenerator(
             // By default, do NOT spam per-title logs to avoid bloating the UI log.
             // When Debug logs = ON, log each title; otherwise: first, every 25th, and last.
             if (debugLogs || current == 1 || current == total || current % 25 == 0)
+            {
                 log.Info("({0}/{1}) \"{2}\"", current, total, display);
+            }
+            else if (supportTrace)
+            {
+                log.Debug("({0}/{1}) \"{2}\"", current, total, display);
+            }
 
             // Hydration (when catalog card has no episodes)
             var rel = rel0;
@@ -166,7 +173,7 @@ public sealed class AniLibertyStrmGenerator(
                     }
                     else
                     {
-                        log.LogInformation("Skip {Id} – no episodes in detail", rel.Id);
+                        log.Info("Skip {0} – no episodes in detail", rel.Id);
                         progress?.Report(current / (double)total * 100.0);
                         continue;
                     }
@@ -177,7 +184,7 @@ public sealed class AniLibertyStrmGenerator(
                 }
                 catch (Exception ex)
                 {
-                    log.LogWarning(ex, "Skip {Id} – failed to fetch details", rel.Id);
+                    log.Warn(ex, "Skip {0} – failed to fetch details", rel.Id);
                     progress?.Report(current / (double)total * 100.0);
                     continue;
                 }
@@ -1260,7 +1267,7 @@ public sealed class AniLibertyStrmGenerator(
         }
         catch (Exception ex)
         {
-            log.LogWarning(ex, "Unable to resolve AniLiberty playback proxy endpoint. Falling back to direct HLS URL.");
+            log.Warn(ex, "Unable to resolve AniLiberty playback proxy endpoint. Falling back to direct HLS URL.");
             return string.Empty;
         }
     }

@@ -159,6 +159,76 @@ public class BuildConfigurationTests
     }
 
     [Fact]
+    public void PluginPage_ExposesRawSupportBundleWithoutTokenDisclosure()
+    {
+        var root = FindRepoRoot();
+        var configPage = File.ReadAllText(Path.Combine(root, "Configuration", "configPage.html"));
+
+        Assert.Contains("btnShowRawLogs", configPage, StringComparison.Ordinal);
+        Assert.Contains("btnCopySupportBundle", configPage, StringComparison.Ordinal);
+        Assert.Contains("btnToggleSupportTrace", configPage, StringComparison.Ordinal);
+        Assert.Contains("LastRawTaskLog", configPage, StringComparison.Ordinal);
+        Assert.Contains("Support bundle copies sanitized settings plus captured trace", configPage, StringComparison.Ordinal);
+        Assert.Contains("Huge support trace can become very large and noisy", configPage, StringComparison.Ordinal);
+        Assert.Contains("enable Huge trace and rerun the failing task", configPage, StringComparison.Ordinal);
+        Assert.Contains("tokens are never included", configPage, StringComparison.Ordinal);
+        Assert.Contains("AniLibertyToken: \" + (cfg.AniLibertyToken ? \"present (\" + cfg.AniLibertyToken.length + \" chars)\" : \"empty\")", configPage, StringComparison.Ordinal);
+        Assert.DoesNotContain("AniLibertyToken: \" + cfg.AniLibertyToken", configPage, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void SupportTrace_DetailedProgressDoesNotPolluteCompactInfoLog()
+    {
+        var root = FindRepoRoot();
+        var client = File.ReadAllText(Path.Combine(root, "AniLibertyClient.cs"));
+        var generator = File.ReadAllText(Path.Combine(root, "AniLibertyStrmGenerator.cs"));
+        var manifest = File.ReadAllText(Path.Combine(root, "Utils", "ManagedLibraryManifest.cs"));
+
+        Assert.Contains("log.Debug(\"ALL page {0}/{1}: requesting catalog releases", client, StringComparison.Ordinal);
+        Assert.Contains("log.Debug(\"ALL page {0}: response received", client, StringComparison.Ordinal);
+        Assert.Contains("log.Debug(\"ALL page {0}: parsed {1} titles", client, StringComparison.Ordinal);
+        Assert.DoesNotContain("log.Info(\"ALL page {0}/{1}: requesting catalog releases", client, StringComparison.Ordinal);
+        Assert.Contains("else if (supportTrace)", generator, StringComparison.Ordinal);
+        Assert.Contains("log.Debug(\"({0}/{1}) \\\"{2}\\\"", generator, StringComparison.Ordinal);
+        Assert.Contains("log.Debug(\"[MIRROR] Dry-run stale: {0}\"", manifest, StringComparison.Ordinal);
+        Assert.DoesNotContain("log.Info(\"[MIRROR] Dry-run stale: {0}\"", manifest, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void SupportTrace_CapturesFullExceptionDetailsWithoutPollutingCompactLog()
+    {
+        var root = FindRepoRoot();
+        var plugin = File.ReadAllText(Path.Combine(root, "Plugin.cs"));
+        var logHelper = File.ReadAllText(Path.Combine(root, "Utils", "LogHelper.cs"));
+
+        Assert.Contains("AppendRawSupportLog", plugin, StringComparison.Ordinal);
+        Assert.Contains("AppendRawExceptionDetailSafe", logHelper, StringComparison.Ordinal);
+        Assert.Contains("Exception detail for", logHelper, StringComparison.Ordinal);
+        Assert.Contains("ex.ToString()", logHelper, StringComparison.Ordinal);
+        Assert.Contains("plugin.AppendRawSupportLog(msg)", logHelper, StringComparison.Ordinal);
+        Assert.Contains("AppendTaskLogSafe(LogLevel.Error, \"ERROR\", msg, ex)", logHelper, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ScheduledTasks_RunWritableOutputPreflightBeforeFetchingApi()
+    {
+        var root = FindRepoRoot();
+        var allTask = File.ReadAllText(Path.Combine(root, "Tasks", "AniLibertyAllTask.cs"));
+        var favoritesTask = File.ReadAllText(Path.Combine(root, "Tasks", "AniLibertyFavoritesTask.cs"));
+        var preflight = File.ReadAllText(Path.Combine(root, "Utils", "OutputRootPreflight.cs"));
+
+        Assert.Contains("OutputRootPreflight.EnsureWritableAsync", allTask, StringComparison.Ordinal);
+        Assert.Contains("OutputRootPreflight.EnsureWritableAsync", favoritesTask, StringComparison.Ordinal);
+        Assert.True(
+            allTask.IndexOf("OutputRootPreflight.EnsureWritableAsync", StringComparison.Ordinal)
+            < allTask.IndexOf("FetchAllTitlesAsync", StringComparison.Ordinal));
+        Assert.True(
+            favoritesTask.IndexOf("OutputRootPreflight.EnsureWritableAsync", StringComparison.Ordinal)
+            < favoritesTask.IndexOf("FetchFavoritesAsync", StringComparison.Ordinal));
+        Assert.Contains("Check Docker volume mapping, host directory ownership, and PUID/PGID permissions", preflight, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void ReleaseWorkflow_UsesCuratedReleaseNotesWhenPresent()
     {
         var root = FindRepoRoot();

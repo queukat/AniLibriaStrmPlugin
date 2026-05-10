@@ -50,6 +50,18 @@ public sealed class AniLibertyFavoritesTask(
                 throw new InvalidOperationException(userMessage);
             }
 
+            if (string.IsNullOrWhiteSpace(cfg.StrmFavoritesPath))
+            {
+                _log.Info("StrmFavoritesPath is empty – nothing to do.");
+                return;
+            }
+
+            await OutputRootPreflight.EnsureWritableAsync(
+                cfg.StrmFavoritesPath,
+                "Favorites STRM Path",
+                _log,
+                token);
+
             _log.Info("Fetching favourites pageSize={0}, maxPages={1} …",
                 cfg.FavoritesPageSize, cfg.FavoritesMaxPages);
 

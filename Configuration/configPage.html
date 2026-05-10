@@ -396,7 +396,7 @@
                     <fieldset>
                         <legend>Logging</legend>
                         <div class="inputContainer field-width-compact">
-                            <label for="UiMinLogLevel">Log verbosity (UI):</label>
+                            <label for="UiMinLogLevel">Compact log level:</label>
                             <select id="UiMinLogLevel" is="emby-select">
                                 <option value="Trace">Trace</option>
                                 <option value="Debug">Debug</option>
@@ -405,16 +405,16 @@
                                 <option value="Error">Error</option>
                                 <option value="Critical">Critical</option>
                             </select>
-                            <div class="fieldDescription">Messages below this level won’t appear in “Last Task Logs”.
+                            <div class="fieldDescription">Minimum severity for compact “Show logs”. Keep Information for normal use.
                             </div>
                         </div>
 
                         <label class="checkboxContainer stack-top-md">
                             <input id="EnableDebugLogs" is="emby-checkbox" type="checkbox">
-                            <span>Enable debug logs (very noisy)</span>
+                            <span>Put debug lines into compact logs</span>
                         </label>
                         <div class="fieldDescription">
-                            When OFF: DEBUG/TRACE are not stored in UI logs, and per-title progress is throttled.
+                            When ON with Compact log level set to Debug or Trace, “Show logs” becomes noisy. For support cases, prefer “Huge trace” below.
                         </div>
 
                         <label class="checkboxContainer stack-top-md">
@@ -580,23 +580,23 @@
                 <legend>Last task logs</legend>
                 <div class="log-topbar spaced-buttons">
                     <button class="raised" id="btnShowLogs" is="emby-button" type="button"><span>Show logs</span></button>
+                    <button class="raised" id="btnShowRawLogs" is="emby-button" type="button"><span>Show support trace</span></button>
+                    <button class="raised" id="btnCopySupportBundle" is="emby-button" type="button"><span>Copy support bundle</span></button>
+                    <button class="raised danger" id="btnToggleSupportTrace" is="emby-button" type="button"><span>Huge trace: OFF</span></button>
                     <button class="raised" id="btnAutoLogs" is="emby-button" type="button"><span>Auto refresh: OFF</span>
                     </button>
                     <button class="raised" id="btnToggleOrder" is="emby-button" type="button"><span>Newest first: OFF</span>
                     </button>
                     <button class="raised danger" id="btnClearDisplay" is="emby-button" type="button">
                         <span>Clear logs</span></button>
-                    <label class="checkboxContainer inline">
-                        <input id="chkRawMode" is="emby-checkbox" type="checkbox">
-                        <span style="margin-left:.3em">Raw mode</span>
-                    </label>
                 </div>
 
                 <div class="log-container" id="debugOutput"></div>
                 <div class="mini dim" style="margin-top:.6em">
-                    * Source: <code>PluginConfiguration.LastTaskLog</code>.
-                    * Raw mode shows original block.
-                    * “Newest first” reverses render order only.
+                    * Normal logs stay compact.
+                    * Huge trace is off by default and can create a very large output. Enable it only when debugging a real problem, then rerun the task.
+                    * Support bundle copies sanitized settings plus captured trace; tokens are never included.
+                    * “Newest first” reverses compact log order only.
                 </div>
             </fieldset>
 
@@ -686,6 +686,7 @@
                 $("AniLibertyViewSyncOnStop").checked = cfg.AniLibertyViewSyncOnStop ?? true;
                 $("AniLibertyViewSyncJellyfinUserId").value = cfg.AniLibertyViewSyncJellyfinUserId || "";
                 $("LastLogMaxLines").value = cfg.LastLogMaxLines ?? 800;
+                updateSupportTraceButton(cfg.EnableRawSupportLogs ?? false);
 
                 updateTokenBox(cfg.AniLibertyToken);
 
@@ -881,10 +882,47 @@
         /* ========== LOGS ========== */
         let autoLogTimer = null;
         let newestOnTop = false;
+        let currentLogView = "compact";
 
-        function renderLogs(text) {
+        function copyTextToClipboard(text) {
+            if (navigator.clipboard?.writeText) {
+                return navigator.clipboard.writeText(text);
+            }
+
+            const textarea = document.createElement("textarea");
+            textarea.value = text;
+            textarea.setAttribute("readonly", "readonly");
+            textarea.style.position = "fixed";
+            textarea.style.left = "-9999px";
+            document.body.appendChild(textarea);
+            textarea.select();
+            document.execCommand("copy");
+            document.body.removeChild(textarea);
+            return Promise.resolve();
+        }
+
+        function countLogLines(text) {
+            if (!text) return 0;
+            return text.split(/\r?\n/).filter(l => l.trim().length > 0).length;
+        }
+
+        function getRawLog(cfg) {
+            return cfg.LastRawTaskLog || "";
+        }
+
+        function updateSupportTraceButton(enabled) {
+            const btn = $("btnToggleSupportTrace");
+            if (!btn) return;
+
+            btn.textContent = "Huge trace: " + (enabled ? "ON" : "OFF");
+            btn.classList.toggle("danger", enabled);
+            btn.title = enabled
+                ? "Huge support trace is being captured. Turn it off after collecting diagnostics."
+                : "Enable only for troubleshooting, then rerun the failing task.";
+        }
+
+        function renderLogs(text, raw = false) {
             const box = $("debugOutput");
-            const raw = $("chkRawMode").checked;
             box.innerHTML = "";
             if (raw) {
                 const pre = document.createElement("div");
@@ -906,10 +944,126 @@
 
         async function showLogs() {
             try {
+                currentLogView = "compact";
                 const cfg = await ApiClient.getPluginConfiguration(pluginId);
-                renderLogs(cfg.LastTaskLog);
+                updateSupportTraceButton(cfg.EnableRawSupportLogs ?? false);
+                renderLogs(cfg.LastTaskLog, false);
             } catch (e) {
                 renderLogs("Error: " + e.message);
+            }
+        }
+
+        async function showRawLogs() {
+            try {
+                currentLogView = "raw";
+                const cfg = await ApiClient.getPluginConfiguration(pluginId);
+                const enabled = cfg.EnableRawSupportLogs ?? false;
+                updateSupportTraceButton(enabled);
+                if (!enabled) {
+                    renderLogs(
+                        "Huge support trace is OFF.\n\n" +
+                        "Press \"Huge trace: OFF\", confirm the warning, then rerun the failing scheduled task. " +
+                        "After that, open \"Show support trace\" again or use \"Copy support bundle\".",
+                        true);
+                    return;
+                }
+
+                const rawLog = getRawLog(cfg);
+                renderLogs(rawLog || "Huge support trace is ON, but nothing has been captured yet. Rerun the failing scheduled task, then open this view again.", true);
+            } catch (e) {
+                renderLogs("Error: " + e.message, true);
+            }
+        }
+
+        async function toggleSupportTraceCapture() {
+            try {
+                const cfg = await ApiClient.getPluginConfiguration(pluginId);
+                const enabling = !(cfg.EnableRawSupportLogs ?? false);
+
+                if (enabling) {
+                    const ok = confirm(
+                        "Huge support trace can become very large and noisy. Enable it only for troubleshooting, then rerun the failing task. Continue?"
+                    );
+                    if (!ok) return;
+                    cfg.LastRawTaskLog = "";
+                }
+
+                cfg.EnableRawSupportLogs = enabling;
+                await ApiClient.updatePluginConfiguration(pluginId, cfg);
+                updateSupportTraceButton(enabling);
+                renderLogs(
+                    enabling
+                        ? "Huge support trace is ON. Rerun the failing scheduled task; raw trace capture starts from this point."
+                        : "Huge support trace is OFF. New task runs will use the compact log only. Existing captured trace is kept until Clear logs.",
+                    true);
+                notify(enabling ? "Huge support trace enabled" : "Huge support trace disabled");
+            } catch (e) {
+                notify("Huge trace toggle error: " + e.message);
+            }
+        }
+
+        function buildSupportBundle(cfg) {
+            const rawLog = getRawLog(cfg);
+            const compactLog = cfg.LastTaskLog || "";
+            return [
+                "AniLiberty STRM Plugin support bundle",
+                "Generated at: " + new Date().toISOString(),
+                "Page URL: " + location.href,
+                "Browser user agent: " + navigator.userAgent,
+                "",
+                "Configuration (sanitized):",
+                "All Titles STRM Path: " + (cfg.StrmAllPath || "(empty)"),
+                "Favorites STRM Path: " + (cfg.StrmFavoritesPath || "(empty)"),
+                "Preferred Resolution: " + (cfg.PreferredResolution || "(empty)"),
+                "Generate full catalog library: " + String(cfg.EnableAll ?? false),
+                "Generate favorites library: " + String(cfg.EnableFavorites ?? false),
+                "AllTitlesPageSize: " + String(cfg.AllTitlesPageSize ?? ""),
+                "AllTitlesMaxPages: " + String(cfg.AllTitlesMaxPages ?? ""),
+                "FavoritesPageSize: " + String(cfg.FavoritesPageSize ?? ""),
+                "FavoritesMaxPages: " + String(cfg.FavoritesMaxPages ?? ""),
+                "UiMinLogLevel: " + String(cfg.UiMinLogLevel ?? ""),
+                "EnableDebugLogs: " + String(cfg.EnableDebugLogs ?? false),
+                "EnableRawSupportLogs: " + String(cfg.EnableRawSupportLogs ?? false),
+                "EnablePlaybackDiagnostics: " + String(cfg.EnablePlaybackDiagnostics ?? false),
+                "StaleCleanupMode: " + String(cfg.StaleCleanupMode ?? ""),
+                "UseJellyfinPlaybackProxy: " + String(cfg.UseJellyfinPlaybackProxy ?? false),
+                "JellyfinPlaybackProxyBaseUrl: " + (cfg.JellyfinPlaybackProxyBaseUrl || "(empty)"),
+                "EnableAniLibertyViewSync: " + String(cfg.EnableAniLibertyViewSync ?? false),
+                "AniLibertyViewSyncMinDeltaSeconds: " + String(cfg.AniLibertyViewSyncMinDeltaSeconds ?? ""),
+                "AniLibertyViewSyncOnStop: " + String(cfg.AniLibertyViewSyncOnStop ?? false),
+                "AniLibertyViewSyncJellyfinUserId set: " + String(!!cfg.AniLibertyViewSyncJellyfinUserId),
+                "AniLibertyToken: " + (cfg.AniLibertyToken ? "present (" + cfg.AniLibertyToken.length + " chars)" : "empty"),
+                "AniDeviceId set: " + String(!!cfg.AniDeviceId),
+                "LastTaskLog lines: " + countLogLines(cfg.LastTaskLog),
+                "LastRawTaskLog lines: " + countLogLines(cfg.LastRawTaskLog),
+                "",
+                "Compact task log:",
+                "```text",
+                compactLog || "(no compact logs)",
+                "```",
+                "",
+                "Raw support trace:",
+                "```text",
+                rawLog || "(not captured; enable Huge trace and rerun the failing task)",
+                "```"
+            ].join("\n");
+        }
+
+        async function copySupportBundle() {
+            try {
+                const cfg = await ApiClient.getPluginConfiguration(pluginId);
+                const bundle = buildSupportBundle(cfg);
+                await copyTextToClipboard(bundle);
+                updateSupportTraceButton(cfg.EnableRawSupportLogs ?? false);
+                renderLogs(
+                    "Support bundle copied to clipboard.\n" +
+                    "Compact log lines: " + countLogLines(cfg.LastTaskLog) + "\n" +
+                    "Raw support trace lines: " + countLogLines(cfg.LastRawTaskLog) + "\n" +
+                    "Tokens were not included.",
+                    true);
+                notify("Support bundle copied");
+            } catch (e) {
+                notify("Copy support bundle error: " + e.message);
             }
         }
 
@@ -918,6 +1072,7 @@
             try {
                 const cfg = await ApiClient.getPluginConfiguration(pluginId);
                 cfg.LastTaskLog = "";
+                cfg.LastRawTaskLog = "";
                 await ApiClient.updatePluginConfiguration(pluginId, cfg);
                 renderLogs("(cleared)");
                 notify("Logs cleared");
@@ -943,9 +1098,12 @@
 
         function toggleOrder() {
             newestOnTop = !newestOnTop;
-            $("btnToggleOrder").innerHTML =
-                `<span>Newest first: ${newestOnTop ? "ON" : "OFF"}</span>`;
-            showLogs();
+            $("btnToggleOrder").textContent = "Newest first: " + (newestOnTop ? "ON" : "OFF");
+            if (currentLogView === "raw") {
+                showRawLogs();
+            } else {
+                showLogs();
+            }
         }
 
         /* ========== DIRECTORY PICK (ONLY 🔍) ========== */
@@ -983,10 +1141,12 @@
 
         // Logs
         $("btnShowLogs").addEventListener("click", showLogs);
+        $("btnShowRawLogs").addEventListener("click", showRawLogs);
+        $("btnCopySupportBundle").addEventListener("click", copySupportBundle);
+        $("btnToggleSupportTrace").addEventListener("click", toggleSupportTraceCapture);
         $("btnAutoLogs").addEventListener("click", toggleAutoLogs);
         $("btnToggleOrder").addEventListener("click", toggleOrder);
         $("btnClearDisplay").addEventListener("click", clearLogs);
-        $("chkRawMode").addEventListener("change", showLogs);
 
         // Directory pick (only 🔍)
         $("PickAllDirPicker").addEventListener("click", () => handleDirectoryPick("StrmAllPath", "ChkAllAppend"));

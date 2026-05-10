@@ -130,9 +130,9 @@ internal sealed class ManagedLibraryManifest
         {
             log.Warn("[MIRROR] Dry-run: {0} stale managed file(s) would be removed. Switch cleanup mode to Delete to remove them.", stale.Count);
             foreach (var entry in stale.Take(20))
-                log.Info("[MIRROR] Dry-run stale: {0}", entry.Key);
+                log.Debug("[MIRROR] Dry-run stale: {0}", entry.Key);
             if (stale.Count > 20)
-                log.Info("[MIRROR] Dry-run stale: ...and {0} more", stale.Count - 20);
+                log.Debug("[MIRROR] Dry-run stale: ...and {0} more", stale.Count - 20);
             return Task.CompletedTask;
         }
 
@@ -145,13 +145,16 @@ internal sealed class ManagedLibraryManifest
             {
                 File.Delete(fullPath);
                 deleted.Add(relativePath);
-                log.Info("[MIRROR] Removed stale managed file: {0}", relativePath);
+                log.Debug("[MIRROR] Removed stale managed file: {0}", relativePath);
             }
             catch (Exception ex)
             {
                 log.Warn(ex, "[MIRROR] Failed to remove stale managed file: {0}", relativePath);
             }
         }
+
+        if (deleted.Count > 0)
+            log.Info("[MIRROR] Removed stale managed files: {0}", deleted.Count);
 
         foreach (var dir in deleted
                      .Select(x => Path.GetDirectoryName(Path.Combine(RootPath, x.Replace('/', Path.DirectorySeparatorChar))))

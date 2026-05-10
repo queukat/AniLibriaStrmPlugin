@@ -29,6 +29,25 @@ internal static class LogHelper
     private static void AppendTaskLogSafe(LogLevel level, string levelLabel, string msg, Exception ex)
         => AppendTaskLogSafe(level, levelLabel, $"{msg} — {ex.Message}");
 
+    private static void AppendRawSupportLogSafe(string msg)
+    {
+        try
+        {
+            var plugin = Plugin.Instance;
+            if (plugin is null)
+                return;
+
+            plugin.AppendRawSupportLog(msg);
+        }
+        catch
+        {
+            // Diagnostic logging must never break business logic.
+        }
+    }
+
+    private static void AppendRawExceptionDetailSafe(string msg, Exception ex)
+        => AppendRawSupportLogSafe($"[DBG] Exception detail for {msg}:{Environment.NewLine}{ex.ToString()}");
+
     public static void Info(this ILogger log, string fmt, params object?[] args)
     {
         if (log is null) return;
@@ -54,6 +73,7 @@ internal static class LogHelper
         var msg = string.Format(fmt, args);
         log.LogWarning(ex, msg);
         AppendTaskLogSafe(LogLevel.Warning, "WARN", msg, ex);
+        AppendRawExceptionDetailSafe(msg, ex);
     }
 
     public static void Err(this ILogger log, Exception ex, string fmt, params object?[] args)
@@ -63,22 +83,23 @@ internal static class LogHelper
         var msg = string.Format(fmt, args);
         log.LogError(ex, msg);
         AppendTaskLogSafe(LogLevel.Error, "ERROR", msg, ex);
+        AppendRawExceptionDetailSafe(msg, ex);
     }
 
     public static void Debug(this ILogger log, string fmt, params object?[] args)
     {
         if (log is null) return;
 
-        // Global "Debug logs" switch: when OFF, skip debug logging completely.
         var cfg = Plugin.Instance?.Configuration;
-        if (cfg?.EnableDebugLogs != true) return;
-
-        if (!log.IsEnabled(LogLevel.Debug)) return;
+        var uiDebug = cfg?.EnableDebugLogs == true;
+        var rawSupport = cfg?.EnableRawSupportLogs == true;
+        if (!uiDebug && !rawSupport) return;
 
         var msg = string.Format(fmt, args);
-        log.LogDebug(msg);
 
-        // DEBUG goes to UI log only when EnableDebugLogs is enabled (then filtered by UiMinLogLevel).
+        if (log.IsEnabled(LogLevel.Debug))
+            log.LogDebug(msg);
+
         AppendTaskLogSafe(LogLevel.Debug, "DBG", msg);
     }
 }

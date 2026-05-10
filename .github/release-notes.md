@@ -1,21 +1,32 @@
-AniLiberty STRM Docker Playback Rail Fix
+AniLiberty STRM Support Trace & Docker Preflight
 
-This update tightens the Docker playback path for AniLiberty STRM Plugin and documents the supported container workflow: repository manifest install, container-visible output path, scheduled reconstruction, Jellyfin library scan, and proxied HLS playback.
+This update adds a safer diagnostics flow for Docker and headless Jellyfin setups: compact logs stay readable, while the Support Trace rail captures the full failure context needed for issue triage.
 
-### Docker Playback Proxy Rail
-- Fixed a Docker/headless Jellyfin case where `ReverseVirtualPath` could resolve the playback proxy route as `file:///AniLibertyPlayback/hls`.
-- Generated `.strm` files now keep the Playback Proxy Rail on HTTP/HTTPS instead of writing unusable `file://` proxy URLs.
-- Added proxy endpoint tests that preserve valid absolute HTTP routes and normalize non-HTTP absolute routes back into Jellyfin route paths.
+### Diagnostic Command Center
+- Added a **Huge trace** switch for explicit support sessions.
+- `Show logs` now remains the compact operational view for normal task results.
+- `Show support trace` exposes the high-volume diagnostic stream only after Huge trace is enabled and the task is rerun.
+- `Copy support bundle` packages sanitized configuration, compact logs, and captured support trace without exposing AniLiberty tokens.
 
-### Docker First Launch Flight Check
-- Added a README path contract for Docker: plugin output path and Jellyfin media library path must use the same container-visible path.
-- Documented a working volume pattern such as `/srv/aniliberty-strm:/media/aniliberty-strm`.
-- Added a first-run sequence for full-catalog generation, favorites generation, scheduled tasks, and empty-output diagnostics.
+### Full Exception Visibility
+- Support trace now records full exception details, including stack traces and inner exceptions.
+- Compact logs keep short, readable error summaries so normal UI logging does not turn into a wall of text.
+- Verified with a read-only Docker output path: the trace captures the filesystem failure, plugin preflight stack, task failure stack, and remediation hint.
 
-### Tested Environment
-- Verified manifest-based installation in Docker using `jellyfin/jellyfin:10.11.0`.
-- Smoke-tested on Windows 10 Pro with Docker Desktop 4.51.0, Docker Engine 28.5.2, and Docker Compose 2.40.3.
-- Confirmed Jellyfin scans generated output as a TV library, recognizes generated series and episodes, returns item-level playback info, rewrites HLS playlists through the proxy, and streams HLS segments through the plugin route.
+### Docker Output Flight Check
+- Scheduled generation now validates that the configured output root is writable before fetching AniLiberty catalog data.
+- Permission and path failures now stop early with a clear message about Docker volume mapping, host directory ownership, and PUID/PGID permissions.
+- Favorites and full-catalog generation both run this preflight before network/catalog work begins.
+
+### Noise Suppression
+- Detailed catalog page progress, per-title generation chatter, and stale-file dry-run lists are routed into support trace instead of compact logs.
+- Compact logging defaults remain tuned for routine operation.
+- Debug logging in compact logs is now described separately from support trace so the UI makes the diagnostic path clearer.
+
+### Verification
+- Built and tested with the non-integration suite.
+- Smoke-tested in Docker on Jellyfin 10.11 with manifest installation.
+- Confirmed support trace captures full write-permission failures while compact logs remain short.
 
 ### Not Included
 - No Jellyfin 10.10 compatibility build.

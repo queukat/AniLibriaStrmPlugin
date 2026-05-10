@@ -64,8 +64,14 @@ public sealed class AniLibertyAllTask : IScheduledTask
                 return;
             }
 
+            await OutputRootPreflight.EnsureWritableAsync(
+                cfg.StrmAllPath,
+                "All Titles STRM Path",
+                _log,
+                token);
+
             _log.Info("Fetching full title list …");
-            _log.LogDebug("Params: pageSize={0}, maxPages={1}",
+            _log.Info("Full catalog fetch parameters: pageSize={0}, maxPages={1}",
                 cfg.AllTitlesPageSize, cfg.AllTitlesMaxPages);
 
             var titles = await _client.FetchAllTitlesAsync(
@@ -89,7 +95,7 @@ public sealed class AniLibertyAllTask : IScheduledTask
         }
         catch (Exception ex)
         {
-            _log.LogError(ex, "AniLibertyAllTask failed");
+            _log.Err(ex, "AniLibertyAllTask failed");
             throw;
         }
         finally

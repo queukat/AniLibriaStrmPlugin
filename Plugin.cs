@@ -40,23 +40,6 @@ public sealed class Plugin : BasePlugin<PluginConfiguration>, IHasWebPages
 
     public void AppendTaskLog(string line, LogLevel level = LogLevel.Information)
     {
-        // UI filter (configuration-based)
-        try
-        {
-            // By default, do NOT write Debug/Trace to UI log (too noisy).
-            if (Configuration != null &&
-                !Configuration.EnableDebugLogs &&
-                (level == LogLevel.Debug || level == LogLevel.Trace))
-                return;
-
-            if (Configuration != null && level < Configuration.UiMinLogLevel)
-                return;
-        }
-        catch
-        {
-            // Logging must never break main logic.
-        }
-
         var ts = DateTime.Now.ToString("HH:mm:ss");
         var ln = $"[{ts}] {line}";
 
@@ -66,18 +49,55 @@ public sealed class Plugin : BasePlugin<PluginConfiguration>, IHasWebPages
             if (cfg is null)
                 return;
 
-            var max = Math.Max(50, cfg.LastLogMaxLines);
-            var existing = cfg.LastTaskLog ?? string.Empty;
+            if (cfg.EnableRawSupportLogs)
+                cfg.LastRawTaskLog = AppendAndTrim(cfg.LastRawTaskLog, ln, Math.Max(200, cfg.LastRawLogMaxLines));
 
-            // Append quickly and trim old lines.
-            var joined = string.IsNullOrEmpty(existing) ? ln : existing + "\n" + ln;
-            var arr = joined.Split('\n');
-            if (arr.Length > max)
-                joined = string.Join('\n', arr.Skip(arr.Length - max));
+            if (!ShouldShowInUi(cfg, level))
+                return;
 
-            cfg.LastTaskLog = joined;
+            cfg.LastTaskLog = AppendAndTrim(cfg.LastTaskLog, ln, Math.Max(50, cfg.LastLogMaxLines));
             // Do not flush to disk on every line; flush in existing task-finally points.
         }
+    }
+
+    public void AppendRawSupportLog(string line)
+    {
+        var ts = DateTime.Now.ToString("HH:mm:ss");
+        var ln = $"[{ts}] {line}";
+
+        lock (_logSync)
+        {
+            var cfg = Configuration;
+            if (cfg is null || !cfg.EnableRawSupportLogs)
+                return;
+
+            cfg.LastRawTaskLog = AppendAndTrim(cfg.LastRawTaskLog, ln, Math.Max(200, cfg.LastRawLogMaxLines));
+        }
+    }
+
+    private static bool ShouldShowInUi(PluginConfiguration cfg, LogLevel level)
+    {
+        try
+        {
+            if (!cfg.EnableDebugLogs && (level == LogLevel.Debug || level == LogLevel.Trace))
+                return false;
+
+            return level >= cfg.UiMinLogLevel;
+        }
+        catch
+        {
+            // Logging must never break main logic.
+            return true;
+        }
+    }
+
+    private static string AppendAndTrim(string? existing, string line, int maxLines)
+    {
+        var joined = string.IsNullOrEmpty(existing) ? line : existing + "\n" + line;
+        var arr = joined.Split('\n');
+        return arr.Length > maxLines
+            ? string.Join('\n', arr.Skip(arr.Length - maxLines))
+            : joined;
     }
 
     public void FlushLog()
@@ -95,6 +115,7 @@ public sealed class Plugin : BasePlugin<PluginConfiguration>, IHasWebPages
         {
             var cfg = Configuration;
             cfg.LastTaskLog = string.Empty;
+            cfg.LastRawTaskLog = string.Empty;
             UpdateConfiguration(cfg);
         }
     }

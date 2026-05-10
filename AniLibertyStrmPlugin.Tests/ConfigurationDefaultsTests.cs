@@ -14,6 +14,9 @@ public class ConfigurationDefaultsTests
         Assert.True(config.UseJellyfinPlaybackProxy);
         Assert.False(config.EnablePlaybackDiagnostics);
         Assert.Empty(config.CurrentOtpCode);
+        Assert.Empty(config.LastRawTaskLog);
+        Assert.False(config.EnableRawSupportLogs);
+        Assert.Equal(20000, config.LastRawLogMaxLines);
     }
 
     [Fact]
