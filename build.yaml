@@ -12,71 +12,32 @@ artifacts: # DLLs that will be included in the ZIP
   - "icon.png"
 
 changelog: |
-  Release 2.0.0.9
-  AniLiberty STRM Hardening System Release
-
-  This update hardens AniLiberty STRM Plugin as a full Jellyfin reconstruction system: stable Jellyfin ABI targeting, explicit AniLiberty identity, safer generated-library governance, streaming playback proxying, and a stronger operational surface for administrators.
-
-  ### Jellyfin Compatibility & Quality Gates
-  - Pinned all `Jellyfin.*` NuGet references to `10.11.0` to stop builds from silently drifting to newer Jellyfin packages.
-  - Added committed `packages.lock.json` files and locked restore in CI.
-  - Added CI checks that verify every resolved `Jellyfin.*` package remains on `10.11.0` while `targetAbi` stays `10.11.0.0`.
-  - Release automation now keeps `build.yaml`, package version, assembly version, file version, and informational version in sync.
-
-  ### AniLiberty Identity & API Courtesy
-  - Rebranded the public plugin identity to **AniLiberty STRM Plugin** while keeping the legacy `AniLibriaStrmPlugin` repository URL for install compatibility and branch history.
-  - Added a shared `PluginIdentity` with display name, product token, repository URL, version discovery, and canonical User-Agent.
-  - All AniLiberty API, media proxy, static media, and HLS clients now identify as:
-    `AniLibertyStrmPlugin/<version> (Jellyfin; +https://github.com/queukat/AniLibriaStrmPlugin)`.
-
-  ### Mirror Governance Layer
-  - Added `.aniliberty-strm-plugin/manifest.json` inside each output root to track files managed by the plugin.
-  - The manifest records generated STRM, ANIID, EDL, chapter XML, NFO, artwork/thumbs, release/episode IDs, hashes, sources, and timestamps.
-  - First manifest run initializes the baseline and never prunes existing files.
-  - Generated NFO/artwork refreshes only when the file is known as plugin-managed through the manifest or generated marker.
-  - Existing unmarked `.nfo` files and artwork are preserved as user-owned content.
-
-  ### Safe Cleanup Modes
-  - Added `StaleCleanupMode`: `Off`, `DryRun`, and `Delete`.
-  - Default is `DryRun`, which reports stale managed files without deleting anything.
-  - `Delete` removes only manifest-managed stale files and then removes empty directories created by that cleanup path.
-  - Untracked user files are left alone.
-
-  ### Playback Proxy Rail
-  - Non-playlist HLS segments and keys now stream directly to `Response.Body`.
-  - The proxy no longer reads segment/key payloads into memory with `ReadAsByteArrayAsync`.
-  - Upstream host allow-listing and redirect validation remain in place.
-  - Playlist rewriting continues to route segments and keys through the Jellyfin proxy endpoint.
-
-  ### Identity & Access Command Center
-  - OTP codes are no longer persisted in plugin configuration after the OTP flow.
-  - Login/password and OTP sign-in clear stored OTP state.
-  - The token box is masked by default, with explicit reveal/copy actions.
-  - Auth logs no longer include the login e-mail address.
-
-  ### Operational Reliability
-  - Scheduled tasks now rethrow failures after logging so Jellyfin can mark task execution accurately.
-  - Cancellation flows are preserved instead of being swallowed as generic failures.
-  - AniLiberty progress pull no longer overwrites newer local Jellyfin playback positions with older remote timecodes.
-  - Clearing UI logs now persists the cleared state.
-
-  ### Presentation & Documentation
-  - README now presents the plugin as a coherent product system: Signal Acquisition Layer, Context-Aware Reconstruction Core, Playback Proxy Rail, Mirror Governance Layer, Operational Command Center, and Distribution Quality Gates.
-  - Added three README visual assets showing the reconstruction core, system capability layers, and operational command center.
-
-  ### Test Coverage
-  - Added tests for Jellyfin package pins and lock-file resolution.
-  - Added User-Agent and named/static HTTP client coverage.
-  - Added managed mirror tests for baseline creation, generated metadata refresh, unmarked NFO preservation, dry-run cleanup, delete cleanup, and empty-directory cleanup.
-  - Added proxy tests for streaming segments, playlist rewriting, unsupported upstream rejection, redirect validation, and upstream failure status.
-  - Added auth/config tests for OTP payload boundaries, safe defaults, and AniLiberty identity.
-
+  Release 2.0.0.10
+  AniLiberty STRM Docker Playback Rail Fix
+  
+  This update tightens the Docker playback path for AniLiberty STRM Plugin and documents the supported container workflow: repository manifest install, container-visible output path, scheduled reconstruction, Jellyfin library scan, and proxied HLS playback.
+  
+  ### Docker Playback Proxy Rail
+  - Fixed a Docker/headless Jellyfin case where `ReverseVirtualPath` could resolve the playback proxy route as `file:///AniLibertyPlayback/hls`.
+  - Generated `.strm` files now keep the Playback Proxy Rail on HTTP/HTTPS instead of writing unusable `file://` proxy URLs.
+  - Added proxy endpoint tests that preserve valid absolute HTTP routes and normalize non-HTTP absolute routes back into Jellyfin route paths.
+  
+  ### Docker First Launch Flight Check
+  - Added a README path contract for Docker: plugin output path and Jellyfin media library path must use the same container-visible path.
+  - Documented a working volume pattern such as `/srv/aniliberty-strm:/media/aniliberty-strm`.
+  - Added a first-run sequence for full-catalog generation, favorites generation, scheduled tasks, and empty-output diagnostics.
+  
+  ### Tested Environment
+  - Verified manifest-based installation in Docker using `jellyfin/jellyfin:10.11.0`.
+  - Smoke-tested on Windows 10 Pro with Docker Desktop 4.51.0, Docker Engine 28.5.2, and Docker Compose 2.40.3.
+  - Confirmed Jellyfin scans generated output as a TV library, recognizes generated series and episodes, returns item-level playback info, rewrites HLS playlists through the proxy, and streams HLS segments through the plugin route.
+  
   ### Not Included
-  - No Jellyfin 10.10 compatibility build in this release.
-  - No migration of AniLiberty API endpoint hosts.
-  - No destructive cleanup unless `StaleCleanupMode` is explicitly changed to `Delete`.
-
-  GitHub Release: https://github.com/queukat/AniLibriaStrmPlugin/releases/tag/v2.0.0.9
+  - No Jellyfin 10.10 compatibility build.
+  - No change to AniLiberty API endpoint hosts.
+  - No change to the legacy repository URL used for the plugin manifest.
+  
+  GitHub Release: https://github.com/queukat/AniLibriaStrmPlugin/releases/tag/v2.0.0.10
   Full changelog: https://github.com/queukat/AniLibriaStrmPlugin/blob/aniLiberty-v2/CHANGELOG.md
 description: >
   AniLiberty library reconstruction system for Jellyfin: acquisition,
@@ -92,6 +53,6 @@ owner: "queukat"
 
 targetAbi: "10.11.0.0"
 
-version: "2.0.0.9"
+version: "2.0.0.10"
 
 image: Resources/icon.png
