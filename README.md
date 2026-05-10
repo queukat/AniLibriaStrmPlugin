@@ -83,6 +83,15 @@ and silent background work.
 Older Jellyfin 10.10 builds are **not** supported: the plugin is compiled against the minimum
 Jellyfin 10.11.0 ABI (`Jellyfin.*` packages are pinned to `10.11.0`, not wildcard ranges).
 
+### Tested Environment
+
+Maintainer smoke checks currently cover:
+
+- Native development on **Windows 10 Pro 2009** (`10.0.19041.6456`, x64).
+- Docker smoke test on **Docker Desktop 4.51.0** for Windows.
+- Docker Engine / Client **28.5.2**, Docker Compose **2.40.3**.
+- Official image **`jellyfin/jellyfin:10.11.0`** with the plugin installed through the GitHub Pages repository manifest.
+
 ---
 
 ## 🔧 Installation
@@ -122,6 +131,62 @@ The GitHub repository keeps the legacy `AniLibriaStrmPlugin` URL because the mai
 
 4. Start Jellyfin.
 
+
+---
+
+## First Launch Flight Check
+
+AniLiberty STRM Plugin generates a Jellyfin-facing media surface inside the filesystem that the
+Jellyfin server can see. In Docker that means the plugin must use the **container path**, not the
+host path.
+
+Example Docker volume contract:
+
+```yaml
+services:
+  jellyfin:
+    image: jellyfin/jellyfin
+    volumes:
+      - /srv/jellyfin/config:/config
+      - /srv/jellyfin/cache:/cache
+      - /srv/aniliberty-strm:/media/aniliberty-strm
+```
+
+Use `/media/aniliberty-strm` in the plugin and in Jellyfin library paths. The host path
+`/srv/aniliberty-strm` is only the storage backing for Docker.
+
+Recommended first run:
+
+1. Open **Dashboard → Plugins → AniLiberty STRM**.
+2. Set **All Titles STRM Path** to a container-visible path such as
+   `/media/aniliberty-strm/all`.
+3. If clients need to play generated `.strm` files from another device, set
+   **Jellyfin Playback Proxy Base URL** to the Jellyfin URL those clients can reach,
+   for example `http://192.168.1.10:8096`.
+4. Keep **Generate full catalog library** enabled.
+5. Save the plugin settings.
+6. Open **Dashboard → Scheduled Tasks → AniLiberty**.
+7. Run **Generate AniLiberty STRM library** manually.
+8. After the rail finishes, add a Jellyfin media library that points to the same container path,
+   for example `/media/aniliberty-strm/all`.
+
+The first successful run creates the governance manifest
+`.aniliberty-strm-plugin/manifest.json`, title folders, `.strm` playback entries, metadata,
+artwork, and skip-control files where the upstream signal contains them.
+
+For favorites, complete **AniLiberty authentication** first, set **Favorites STRM Path** to a
+container-visible path such as `/media/aniliberty-strm/favorites`, then run
+**Generate AniLiberty STRM (Favorites Only)**.
+
+If the output directory stays empty, check these control points:
+
+- The plugin path is the Docker container path, not the host path.
+- The mounted folder is writable by the Jellyfin container user.
+- The selected rail is enabled in plugin settings.
+- The scheduled task was run after saving settings.
+- Favorites generation has a valid AniLiberty token.
+- Playback clients can reach **Jellyfin Playback Proxy Base URL** if the playback proxy is enabled.
+- **Last Task Logs** on the plugin page does not show API, permission, or path errors.
 
 ---
 

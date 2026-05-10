@@ -36,6 +36,31 @@ public static partial class PlaybackProxyHelper
         return $"{proxyEndpointUrl.TrimEnd('/')}?url={Uri.EscapeDataString(upstreamUrl)}";
     }
 
+    public static string BuildProxyEndpoint(string baseUrl, string route)
+    {
+        if (string.IsNullOrWhiteSpace(baseUrl))
+            return string.Empty;
+
+        if (string.IsNullOrWhiteSpace(route))
+            route = ProxyRoute;
+
+        if (Uri.TryCreate(route, UriKind.Absolute, out var absoluteRoute))
+        {
+            if (IsHttpEndpoint(absoluteRoute))
+                return absoluteRoute.ToString();
+
+            route = absoluteRoute.AbsolutePath;
+        }
+
+        if (string.IsNullOrWhiteSpace(route))
+            route = ProxyRoute;
+
+        if (!route.StartsWith("/", StringComparison.Ordinal))
+            route = "/" + route;
+
+        return baseUrl.TrimEnd('/') + route;
+    }
+
     public static bool IsHlsPlaylist(Uri requestUri, string? contentType)
     {
         if (!string.IsNullOrWhiteSpace(contentType))
@@ -100,5 +125,11 @@ public static partial class PlaybackProxyHelper
             return null;
 
         return IsAllowedUpstream(absoluteUri) ? absoluteUri : null;
+    }
+
+    private static bool IsHttpEndpoint(Uri uri)
+    {
+        return string.Equals(uri.Scheme, Uri.UriSchemeHttp, StringComparison.OrdinalIgnoreCase) ||
+               string.Equals(uri.Scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase);
     }
 }

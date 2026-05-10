@@ -1256,13 +1256,7 @@ public sealed class AniLibertyStrmGenerator(
             if (string.IsNullOrWhiteSpace(route))
                 route = PlaybackProxyHelper.ProxyRoute;
 
-            if (Uri.TryCreate(route, UriKind.Absolute, out var absoluteRoute))
-                return absoluteRoute.ToString();
-
-            if (!route.StartsWith("/", StringComparison.Ordinal))
-                route = "/" + route;
-
-            return baseUrl.TrimEnd('/') + route;
+            return PlaybackProxyHelper.BuildProxyEndpoint(baseUrl, route);
         }
         catch (Exception ex)
         {

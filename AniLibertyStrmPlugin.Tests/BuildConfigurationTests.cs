@@ -120,8 +120,10 @@ public class BuildConfigurationTests
         Assert.Contains(".github/release-notes.md", workflow, StringComparison.Ordinal);
         Assert.Contains(".release_notes_body.md", workflow, StringComparison.Ordinal);
         Assert.Contains("cat .release_notes_body.md", workflow, StringComparison.Ordinal);
-        Assert.Contains("AniLiberty STRM Hardening System Release", notes, StringComparison.Ordinal);
-        Assert.Contains("AniLiberty STRM Hardening System Release", buildManifest, StringComparison.Ordinal);
+        Assert.Contains("AniLiberty STRM", notes, StringComparison.Ordinal);
+        Assert.Contains("AniLiberty STRM", buildManifest, StringComparison.Ordinal);
+        Assert.DoesNotContain("release: fix locked Jellyfin restore", notes, StringComparison.Ordinal);
+        Assert.DoesNotContain("release: harden AniLiberty STRM system", notes, StringComparison.Ordinal);
         Assert.DoesNotContain("release: fix locked Jellyfin restore", buildManifest, StringComparison.Ordinal);
         Assert.DoesNotContain("release: harden AniLiberty STRM system", buildManifest, StringComparison.Ordinal);
     }

@@ -18,6 +18,36 @@ public class PlaybackProxyHelperTests
     }
 
     [Fact]
+    public void BuildProxyEndpoint_CombinesBaseUrlWithRelativeRoute()
+    {
+        var endpoint = PlaybackProxyHelper.BuildProxyEndpoint(
+            "http://172.17.0.4:8096/",
+            "/AniLibertyPlayback/hls");
+
+        Assert.Equal("http://172.17.0.4:8096/AniLibertyPlayback/hls", endpoint);
+    }
+
+    [Fact]
+    public void BuildProxyEndpoint_PreservesHttpAbsoluteRoute()
+    {
+        var endpoint = PlaybackProxyHelper.BuildProxyEndpoint(
+            "http://172.17.0.4:8096",
+            "https://jellyfin.example.test/AniLibertyPlayback/hls");
+
+        Assert.Equal("https://jellyfin.example.test/AniLibertyPlayback/hls", endpoint);
+    }
+
+    [Fact]
+    public void BuildProxyEndpoint_TreatsFileReverseVirtualPathAsRoutePath()
+    {
+        var endpoint = PlaybackProxyHelper.BuildProxyEndpoint(
+            "http://172.17.0.4:8096",
+            "file:///AniLibertyPlayback/hls");
+
+        Assert.Equal("http://172.17.0.4:8096/AniLibertyPlayback/hls", endpoint);
+    }
+
+    [Fact]
     public void RewritePlaylist_RewritesSegmentAndKeyUrisToProxy()
     {
         const string playlist = """
