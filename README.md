@@ -1,3 +1,6 @@
+<!-- public-repo-status -->
+> Status: Active Jellyfin plugin. Releases are published through GitHub Releases; issues use focused support templates.
+
 # AniLiberty STRM Plugin for Jellyfin
 
 ![icon](Resources/icon.png)
