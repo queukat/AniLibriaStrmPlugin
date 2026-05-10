@@ -113,24 +113,59 @@ The GitHub repository keeps the legacy `AniLibriaStrmPlugin` URL because the mai
 
 ### Option B — manual ZIP
 
-1. Download the latest `AniLibertyStrmPlugin_*.zip` from this repository’s **Releases** page.
+Manual ZIP install is the fallback path for offline installs or recovery. The repository install above is the normal path.
+
+1. Download the latest `aniliberty-strm-plugin_*.zip` from this repository’s **Releases** page.
 2. Stop Jellyfin.
-3. Unpack the ZIP into Jellyfin’s `plugins` directory, preserving the folder structure, e.g.:
+3. Create a versioned plugin folder and unpack the ZIP contents directly into that folder.
+
+   Windows default Jellyfin data path:
 
    ```text
-   <jellyfin>/plugins/aniliberty-strm-plugin/
+   C:\ProgramData\Jellyfin\Server\plugins\AniLiberty STRM Plugin_2.0.0.10\
        AniLibertyStrmPlugin.dll
+       Microsoft.Extensions.Http.Polly.dll
+       Polly.Core.dll
+       Polly.dll
+       Polly.Extensions.Http.dll
+       icon.png
+       meta.json
+   ```
+
+   Official Docker image container path:
+
+   ```text
+   /config/plugins/AniLiberty STRM Plugin_2.0.0.10/
+       AniLibertyStrmPlugin.dll
+       Microsoft.Extensions.Http.Polly.dll
        Polly.dll
        Polly.Core.dll
        Polly.Extensions.Http.dll
-       Microsoft.Extensions.Http.Polly.dll
        icon.png
        meta.json
-       ...
+   ```
+
+   If Docker mounts `D:\jellyfin\config` to `/config`, the same folder on the Windows host is:
+
+   ```text
+   D:\jellyfin\config\plugins\AniLiberty STRM Plugin_2.0.0.10\
    ```
 
 4. Start Jellyfin.
 
+Do not unpack the ZIP into these places:
+
+- `plugins\AniLiberty\`
+- `plugins\configurations\`
+- `AniLiberty STRM Plugin_2.0.0.10\aniliberty-strm-plugin_2.0.0.10\`
+- the generated media output folder such as `/media/aniliberty-strm`
+
+The plugin configuration file is stored separately by Jellyfin:
+
+- Windows: `C:\ProgramData\Jellyfin\Server\plugins\configurations\AniLibertyStrmPlugin.xml`
+- Docker: `/config/plugins/configurations/AniLibertyStrmPlugin.xml`
+
+Keep that file private. It can contain account tokens, device IDs, and operational logs.
 
 ---
 
@@ -139,6 +174,14 @@ The GitHub repository keeps the legacy `AniLibriaStrmPlugin` URL because the mai
 AniLiberty STRM Plugin generates a Jellyfin-facing media surface inside the filesystem that the
 Jellyfin server can see. In Docker that means the plugin must use the **container path**, not the
 host path.
+
+There are three different paths. Keep them separate:
+
+| Path role | Windows example | Docker container example |
+|-----------|-----------------|--------------------------|
+| Plugin binaries | `C:\ProgramData\Jellyfin\Server\plugins\AniLiberty STRM Plugin_2.0.0.10` | `/config/plugins/AniLiberty STRM Plugin_2.0.0.10` |
+| Plugin configuration | `C:\ProgramData\Jellyfin\Server\plugins\configurations\AniLibertyStrmPlugin.xml` | `/config/plugins/configurations/AniLibertyStrmPlugin.xml` |
+| Generated media library | any folder Jellyfin can read, for example `D:\AniLibertyStrm\all` | `/media/aniliberty-strm/all` |
 
 Example Docker volume contract:
 
@@ -160,9 +203,8 @@ Recommended first run:
 1. Open **Dashboard → Plugins → AniLiberty STRM**.
 2. Set **All Titles STRM Path** to a container-visible path such as
    `/media/aniliberty-strm/all`.
-3. If clients need to play generated `.strm` files from another device, set
-   **Jellyfin Playback Proxy Base URL** to the Jellyfin URL those clients can reach,
-   for example `http://192.168.1.10:8096`.
+3. Configure **Jellyfin Playback Proxy Base URL** only if your playback devices need an explicit
+   Jellyfin address. See the proxy rule below.
 4. Keep **Generate full catalog library** enabled.
 5. Save the plugin settings.
 6. Open **Dashboard → Scheduled Tasks → AniLiberty**.
@@ -187,6 +229,32 @@ If the output directory stays empty, check these control points:
 - Favorites generation has a valid AniLiberty token.
 - Playback clients can reach **Jellyfin Playback Proxy Base URL** if the playback proxy is enabled.
 - **Last Task Logs** on the plugin page does not show API, permission, or path errors.
+
+### Playback Proxy Base URL, plain rule
+
+Leave **Jellyfin Playback Proxy Base URL** empty when playback already works from the Jellyfin server
+or from a browser on the same machine. The plugin will let Jellyfin choose its local server address.
+
+Set this field only when generated `.strm` playback must point at a specific Jellyfin address that
+another device can reach. The value is the base Jellyfin URL as seen by the playback device, without
+`/AniLibertyPlayback/hls` at the end.
+
+Examples:
+
+- Jellyfin runs natively on the same Windows PC where you test playback: leave it empty.
+- Jellyfin runs on a Windows PC, but playback is on a phone, TV, or another computer:
+  `http://192.168.1.10:8096`.
+- Jellyfin runs in Docker on Windows with `8099:8096`, and playback is on a phone, TV, or another
+  computer: `http://192.168.1.10:8099`.
+- Jellyfin is published through a reverse proxy: `https://jellyfin.example.test`.
+
+Do not use `localhost` for another device. On a phone, `localhost` means the phone. Inside Docker,
+`localhost` means the container. For Docker, use a LAN IP or reverse-proxy hostname that the playback
+device can reach; if that address is not reachable from the Jellyfin container too, leave the field
+empty and use the auto-detected server address.
+
+After changing this field, run **Generate AniLiberty STRM library** again so existing `.strm` files
+receive the new proxy URLs.
 
 ---
 

@@ -110,6 +110,26 @@ public class BuildConfigurationTests
     }
 
     [Fact]
+    public void PublicReadme_DocumentsInstallAndProxyPathContracts()
+    {
+        var root = FindRepoRoot();
+        var readme = File.ReadAllText(Path.Combine(root, "README.md"));
+        var configPage = File.ReadAllText(Path.Combine(root, "Configuration", "configPage.html"));
+
+        Assert.Contains("aniliberty-strm-plugin_*.zip", readme, StringComparison.Ordinal);
+        Assert.Contains("C:\\ProgramData\\Jellyfin\\Server\\plugins\\AniLiberty STRM Plugin_", readme, StringComparison.Ordinal);
+        Assert.Contains("/config/plugins/AniLiberty STRM Plugin_", readme, StringComparison.Ordinal);
+        Assert.Contains("C:\\ProgramData\\Jellyfin\\Server\\plugins\\configurations\\AniLibertyStrmPlugin.xml", readme, StringComparison.Ordinal);
+        Assert.Contains("/config/plugins/configurations/AniLibertyStrmPlugin.xml", readme, StringComparison.Ordinal);
+        Assert.Contains("Do not use `localhost` for another device", readme, StringComparison.Ordinal);
+        Assert.Contains("After changing this field, run **Generate AniLiberty STRM library** again", readme, StringComparison.Ordinal);
+        Assert.Contains("do not add /AniLibertyPlayback/hls", configPage, StringComparison.Ordinal);
+        Assert.Contains("Do not use localhost for phones, TVs, or", configPage, StringComparison.Ordinal);
+
+        Assert.DoesNotContain("<jellyfin>/plugins/aniliberty-strm-plugin/", readme, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void ReleaseWorkflow_UsesCuratedReleaseNotesWhenPresent()
     {
         var root = FindRepoRoot();

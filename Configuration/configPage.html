@@ -446,8 +446,10 @@
                                    type="text"
                                    placeholder="http://192.168.100.6:8096">
                             <div class="fieldDescription">
-                                Optional. Leave empty to auto-detect Jellyfin server URL. Set this if `.strm` should use
-                                a specific LAN or reverse-proxy address.
+                                Optional. Usually empty. Set only when another playback device needs a specific Jellyfin
+                                LAN or reverse-proxy address, for example http://192.168.1.10:8096. Use the base Jellyfin
+                                URL only; do not add /AniLibertyPlayback/hls. Do not use localhost for phones, TVs, or
+                                Docker host ports.
                             </div>
                         </div>
 
