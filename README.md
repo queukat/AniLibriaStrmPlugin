@@ -543,9 +543,6 @@ Feel free to file bugs, request features or send patches.
 
 ---
 
-## 📜 License
-
-MIT © 2025 **queukat**
 ## License
 
 <!-- commercial-license-policy -->
