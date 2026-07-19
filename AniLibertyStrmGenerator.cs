@@ -1226,7 +1226,8 @@ public sealed partial class AniLibertyStrmGenerator(
 
         try
         {
-            if (Uri.TryCreate(url, UriKind.Absolute, out var uri))
+            if (Uri.TryCreate(url, UriKind.Absolute, out var uri) &&
+                (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps))
             {
                 var path = uri.AbsolutePath;
                 if (path.EndsWith(".webp", StringComparison.OrdinalIgnoreCase))
@@ -1242,10 +1243,16 @@ public sealed partial class AniLibertyStrmGenerator(
             // ignore
         }
 
-        // fallback (in case a non-URI string is returned)
-        return url.EndsWith(".webp", StringComparison.OrdinalIgnoreCase)
-            ? url[..^5] + ".jpg"
-            : url;
+        // Root-relative image paths are valid web URLs. On Unix, however,
+        // Uri.TryCreate classifies them as file:// URIs, so normalize their
+        // path component without changing the URL kind.
+        var suffixIndex = url.IndexOfAny(['?', '#']);
+        var pathOnly = suffixIndex >= 0 ? url[..suffixIndex] : url;
+        if (!pathOnly.EndsWith(".webp", StringComparison.OrdinalIgnoreCase))
+            return url;
+
+        var suffix = suffixIndex >= 0 ? url[suffixIndex..] : string.Empty;
+        return pathOnly[..^5] + ".jpg" + suffix;
     }
 
     internal static string GetSafeImageExtensionFromUrl(string url)
@@ -1597,7 +1604,10 @@ public sealed partial class AniLibertyStrmGenerator(
 
             if (ch == 'Ω' || ch == 'ω') continue;
 
-            sb.Append(Array.IndexOf(invalid, ch) >= 0 ? ' ' : ch);
+            // Use a portable superset so a catalog generated on Linux remains
+            // valid when mounted or copied to Windows.
+            var invalidEverywhere = ch < ' ' || ch is '<' or '>' or ':' or '"' or '/' or '\\' or '|' or '?' or '*';
+            sb.Append(invalidEverywhere || Array.IndexOf(invalid, ch) >= 0 ? ' ' : ch);
         }
 
         var tmp = RepeatedSeparatorRegex().Replace(sb.ToString(), " ").Trim();

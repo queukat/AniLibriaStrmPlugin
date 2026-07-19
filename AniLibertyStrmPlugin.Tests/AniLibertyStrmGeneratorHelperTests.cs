@@ -245,6 +245,8 @@ public class AniLibertyStrmGeneratorHelperTests
         Assert.Equal("https://cdn.test/poster.jpg?x=1",
             AniLibertyStrmGenerator.NormalizeImageUrlPreferJpg("https://cdn.test/poster.webp?x=1"));
         Assert.Equal("/poster.jpg", AniLibertyStrmGenerator.NormalizeImageUrlPreferJpg("/poster.webp"));
+        Assert.Equal("/poster.jpg?size=large#cover",
+            AniLibertyStrmGenerator.NormalizeImageUrlPreferJpg("/poster.webp?size=large#cover"));
         Assert.Equal("/poster.png", AniLibertyStrmGenerator.NormalizeImageUrlPreferJpg("/poster.png"));
 
         Assert.Equal(".jpg", AniLibertyStrmGenerator.GetSafeImageExtensionFromUrl(""));
