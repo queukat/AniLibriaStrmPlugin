@@ -54,6 +54,15 @@ public class PluginConfiguration : BasePluginConfiguration
     // Optional manual override for the base URL used in generated playback proxy .strm links.
     public string JellyfinPlaybackProxyBaseUrl { get; set; } = string.Empty;
 
+    // Show AniLiberty favorites-count badge in Jellyfin Web by patching Jellyfin Web index.html.
+    public bool EnableAniLibertyPopularityBadge { get; set; } = true;
+
+    // Create a Jellyfin activity notification when the stored AniLiberty token stops authorizing API calls.
+    public bool EnableAniLibertyAuthNotifications { get; set; } = true;
+
+    // Throttles repeated auth-expired activity notifications across scheduled tasks and playback sync.
+    public DateTime LastAniLibertyAuthExpiredNotificationUtc { get; set; } = DateTime.MinValue;
+
     // Push episode watch progress to AniLiberty (/accounts/users/me/views/timecodes).
     public bool EnableAniLibertyViewSync { get; set; } = false;
 

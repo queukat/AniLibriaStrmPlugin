@@ -47,7 +47,9 @@ public sealed record AniLibertyClient(HttpClient http, ILogger<AniLibertyClient>
         var body = await SafeReadAsync(resp, ct);
 
         if (!resp.IsSuccessStatusCode)
+        {
             log.Warn("HTTP {0} for \"{1}\": {2}", (int)resp.StatusCode, url, Truncate(body, 300));
+        }
 
         resp.EnsureSuccessStatusCode();
         return body;
@@ -62,7 +64,11 @@ public sealed record AniLibertyClient(HttpClient http, ILogger<AniLibertyClient>
         var body = await SafeReadAsync(resp, ct);
 
         if (!resp.IsSuccessStatusCode)
+        {
             log.Warn("HTTP {0} for \"{1}\": {2}", (int)resp.StatusCode, url, Truncate(body, 300));
+            if (AniLibertyAuthExpiredException.IsAuthFailure(resp.StatusCode))
+                throw new AniLibertyAuthExpiredException(resp.StatusCode, url, body);
+        }
 
         resp.EnsureSuccessStatusCode();
         return body;
@@ -153,6 +159,10 @@ public sealed record AniLibertyClient(HttpClient http, ILogger<AniLibertyClient>
             {
                 throw;
             }
+            catch (AniLibertyAuthExpiredException)
+            {
+                throw;
+            }
             catch (Exception ex)
             {
                 sw.Stop();
@@ -189,6 +199,9 @@ public sealed record AniLibertyClient(HttpClient http, ILogger<AniLibertyClient>
         {
             log.Warn("UpdateViewTimecodes failed HTTP {0}: {1}",
                 (int)resp.StatusCode, Truncate(body, 320));
+            if (AniLibertyAuthExpiredException.IsAuthFailure(resp.StatusCode))
+                throw new AniLibertyAuthExpiredException(resp.StatusCode, url, body);
+
             return false;
         }
 
@@ -197,10 +210,15 @@ public sealed record AniLibertyClient(HttpClient http, ILogger<AniLibertyClient>
 
     public async Task<List<ViewTimecodeEntry>> FetchViewTimecodesAsync(string bearerToken, DateTimeOffset? since, CancellationToken ct)
     {
-        var result = new Dictionary<string, ViewTimecodeEntry>(StringComparer.OrdinalIgnoreCase);
         if (string.IsNullOrWhiteSpace(bearerToken))
             return new List<ViewTimecodeEntry>();
 
+        var raw = await FetchViewTimecodesRawAsync(bearerToken, since, ct);
+        return raw is null ? new List<ViewTimecodeEntry>() : ParseViewTimecodes(raw);
+    }
+
+    private async Task<string?> FetchViewTimecodesRawAsync(string bearerToken, DateTimeOffset? since, CancellationToken ct)
+    {
         var url = $"{ApiBase}/accounts/users/me/views/timecodes";
         if (since.HasValue)
             url += $"?since={Uri.EscapeDataString(since.Value.UtcDateTime.ToString("O"))}";
@@ -214,37 +232,24 @@ public sealed record AniLibertyClient(HttpClient http, ILogger<AniLibertyClient>
         {
             log.Warn("FetchViewTimecodes failed HTTP {0}: {1}",
                 (int)resp.StatusCode, Truncate(raw, 320));
-            return new List<ViewTimecodeEntry>();
+            if (AniLibertyAuthExpiredException.IsAuthFailure(resp.StatusCode))
+                throw new AniLibertyAuthExpiredException(resp.StatusCode, url, raw);
+
+            return null;
         }
+
+        return raw;
+    }
+
+    private List<ViewTimecodeEntry> ParseViewTimecodes(string raw)
+    {
+        var result = new Dictionary<string, ViewTimecodeEntry>(StringComparer.OrdinalIgnoreCase);
 
         try
         {
             using var doc = JsonDocument.Parse(raw);
-            var root = doc.RootElement;
-            if (root.ValueKind == JsonValueKind.Object && root.TryGetProperty("data", out var dataEl))
-                root = dataEl;
-
-            if (root.ValueKind != JsonValueKind.Array)
-                return new List<ViewTimecodeEntry>();
-
-            foreach (var el in root.EnumerateArray())
-            {
-                if (!TryParseViewEntry(el, out var entry))
-                    continue;
-
-                if (!result.TryGetValue(entry.ReleaseEpisodeId, out var existing))
-                {
-                    result[entry.ReleaseEpisodeId] = entry;
-                    continue;
-                }
-
-                if (entry.Time >= existing.Time || entry.IsWatched && !existing.IsWatched)
-                {
-                    existing.Time = Math.Max(existing.Time, entry.Time);
-                    existing.IsWatched = existing.IsWatched || entry.IsWatched;
-                    result[entry.ReleaseEpisodeId] = existing;
-                }
-            }
+            foreach (var el in EnumerateViewTimecodeItems(doc.RootElement))
+                MergeViewEntry(result, el);
         }
         catch (OperationCanceledException)
         {
@@ -256,6 +261,35 @@ public sealed record AniLibertyClient(HttpClient http, ILogger<AniLibertyClient>
         }
 
         return result.Values.ToList();
+    }
+
+    private static JsonElement[] EnumerateViewTimecodeItems(JsonElement root)
+    {
+        if (root.ValueKind == JsonValueKind.Object && root.TryGetProperty("data", out var dataEl))
+            root = dataEl;
+
+        return root.ValueKind == JsonValueKind.Array
+            ? root.EnumerateArray().ToArray()
+            : Array.Empty<JsonElement>();
+    }
+
+    private static void MergeViewEntry(Dictionary<string, ViewTimecodeEntry> result, JsonElement el)
+    {
+        if (!TryParseViewEntry(el, out var entry))
+            return;
+
+        if (!result.TryGetValue(entry.ReleaseEpisodeId, out var existing))
+        {
+            result[entry.ReleaseEpisodeId] = entry;
+            return;
+        }
+
+        if (entry.Time < existing.Time && (!entry.IsWatched || existing.IsWatched))
+            return;
+
+        existing.Time = Math.Max(existing.Time, entry.Time);
+        existing.IsWatched = existing.IsWatched || entry.IsWatched;
+        result[entry.ReleaseEpisodeId] = existing;
     }
 
     // NEW: release details with episodes
@@ -331,58 +365,52 @@ public sealed record AniLibertyClient(HttpClient http, ILogger<AniLibertyClient>
     {
         entry = new ViewTimecodeEntry();
 
-        if (el.ValueKind == JsonValueKind.Object)
+        return el.ValueKind switch
         {
-            var okId = el.TryGetProperty("release_episode_id", out var idEl) && idEl.ValueKind == JsonValueKind.String;
-            var okTime = el.TryGetProperty("time", out var timeEl) &&
-                         (timeEl.ValueKind == JsonValueKind.Number || timeEl.ValueKind == JsonValueKind.String);
-            var okWatched = el.TryGetProperty("is_watched", out var watchedEl) &&
-                            (watchedEl.ValueKind == JsonValueKind.True ||
-                             watchedEl.ValueKind == JsonValueKind.False ||
-                             watchedEl.ValueKind == JsonValueKind.String);
-            if (!okId || !okTime || !okWatched)
-                return false;
+            JsonValueKind.Object => TryParseObjectViewEntry(el, out entry),
+            JsonValueKind.Array => TryParseArrayViewEntry(el, out entry),
+            _ => false
+        };
+    }
 
-            var id = idEl.GetString()?.Trim() ?? string.Empty;
-            if (!Guid.TryParse(id, out _))
-                return false;
+    private static bool TryParseObjectViewEntry(JsonElement el, out ViewTimecodeEntry entry)
+    {
+        entry = new ViewTimecodeEntry();
+        if (!el.TryGetProperty("release_episode_id", out var idEl) ||
+            !el.TryGetProperty("time", out var timeEl) ||
+            !el.TryGetProperty("is_watched", out var watchedEl))
+            return false;
 
-            if (!TryGetDouble(timeEl, out var time))
-                return false;
-            if (!TryGetBool(watchedEl, out var watched))
-                return false;
+        return TryCreateViewEntry(idEl, timeEl, watchedEl, out entry);
+    }
 
-            entry.ReleaseEpisodeId = id;
-            entry.Time = Math.Max(0, time);
-            entry.IsWatched = watched;
-            return true;
-        }
+    private static bool TryParseArrayViewEntry(JsonElement el, out ViewTimecodeEntry entry)
+    {
+        entry = new ViewTimecodeEntry();
+        var arr = el.EnumerateArray().ToArray();
+        return arr.Length >= 3 && TryCreateViewEntry(arr[0], arr[1], arr[2], out entry);
+    }
 
-        // Some API variants may return tuple-like arrays: [release_episode_id, time, is_watched]
-        if (el.ValueKind == JsonValueKind.Array)
-        {
-            var arr = el.EnumerateArray().ToArray();
-            if (arr.Length < 3)
-                return false;
+    private static bool TryCreateViewEntry(
+        JsonElement idEl,
+        JsonElement timeEl,
+        JsonElement watchedEl,
+        out ViewTimecodeEntry entry)
+    {
+        entry = new ViewTimecodeEntry();
+        if (idEl.ValueKind != JsonValueKind.String)
+            return false;
 
-            if (arr[0].ValueKind != JsonValueKind.String)
-                return false;
+        var id = idEl.GetString()?.Trim() ?? string.Empty;
+        if (!Guid.TryParse(id, out _) ||
+            !TryGetDouble(timeEl, out var time) ||
+            !TryGetBool(watchedEl, out var watched))
+            return false;
 
-            var id = arr[0].GetString()?.Trim() ?? string.Empty;
-            if (!Guid.TryParse(id, out _))
-                return false;
-            if (!TryGetDouble(arr[1], out var time))
-                return false;
-            if (!TryGetBool(arr[2], out var watched))
-                return false;
-
-            entry.ReleaseEpisodeId = id;
-            entry.Time = Math.Max(0, time);
-            entry.IsWatched = watched;
-            return true;
-        }
-
-        return false;
+        entry.ReleaseEpisodeId = id;
+        entry.Time = Math.Max(0, time);
+        entry.IsWatched = watched;
+        return true;
     }
 
     private static bool TryGetDouble(JsonElement el, out double value)

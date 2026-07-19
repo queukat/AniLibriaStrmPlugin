@@ -1,18 +1,17 @@
 using System.Collections.Concurrent;
 using System.Globalization;
+using System.Diagnostics.CodeAnalysis;
 using System.Net;
 using System.Security;
 using System.Text;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
 using AniLibertyStrmPlugin.Configuration;
 using AniLibertyStrmPlugin.Models;
 using AniLibertyStrmPlugin.Utils;
 using MediaBrowser.Common.Net;
 using MediaBrowser.Controller;
-using MediaBrowser.Controller.Chapters;
-using MediaBrowser.Controller.Entities;
-using MediaBrowser.Controller.Library;
-using MediaBrowser.Model.Entities;
 using Microsoft.Extensions.Logging;
 
 namespace AniLibertyStrmPlugin;
@@ -27,36 +26,37 @@ public interface IAniLibertyStrmGenerator
         CancellationToken token);
 }
 
-public sealed class AniLibertyStrmGenerator(
+public sealed partial class AniLibertyStrmGenerator(
     ILogger<AniLibertyStrmGenerator> log,
     IServerApplicationHost serverHost,
     INetworkManager networkManager,
-    ILibraryManager library,
-    IChapterManager chapters,
     IAniLibertyClient client)
     : IAniLibertyStrmGenerator
 {
+    private const string PublishedServerUrlEnvironmentVariable = "JELLYFIN_PublishedServerUrl";
+    private const string UppercasePublishedServerUrlEnvironmentVariable = "JELLYFIN_PUBLISHEDSERVERURL";
+    private const string DotnetRunningInContainerEnvironmentVariable = "DOTNET_RUNNING_IN_CONTAINER";
+    private const int RegexMatchTimeoutMilliseconds = 1000;
+
+    private int _containerProxyFallbackWarningLogged;
+    private int _invalidConfiguredProxyUrlWarningLogged;
+    private int _invalidPublishedProxyUrlWarningLogged;
+    private int _publishedProxyUrlLogged;
+
     // ────────────────────── 1. suffix cleanup ──────────────────────
     private static readonly Regex[] SuffixRules =
     {
-        new(@"\s*(?:Season)\s*\d+\b.*$", RegexOptions.IgnoreCase),
-        new(@"\s*\d+(?:st|nd|rd|th)?\s*Season\b.*$", RegexOptions.IgnoreCase),
-        new(@"\s*(?:Part|Cour)\s*\d+\b.*$", RegexOptions.IgnoreCase),
-        new(@"\s*\d+(?:st|nd|rd|th)?\s*Cour\b.*$", RegexOptions.IgnoreCase),
-        new(@"\s*[-._ ]+(?:I{2,3}|IV|V?I{0,3}|VII?)$", RegexOptions.IgnoreCase),
-        new(@"\s+[2-4]$", RegexOptions.IgnoreCase),
-        new(@"\s+(?:OAD|OVA|OAV|Specials?|Movie)$", RegexOptions.IgnoreCase),
+        SeasonSuffixRegex(),
+        NumberedSeasonSuffixRegex(),
+        PartSuffixRegex(),
+        NumberedCourSuffixRegex(),
+        RomanSuffixRegex(),
+        NumericSuffixRegex(),
+        ExtraTypeSuffixRegex(),
 
         // NEW: strip trailing Omega suffix variants
-        new(@"\s*(?:Ω|ω|Omega|Омега)\b.*$", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)
+        OmegaSuffixRegex()
     };
-
-    // ────────────────────── 1.1 detect numeric season ─────────────────
-    private static readonly Regex _rxSeasonEng = new(@"\bSeason\s*(\d{1,2})\b",
-        RegexOptions.IgnoreCase);
-
-    private static readonly Regex _rxTrailingNum = new(@"(?:\s|\D)(\d{1,2})\s*$",
-        RegexOptions.IgnoreCase);
 
     // ────────────── helper: quarter index for sorting ───────────
     private static readonly Dictionary<string, int> _seasonOrder = new(StringComparer.OrdinalIgnoreCase)
@@ -70,20 +70,13 @@ public sealed class AniLibertyStrmGenerator(
     // ─────────────────────── franchise -> season number ───────────────────
     private static readonly ConcurrentDictionary<int, List<FranchiseInfo>?> _franchiseCache = new();
 
-    // Keywords that mark a TV release as NOT a regular season
-    private static readonly Regex _rxNonSeasonTv = new(
-        @"\b(?:
-            specials? |
-            спецвыпуск(?:и|а)? |
-            episode\s*0 |
-            episode\s*zero |
-            нулевая\s*серия |
-            recap
-        )\b",
-        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.IgnorePatternWhitespace);
-
-    private static readonly ConcurrentDictionary<string, double> _hlsDurationCache = new();
     private static readonly ConcurrentDictionary<string, string> _hlsProbeCache = new();
+
+    private static readonly JsonSerializerOptions PopularityJsonOptions = new()
+    {
+        WriteIndented = true,
+        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
+    };
 
     // ────────────────────── 2.  media http (reuse) ──────────────────────
     private static readonly HttpClient _mediaHttp = CreateMediaHttp(TimeSpan.FromSeconds(20));
@@ -97,6 +90,70 @@ public sealed class AniLibertyStrmGenerator(
         http.DefaultRequestHeaders.AcceptLanguage.ParseAdd("ru,en;q=0.8");
         return http;
     }
+
+    [GeneratedRegex(@"\s*(?:Season)\s*\d+\b.*$", RegexOptions.IgnoreCase, RegexMatchTimeoutMilliseconds)]
+    private static partial Regex SeasonSuffixRegex();
+
+    [GeneratedRegex(@"\s*\d+(?:st|nd|rd|th)?\s*Season\b.*$", RegexOptions.IgnoreCase, RegexMatchTimeoutMilliseconds)]
+    private static partial Regex NumberedSeasonSuffixRegex();
+
+    [GeneratedRegex(@"\s*(?:Part|Cour)\s*\d+\b.*$", RegexOptions.IgnoreCase, RegexMatchTimeoutMilliseconds)]
+    private static partial Regex PartSuffixRegex();
+
+    [GeneratedRegex(@"\s*\d+(?:st|nd|rd|th)?\s*Cour\b.*$", RegexOptions.IgnoreCase, RegexMatchTimeoutMilliseconds)]
+    private static partial Regex NumberedCourSuffixRegex();
+
+    [GeneratedRegex(@"\s*[-._ ]+(?:I{2,3}|IV|V?I{0,3}|VII?)$", RegexOptions.IgnoreCase, RegexMatchTimeoutMilliseconds)]
+    private static partial Regex RomanSuffixRegex();
+
+    [GeneratedRegex(@"\s+[2-4]$", RegexOptions.IgnoreCase, RegexMatchTimeoutMilliseconds)]
+    private static partial Regex NumericSuffixRegex();
+
+    [GeneratedRegex(@"\s+(?:OAD|OVA|OAV|Specials?|Movie)$", RegexOptions.IgnoreCase, RegexMatchTimeoutMilliseconds)]
+    private static partial Regex ExtraTypeSuffixRegex();
+
+    [GeneratedRegex(@"\s*(?:Ω|ω|Omega|Омега)\b.*$", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant, RegexMatchTimeoutMilliseconds)]
+    private static partial Regex OmegaSuffixRegex();
+
+    [GeneratedRegex(@"\bSeason\s*(\d{1,2})\b", RegexOptions.IgnoreCase, RegexMatchTimeoutMilliseconds)]
+    private static partial Regex SeasonNumberRegex();
+
+    [GeneratedRegex(@"(?:\s|\D)(\d{1,2})\s*$", RegexOptions.IgnoreCase, RegexMatchTimeoutMilliseconds)]
+    private static partial Regex TrailingNumberRegex();
+
+    [GeneratedRegex(@"\b(?:
+            specials? |
+            спецвыпуск(?:и|а)? |
+            episode\s*0 |
+            episode\s*zero |
+            нулевая\s*серия |
+            recap
+        )\b", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.IgnorePatternWhitespace, RegexMatchTimeoutMilliseconds)]
+    private static partial Regex NonSeasonTvRegex();
+
+    [GeneratedRegex(@"[\s\.\-_()]+$", RegexOptions.None, RegexMatchTimeoutMilliseconds)]
+    private static partial Regex TrailingTitleJunkRegex();
+
+    [GeneratedRegex(@"[\u03A9\u03C9]", RegexOptions.None, RegexMatchTimeoutMilliseconds)]
+    private static partial Regex OmegaCharacterRegex();
+
+    [GeneratedRegex(@"\b(?:specials?)\b", RegexOptions.IgnoreCase, RegexMatchTimeoutMilliseconds)]
+    private static partial Regex SpecialsWordRegex();
+
+    [GeneratedRegex(@"\b(movie|film|the\s*movie)\b", RegexOptions.IgnoreCase, RegexMatchTimeoutMilliseconds)]
+    private static partial Regex MovieWordRegex();
+
+    [GeneratedRegex(@"\b(the\s*movie|movie|film)\b", RegexOptions.IgnoreCase, RegexMatchTimeoutMilliseconds)]
+    private static partial Regex MovieTitleWordRegex();
+
+    [GeneratedRegex(@"\bcode\s*[:\-]\s*", RegexOptions.IgnoreCase, RegexMatchTimeoutMilliseconds)]
+    private static partial Regex CodePrefixRegex();
+
+    [GeneratedRegex(@"[ \t\.\-]{2,}", RegexOptions.None, RegexMatchTimeoutMilliseconds)]
+    private static partial Regex RepeatedSeparatorRegex();
+
+    [GeneratedRegex(@"\s+", RegexOptions.None, RegexMatchTimeoutMilliseconds)]
+    private static partial Regex WhitespaceRegex();
 
     // ────────────────────── 3.  API ───────────────────────
     public async Task GenerateTitlesAsync(
@@ -116,18 +173,34 @@ public sealed class AniLibertyStrmGenerator(
         var list = titles as IList<ReleaseResponse> ?? titles.ToList();
         if (list.Count == 0) return;
 
-        var debugLogs = Plugin.Instance?.Configuration?.EnableDebugLogs == true;
-        var supportTrace = Plugin.Instance?.Configuration?.EnableRawSupportLogs == true;
-        var playbackDiag = Plugin.Instance?.Configuration?.EnablePlaybackDiagnostics == true;
-        var cleanupMode = Plugin.Instance?.Configuration?.StaleCleanupMode ?? StaleCleanupMode.DryRun;
+        var cfg = Plugin.Instance?.Configuration;
+        var debugLogs = cfg?.EnableDebugLogs == true;
+        var supportTrace = cfg?.EnableRawSupportLogs == true;
+        var cleanupMode = cfg?.StaleCleanupMode ?? StaleCleanupMode.DryRun;
         var manifest = await ManagedLibraryManifest.LoadAsync(basePath, token);
+        var mediaSegments = new AniLibertyMediaSegmentState(basePath);
+        var context = new GenerationContext(
+            basePath,
+            resolution,
+            BuildFallbackSeasonMap(list),
+            list,
+            cfg?.EnablePlaybackDiagnostics == true,
+            manifest,
+            mediaSegments);
 
-        // Fallback numbering by year within groups of same titles
-        // In v1, year is on release level (field "year"), not season.year
+        await GenerateTitleListAsync(list, context, progress, debugLogs, supportTrace, token);
+
+        await mediaSegments.SaveAsync(token);
+        await manifest.ApplyCleanupAsync(cleanupMode, log, token);
+        await manifest.SaveAsync(cleanupMode, token);
+    }
+
+    internal static Dictionary<int, int> BuildFallbackSeasonMap(IList<ReleaseResponse> list)
+    {
         var fallbackById = new Dictionary<int, int>();
-        foreach (var grp in list.GroupBy(GroupKey))
+        foreach (var group in list.GroupBy(GroupKey))
         {
-            var ordered = grp
+            var ordered = group
                 .OrderBy(r => r.Year > 0 ? r.Year : int.MaxValue)
                 .ThenBy(r => QuarterIndex(r.Season?.Value))
                 .ThenBy(r => r.Name?.English ?? r.Name?.Main ?? r.Alias ?? string.Empty,
@@ -139,94 +212,105 @@ public sealed class AniLibertyStrmGenerator(
                 fallbackById[ordered[i].Id] = i + 1;
         }
 
-        var total = list.Count;
-        var current = 0;
-
-        foreach (var rel0 in list)
-        {
-            token.ThrowIfCancellationRequested();
-            current++;
-
-            var display = rel0.Name?.English ?? rel0.Name?.Main ?? rel0.Alias;
-
-            // By default, do NOT spam per-title logs to avoid bloating the UI log.
-            // When Debug logs = ON, log each title; otherwise: first, every 25th, and last.
-            if (debugLogs || current == 1 || current == total || current % 25 == 0)
-            {
-                log.Info("({0}/{1}) \"{2}\"", current, total, display);
-            }
-            else if (supportTrace)
-            {
-                log.Debug("({0}/{1}) \"{2}\"", current, total, display);
-            }
-
-            // Hydration (when catalog card has no episodes)
-            var rel = rel0;
-            if (rel.Episodes is null || rel.Episodes.Count == 0)
-            {
-                try
-                {
-                    var full = await client.FetchReleaseByIdAsync(rel.Id, token);
-                    if (full?.Episodes?.Count > 0)
-                    {
-                        rel = full;
-                    }
-                    else
-                    {
-                        log.Info("Skip {0} – no episodes in detail", rel.Id);
-                        progress?.Report(current / (double)total * 100.0);
-                        continue;
-                    }
-                }
-                catch (OperationCanceledException)
-                {
-                    throw;
-                }
-                catch (Exception ex)
-                {
-                    log.Warn(ex, "Skip {0} – failed to fetch details", rel.Id);
-                    progress?.Report(current / (double)total * 100.0);
-                    continue;
-                }
-            }
-
-            var displayRaw = rel.Name?.English ?? rel.Name?.Main ?? rel.Alias ?? "";
-            if (LooksLikeMovie(rel, displayRaw))
-            {
-                await GenerateMovieAsync(rel, basePath, resolution, playbackDiag, manifest, token);
-            }
-            else
-            {
-                await GenerateStrmForTitle(rel, basePath, resolution, fallbackById, list, playbackDiag, manifest, token);
-            }
-
-            progress?.Report(current / (double)total * 100.0);
-        }
-
-        await manifest.ApplyCleanupAsync(cleanupMode, log, token);
-        await manifest.SaveAsync(cleanupMode, token);
+        return fallbackById;
     }
 
-    private static string CleanShowName(string name)
+    private async Task GenerateTitleListAsync(
+        IList<ReleaseResponse> list,
+        GenerationContext context,
+        IProgress<double>? progress,
+        bool debugLogs,
+        bool supportTrace,
+        CancellationToken token)
+    {
+        for (var index = 0; index < list.Count; index++)
+        {
+            token.ThrowIfCancellationRequested();
+            var current = index + 1;
+            var rel = list[index];
+
+            LogTitleProgress(rel, current, list.Count, debugLogs, supportTrace);
+            await GenerateReleaseAsync(rel, context, token);
+            progress?.Report(current / (double)list.Count * 100.0);
+        }
+    }
+
+    private void LogTitleProgress(
+        ReleaseResponse rel,
+        int current,
+        int total,
+        bool debugLogs,
+        bool supportTrace)
+    {
+        var display = rel.Name?.English ?? rel.Name?.Main ?? rel.Alias;
+        if (debugLogs || current == 1 || current == total || current % 25 == 0)
+        {
+            log.Info("({0}/{1}) \"{2}\"", current, total, display);
+        }
+        else if (supportTrace)
+        {
+            log.Debug("({0}/{1}) \"{2}\"", current, total, display);
+        }
+    }
+
+    private async Task GenerateReleaseAsync(ReleaseResponse rel, GenerationContext context, CancellationToken token)
+    {
+        var hydrated = await HydrateReleaseWithEpisodesAsync(rel, token);
+        if (hydrated is null)
+            return;
+
+        var displayRaw = hydrated.Name?.English ?? hydrated.Name?.Main ?? hydrated.Alias ?? "";
+        if (LooksLikeMovie(hydrated, displayRaw))
+            await GenerateMovieAsync(hydrated, context.BasePath, context.Resolution, context.PlaybackDiagnostics, context.Manifest, token);
+        else
+            await GenerateStrmForTitle(hydrated, context, token);
+    }
+
+    private async Task<ReleaseResponse?> HydrateReleaseWithEpisodesAsync(ReleaseResponse rel, CancellationToken token)
+    {
+        if (rel.Episodes is { Count: > 0 })
+            return rel;
+
+        try
+        {
+            var full = await client.FetchReleaseByIdAsync(rel.Id, token);
+            if (full?.Episodes?.Count > 0)
+                return full;
+
+            log.Info("Skip {0} – no episodes in detail", rel.Id);
+            return null;
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            log.Warn(ex, "Skip {0} – failed to fetch details", rel.Id);
+            return null;
+        }
+    }
+
+    internal static string CleanShowName(string name)
     {
         if (string.IsNullOrWhiteSpace(name)) return name;
 
         var cleaned = SuffixRules.Aggregate(name, (current, rx) => rx.Replace(current, ""));
-        cleaned = Regex.Replace(cleaned, @"[\s\.\-_()]+$", "");
-        cleaned = Regex.Replace(cleaned, @"[\u03A9\u03C9]", ""); // remove internal Ω characters
+        cleaned = TrailingTitleJunkRegex().Replace(cleaned, "");
+        cleaned = OmegaCharacterRegex().Replace(cleaned, ""); // remove internal Ω characters
         return cleaned.Trim();
     }
 
-    private static int DetectSeasonNumber(ReleaseResponse rel)
+    internal static int DetectSeasonNumber(ReleaseResponse rel)
     {
         int TryParse(string? title)
         {
             if (string.IsNullOrWhiteSpace(title)) return 0;
 
-            var m = _rxSeasonEng.Match(title);
+            var m = SeasonNumberRegex().Match(title);
             if (m.Success && int.TryParse(m.Groups[1].Value, out var n1)) return n1;
 
-            m = _rxTrailingNum.Match(title);
+            m = TrailingNumberRegex().Match(title);
             if (m.Success && int.TryParse(m.Groups[1].Value, out var n2)) return n2;
 
             return 0;
@@ -238,28 +322,28 @@ public sealed class AniLibertyStrmGenerator(
         return num;
     }
 
-    private static int QuarterIndex(string? v)
+    internal static int QuarterIndex(string? v)
     {
         return v != null && _seasonOrder.TryGetValue(v, out var k) ? k : 99;
     }
 
-    private static string GroupKey(ReleaseResponse r)
+    internal static string GroupKey(ReleaseResponse r)
     {
         var ruName = r.Name?.Main?.Trim();
         var engName = r.Name?.English?.Trim();
         var rawName = engName ?? ruName ?? r.Alias ?? $"Title_{r.Id}";
-        rawName = Regex.Replace(rawName, @"\b(?:specials?)\b", "", RegexOptions.IgnoreCase).Trim();
+        rawName = SpecialsWordRegex().Replace(rawName, "").Trim();
         return NormalizeTitleForFs(rawName).ToLowerInvariant();
     }
 
-    private static bool LooksLikeMovie(ReleaseResponse rel, string title)
+    internal static bool LooksLikeMovie(ReleaseResponse rel, string title)
     {
         // v1 has type.value (MOVIE), which is more reliable than matching title words.
         if (string.Equals(rel.Type?.Value, "MOVIE", StringComparison.OrdinalIgnoreCase))
             return true;
 
         var oneEp = (rel.Episodes?.Count ?? 0) <= 1 || rel.EpisodesTotal.GetValueOrDefault(0) <= 1;
-        var hasMovieWord = Regex.IsMatch(title, @"\b(movie|film|the\s*movie)\b", RegexOptions.IgnoreCase);
+        var hasMovieWord = MovieWordRegex().IsMatch(title);
         return oneEp && hasMovieWord;
     }
 
@@ -284,8 +368,8 @@ public sealed class AniLibertyStrmGenerator(
         var engName = rel.Name?.English?.Trim();
         var raw = engName ?? ruName ?? rel.Alias ?? $"Movie_{rel.Id}";
 
-        var title = Regex.Replace(raw, @"\b(the\s*movie|movie|film)\b", "", RegexOptions.IgnoreCase);
-        title = Regex.Replace(title, @"\bcode\s*[:\-]\s*", "Code ", RegexOptions.IgnoreCase);
+        var title = MovieTitleWordRegex().Replace(raw, "");
+        title = CodePrefixRegex().Replace(title, "Code ");
         title = NormalizeTitleForFs(title);
 
         var year = rel.Year > 0 ? rel.Year : DateTime.UtcNow.Year;
@@ -315,17 +399,11 @@ public sealed class AniLibertyStrmGenerator(
                 token);
 
         await WriteManagedTextIfChangedAsync(
+            new ManagedTextWrite(strmPath, url, null, "strm", rel.Id, ep.Id, selectedRaw, false),
             manifest,
-            strmPath,
-            url,
-            encoding: null,
-            kind: "strm",
-            releaseId: rel.Id,
-            episodeId: ep.Id,
-            source: selectedRaw,
-            respectUnmanagedExisting: false,
             token);
         await WriteEpisodeIdSidecarAsync(manifest, strmPath, ep.Id, rel.Id, token);
+        await WritePopularitySidecarAsync(rel, movieDir, manifest, token);
 
         var posterUrl = NormalizeImageUrlPreferJpg(MakeFullUrl(PickImageUrl(rel.Poster)));
         await DownloadManagedImageAsync(
@@ -351,27 +429,12 @@ public sealed class AniLibertyStrmGenerator(
 
         var nfoPath = Path.Combine(movieDir, $"{folder}.nfo");
         await WriteManagedTextIfChangedAsync(
+            new ManagedTextWrite(nfoPath, nfo, Encoding.UTF8, "movie-nfo", rel.Id, ep.Id, null, true),
             manifest,
-            nfoPath,
-            nfo,
-            Encoding.UTF8,
-            "movie-nfo",
-            rel.Id,
-            ep.Id,
-            source: null,
-            respectUnmanagedExisting: true,
             token);
     }
 
-    private async Task GenerateStrmForTitle(
-        ReleaseResponse rel,
-        string basePath,
-        string resolution,
-        Dictionary<int, int> fallbackById,
-        IList<ReleaseResponse> allList,
-        bool playbackDiag,
-        ManagedLibraryManifest manifest,
-        CancellationToken token)
+    private async Task GenerateStrmForTitle(ReleaseResponse rel, GenerationContext context, CancellationToken token)
     {
         if (rel.Episodes is null || rel.Episodes.Count == 0)
         {
@@ -379,83 +442,116 @@ public sealed class AniLibertyStrmGenerator(
             return;
         }
 
+        var title = BuildTitleInfo(rel);
+        var seasonNum = await ResolveSeasonNumberAsync(rel, title, context, token);
+        var paths = CreateSeasonPaths(context.BasePath, title.SafeName, seasonNum);
+        var posterUrl = NormalizeImageUrlPreferJpg(MakeFullUrl(PickImageUrl(rel.Poster)));
+        await DownloadManagedImageAsync(context.Manifest, posterUrl, Path.Combine(paths.ShowDir, "folder.jpg"), "show-poster", rel.Id, null, token);
+        await DownloadManagedImageAsync(context.Manifest, posterUrl, Path.Combine(paths.ShowDir, $"{paths.SeasonFolder}-poster.jpg"), "season-poster", rel.Id, null, token);
+        await WritePopularitySidecarAsync(rel, paths.ShowDir, context.Manifest, token);
+        await WriteTvShowNfoAsync(rel, title, context, paths.ShowDir, token);
+        await WriteSeasonNfoAsync(rel.Id, seasonNum, paths.SeasonDir, context.Manifest, token);
+        await GenerateEpisodesAsync(rel, title, paths, seasonNum, context, token);
+    }
+
+    private static TitleGenerationInfo BuildTitleInfo(ReleaseResponse rel)
+    {
         var ruName = rel.Name?.Main?.Trim();
         var engName = rel.Name?.English?.Trim();
         var altName = rel.Name?.Alternative?.Trim();
-
         var rawName = engName ?? ruName ?? rel.Alias ?? $"Title_{rel.Id}";
-
-        // SPECIAL/OVA/OAD should go to Season 00 even if "special" is not present in title.
-        var isSpecialsType =
-            string.Equals(rel.Type?.Value, "SPECIAL", StringComparison.OrdinalIgnoreCase) ||
-            string.Equals(rel.Type?.Value, "OVA", StringComparison.OrdinalIgnoreCase) ||
-            string.Equals(rel.Type?.Value, "OAD", StringComparison.OrdinalIgnoreCase);
-
-        var isSpecialsTitle = isSpecialsType ||
-                              Regex.IsMatch(rawName, @"\b(?:specials?)\b", RegexOptions.IgnoreCase);
+        var isSpecialsType = IsSpecialsType(rel);
+        var isSpecialsTitle = isSpecialsType || SpecialsWordRegex().IsMatch(rawName);
 
         if (!isSpecialsType && isSpecialsTitle)
-            rawName = Regex.Replace(rawName, @"\b(?:specials?)\b", "", RegexOptions.IgnoreCase).Trim();
+            rawName = SpecialsWordRegex().Replace(rawName, "").Trim();
 
-        var safeName = NormalizeTitleForFs(rawName).ToLowerInvariant();
+        return new TitleGenerationInfo(
+            ruName,
+            engName,
+            altName,
+            NormalizeTitleForFs(rawName).ToLowerInvariant(),
+            isSpecialsTitle);
+    }
 
-        // ---- season -----------------------------------------------------
-        int seasonNum;
-        var hasFranchiseSeason = false;
+    internal static bool IsSpecialsType(ReleaseResponse rel)
+    {
+        return string.Equals(rel.Type?.Value, "SPECIAL", StringComparison.OrdinalIgnoreCase) ||
+               string.Equals(rel.Type?.Value, "OVA", StringComparison.OrdinalIgnoreCase) ||
+               string.Equals(rel.Type?.Value, "OAD", StringComparison.OrdinalIgnoreCase);
+    }
 
-        if (isSpecialsTitle)
-        {
-            seasonNum = 0;
-        }
-        else
-        {
-            seasonNum = await DetectSeasonFromFranchiseAsync(rel.Id, token);
-            hasFranchiseSeason = seasonNum > 0;
+    private async Task<int> ResolveSeasonNumberAsync(
+        ReleaseResponse rel,
+        TitleGenerationInfo title,
+        GenerationContext context,
+        CancellationToken token)
+    {
+        if (title.IsSpecialsTitle)
+            return 0;
 
-            if (seasonNum <= 0)
-                seasonNum = DetectSeasonNumber(rel);
+        var franchiseSeason = await DetectSeasonFromFranchiseAsync(rel.Id, token);
+        if (franchiseSeason > 0)
+            return franchiseSeason;
 
-            if (!hasFranchiseSeason && seasonNum <= 1)
-            {
-                var key = GroupKey(rel);
-                var sameGroupCount = allList.Count(x => GroupKey(x) == key);
-                if (sameGroupCount > 1 && fallbackById.TryGetValue(rel.Id, out var nByYear))
-                    seasonNum = nByYear;
-            }
-        }
+        var detectedSeason = DetectSeasonNumber(rel);
+        if (detectedSeason > 1)
+            return detectedSeason;
 
-        // ---- directories ------------------------------------------------
+        return TryResolveFallbackSeason(rel, context, out var fallbackSeason)
+            ? fallbackSeason
+            : detectedSeason;
+    }
+
+    private static bool TryResolveFallbackSeason(
+        ReleaseResponse rel,
+        GenerationContext context,
+        out int seasonNum)
+    {
+        seasonNum = 0;
+        var key = GroupKey(rel);
+        var sameGroupCount = context.AllTitles.Count(x => GroupKey(x) == key);
+        return sameGroupCount > 1 && context.FallbackById.TryGetValue(rel.Id, out seasonNum);
+    }
+
+    private static SeasonPaths CreateSeasonPaths(string basePath, string safeName, int seasonNum)
+    {
         var showDir = Path.Combine(basePath, safeName);
         Directory.CreateDirectory(showDir);
 
         var seasonFolder = $"Season {seasonNum:00}";
         var seasonDir = Path.Combine(showDir, seasonFolder);
         Directory.CreateDirectory(seasonDir);
+        return new SeasonPaths(showDir, seasonFolder, seasonDir);
+    }
 
-        // ---- poster ----------------------------------------------------
-        var posterUrl = NormalizeImageUrlPreferJpg(MakeFullUrl(PickImageUrl(rel.Poster)));
-        await DownloadManagedImageAsync(manifest, posterUrl, Path.Combine(showDir, "folder.jpg"), "show-poster", rel.Id, null, token);
-        await DownloadManagedImageAsync(manifest, posterUrl, Path.Combine(showDir, $"{seasonFolder}-poster.jpg"), "season-poster", rel.Id, null, token);
-
-        // ---- tvshow.nfo ------------------------------------------------
+    private static async Task WriteTvShowNfoAsync(
+        ReleaseResponse rel,
+        TitleGenerationInfo title,
+        GenerationContext context,
+        string showDir,
+        CancellationToken token)
+    {
         var tvshowNfo = Path.Combine(showDir, "tvshow.nfo");
-        {
-            var displayTitle = ruName ?? engName ?? safeName;
-            var originalTitle = altName ?? engName ?? displayTitle;
-            var sortTitle = engName ?? ruName ?? displayTitle;
-            var plot = MakeSafeXml(rel.Description?.Trim() ?? string.Empty);
+        var xml = BuildTvShowNfo(rel, title, context.AllTitles);
+        await WriteManagedTextIfChangedAsync(
+            new ManagedTextWrite(tvshowNfo, xml, Encoding.UTF8, "tvshow-nfo", rel.Id, null, null, true),
+            context.Manifest,
+            token);
+    }
 
-            // tvshow.nfo should include year, but showDir is shared across all seasons.
-            // Use the minimum year across the group (if any).
-            var gk = GroupKey(rel);
-            var showYear = allList
-                .Where(x => GroupKey(x) == gk)
-                .Select(x => x.Year)
-                .Where(y => y > 0)
-                .DefaultIfEmpty(0)
-                .Min();
+    private static string BuildTvShowNfo(
+        ReleaseResponse rel,
+        TitleGenerationInfo title,
+        IList<ReleaseResponse> allTitles)
+    {
+        var displayTitle = title.RuName ?? title.EngName ?? title.SafeName;
+        var originalTitle = title.AltName ?? title.EngName ?? displayTitle;
+        var sortTitle = title.EngName ?? title.RuName ?? displayTitle;
+        var plot = MakeSafeXml(rel.Description?.Trim() ?? string.Empty);
+        var showYear = FindShowYear(rel, allTitles);
 
-            var xml = AddGeneratedXmlMarker($@"<?xml version=""1.0"" encoding=""utf-8"" standalone=""yes""?>
+        return AddGeneratedXmlMarker($@"<?xml version=""1.0"" encoding=""utf-8"" standalone=""yes""?>
 <tvshow>
   <title>{MakeSafeXml(displayTitle)}</title>
   {(originalTitle != displayTitle ? $"  <originaltitle>{MakeSafeXml(originalTitle)}</originaltitle>" : string.Empty)}
@@ -464,242 +560,234 @@ public sealed class AniLibertyStrmGenerator(
   {(plot.Length > 0 ? $"  <plot>{plot}</plot><outline>{plot}</outline>" : string.Empty)}
   <lockdata>false</lockdata>
 </tvshow>");
-            await WriteManagedTextIfChangedAsync(
-                manifest,
-                tvshowNfo,
-                xml,
-                Encoding.UTF8,
-                "tvshow-nfo",
-                rel.Id,
-                episodeId: null,
-                source: null,
-                respectUnmanagedExisting: true,
-                token);
-        }
+    }
 
-        // ---- season.nfo -----------------------------------------------
-        var seasonNfo = Path.Combine(seasonDir, "season.nfo");
-        {
-            var seasonXml = AddGeneratedXmlMarker($@"<?xml version=""1.0"" encoding=""utf-8"" standalone=""yes""?>
+    private static int FindShowYear(ReleaseResponse rel, IList<ReleaseResponse> allTitles)
+    {
+        var groupKey = GroupKey(rel);
+        return allTitles
+            .Where(x => GroupKey(x) == groupKey)
+            .Select(x => x.Year)
+            .Where(y => y > 0)
+            .DefaultIfEmpty(0)
+            .Min();
+    }
+
+    private static async Task WriteSeasonNfoAsync(
+        int releaseId,
+        int seasonNum,
+        string seasonDir,
+        ManagedLibraryManifest manifest,
+        CancellationToken token)
+    {
+        var seasonXml = AddGeneratedXmlMarker($@"<?xml version=""1.0"" encoding=""utf-8"" standalone=""yes""?>
 <season>
   <title>Season {seasonNum}</title>
   <seasonnumber>{seasonNum}</seasonnumber>
   <lockdata>false</lockdata>
 </season>");
-            await WriteManagedTextIfChangedAsync(
-                manifest,
-                seasonNfo,
-                seasonXml,
+        await WriteManagedTextIfChangedAsync(
+            new ManagedTextWrite(Path.Combine(seasonDir, "season.nfo"), seasonXml, Encoding.UTF8, "season-nfo", releaseId, null, null, true),
+            manifest,
+            token);
+    }
+
+    private static async Task WritePopularitySidecarAsync(
+        ReleaseResponse rel,
+        string itemRootDir,
+        ManagedLibraryManifest manifest,
+        CancellationToken token)
+    {
+        var document = AniLibertyPopularityDocument.FromRelease(rel);
+        if (!document.HasAnyPopularityCount())
+            return;
+
+        var json = JsonSerializer.Serialize(document, PopularityJsonOptions);
+        await WriteManagedTextIfChangedAsync(
+            new ManagedTextWrite(
+                Path.Combine(itemRootDir, AniLibertyPopularityDocument.FileName),
+                json,
                 Encoding.UTF8,
-                "season-nfo",
+                "popularity-json",
                 rel.Id,
-                episodeId: null,
-                source: null,
-                respectUnmanagedExisting: true,
-                token);
-        }
+                null,
+                AniLibertyPopularityDocument.SourceName,
+                true),
+            manifest,
+            token);
+    }
 
-        var autoNumber = 1; // fallback sequential episode number
-        var usedEpisodeNumbers = new HashSet<int>();
-        var useSortOrderFileNumbers = ShouldUseSortOrderFileNumbers(rel.Episodes);
-
-        foreach (var ep in rel.Episodes)
+    private async Task GenerateEpisodesAsync(
+        ReleaseResponse rel,
+        TitleGenerationInfo title,
+        SeasonPaths paths,
+        int seasonNum,
+        GenerationContext context,
+        CancellationToken token)
+    {
+        var numberState = new EpisodeNumberState(rel.Episodes!);
+        var episodeContext = new EpisodeGenerationContext(rel, title, paths, seasonNum, context);
+        foreach (var ep in rel.Episodes!)
         {
             token.ThrowIfCancellationRequested();
+            await GenerateEpisodeAsync(ep, episodeContext, numberState, token);
+        }
+    }
 
-            var episodeId = ResolveEpisodeIdentity(ep, ref autoNumber, usedEpisodeNumbers, useSortOrderFileNumbers);
-            var epNum = episodeId.FileEpisodeNumber;
-            var strmFile = $"S{seasonNum:00}E{epNum:00}.strm";
-            var strmPath = Path.Combine(seasonDir, strmFile);
-            var selectedRaw = ChooseHls(ep, resolution) ?? string.Empty;
-            var url = MakePlaybackUrl(selectedRaw);
-            if (string.IsNullOrWhiteSpace(url))
-            {
-                if (playbackDiag)
-                    log.Warn(
-                        "[PLAYBACK-DIAG] TV relId={0} alias={1} S{2:00}E{3:00}: no HLS URL selected; hls1080=\"{4}\" hls720=\"{5}\" hls480=\"{6}\"",
-                        rel.Id, rel.Alias, seasonNum, epNum,
-                        TrimForLog(ep.Hls1080), TrimForLog(ep.Hls720), TrimForLog(ep.Hls480));
-                continue;
-            }
+    private async Task GenerateEpisodeAsync(
+        EpisodeItem ep,
+        EpisodeGenerationContext episodeContext,
+        EpisodeNumberState numberState,
+        CancellationToken token)
+    {
+        var episodeId = numberState.Resolve(ep);
+        var epNum = episodeId.FileEpisodeNumber;
+        var strmPath = Path.Combine(episodeContext.Paths.SeasonDir, $"S{episodeContext.SeasonNumber:00}E{epNum:00}.strm");
+        var selectedRaw = ChooseHls(ep, episodeContext.Generation.Resolution) ?? string.Empty;
+        var url = MakePlaybackUrl(selectedRaw);
 
-            if (playbackDiag)
-                await LogPlaybackDiagnosticsAsync(
-                    $"TV relId={rel.Id} alias={rel.Alias} S{seasonNum:00}E{epNum:00}",
-                    ep,
-                    resolution,
-                    selectedRaw,
-                    url,
-                    strmPath,
-                    token);
+        if (string.IsNullOrWhiteSpace(url))
+        {
+            LogMissingHls(episodeContext.Release, ep, episodeContext.SeasonNumber, epNum, episodeContext.Generation.PlaybackDiagnostics);
+            return;
+        }
 
-            await WriteManagedTextIfChangedAsync(
-                manifest,
-                strmPath,
-                url,
-                encoding: null,
-                kind: "strm",
-                releaseId: rel.Id,
-                episodeId: ep.Id,
-                source: selectedRaw,
-                respectUnmanagedExisting: false,
-                token);
-            await WriteEpisodeIdSidecarAsync(manifest, strmPath, ep.Id, rel.Id, token);
+        await LogTvPlaybackDiagnosticsAsync(ep, epNum, selectedRaw, url, strmPath, episodeContext, token);
+        await WriteManagedTextIfChangedAsync(
+            new ManagedTextWrite(strmPath, url, null, "strm", episodeContext.Release.Id, ep.Id, selectedRaw, false),
+            episodeContext.Generation.Manifest,
+            token);
+        await WriteEpisodeIdSidecarAsync(episodeContext.Generation.Manifest, strmPath, ep.Id, episodeContext.Release.Id, token);
+        await WriteEpisodePreviewAsync(episodeContext.Release.Id, ep, episodeContext.Paths.SeasonDir, episodeContext.SeasonNumber, epNum, episodeContext.Generation.Manifest, token);
+        TrackMediaSegments(episodeContext.Release.Id, ep, strmPath, episodeContext.Generation.MediaSegments);
+        await WriteEpisodeNfoAsync(ep, strmPath, epNum, episodeId, episodeContext, token);
+    }
 
-            // preview image (v1: preview.preview / preview.thumbnail)
-            var epPreviewUrlRaw = MakeFullUrl(PickImageUrl(ep.Preview));
-            var epPreviewUrl = NormalizeImageUrlPreferJpg(epPreviewUrlRaw);
+    private void LogMissingHls(ReleaseResponse rel, EpisodeItem ep, int seasonNum, int epNum, bool playbackDiagnostics)
+    {
+        if (!playbackDiagnostics)
+            return;
 
-            if (!string.IsNullOrWhiteSpace(epPreviewUrl))
-            {
-                // IMPORTANT: URL often contains query (?x=..), and Path.GetExtension() returns ".jpg?..."
-                var ext = GetSafeImageExtensionFromUrl(epPreviewUrl);
-                var thumbPath = Path.Combine(seasonDir, $"S{seasonNum:00}E{epNum:00}-thumb{ext}");
-                await DownloadManagedImageAsync(manifest, epPreviewUrl, thumbPath, "episode-thumb", rel.Id, ep.Id, token);
-            }
+        log.Warn(
+            "[PLAYBACK-DIAG] TV relId={0} alias={1} S{2:00}E{3:00}: no HLS URL selected; hls1080=\"{4}\" hls720=\"{5}\" hls480=\"{6}\"",
+            rel.Id, rel.Alias, seasonNum, epNum,
+            TrimForLog(ep.Hls1080), TrimForLog(ep.Hls720), TrimForLog(ep.Hls480));
+    }
 
-            // ───── Skip-Intro / Credits ─────
-            var segments = new List<(int start, int stop, string name)>
-                {
-                    (ep.Opening?.Start ?? -1, ep.Opening?.Stop ?? -1, "Intro"),
-                    (ep.Ending?.Start ?? -1, ep.Ending?.Stop ?? -1, "Credits")
-                }.Where(s => s.start >= 0 && s.stop > s.start)
-                .ToList();
+    private async Task LogTvPlaybackDiagnosticsAsync(
+        EpisodeItem ep,
+        int epNum,
+        string selectedRaw,
+        string url,
+        string strmPath,
+        EpisodeGenerationContext episodeContext,
+        CancellationToken token)
+    {
+        if (!episodeContext.Generation.PlaybackDiagnostics)
+            return;
 
-            if (segments.Count > 0)
-            {
-                var edlPath = Path.ChangeExtension(strmPath, ".edl");
-                var edlContent = string.Join(
-                    Environment.NewLine,
-                    segments.Select(s => $"{s.start} {s.stop} 0"));
-                await WriteManagedTextIfChangedAsync(
-                    manifest,
-                    edlPath,
-                    edlContent,
-                    Encoding.UTF8,
-                    "edl",
-                    rel.Id,
-                    ep.Id,
-                    source: null,
-                    respectUnmanagedExisting: false,
-                    token);
+        await LogPlaybackDiagnosticsAsync(
+            $"TV relId={episodeContext.Release.Id} alias={episodeContext.Release.Alias} S{episodeContext.SeasonNumber:00}E{epNum:00}",
+            ep,
+            episodeContext.Generation.Resolution,
+            selectedRaw,
+            url,
+            strmPath,
+            token);
+    }
 
-                var chXml = Path.ChangeExtension(strmPath, ".chapters.xml");
-                var sb = new StringBuilder();
-                sb.AppendLine(@"<?xml version=""1.0"" encoding=""utf-8""?>");
-                sb.AppendLine("<chapters>");
-                foreach (var (start, _, name) in segments)
-                {
-                    sb.AppendLine("  <chapter>");
-                    sb.AppendLine($"    <name>{name}</name>");
-                    sb.AppendLine($"    <time>{TimeSpan.FromSeconds(start):hh\\:mm\\:ss\\.fff}</time>");
-                    sb.AppendLine("  </chapter>");
-                }
+    private async Task WriteEpisodePreviewAsync(
+        int releaseId,
+        EpisodeItem ep,
+        string seasonDir,
+        int seasonNum,
+        int epNum,
+        ManagedLibraryManifest manifest,
+        CancellationToken token)
+    {
+        var epPreviewUrlRaw = MakeFullUrl(PickImageUrl(ep.Preview));
+        var epPreviewUrl = NormalizeImageUrlPreferJpg(epPreviewUrlRaw);
+        if (string.IsNullOrWhiteSpace(epPreviewUrl))
+            return;
 
-                sb.AppendLine("</chapters>");
-                await WriteManagedTextIfChangedAsync(
-                    manifest,
-                    chXml,
-                    sb.ToString(),
-                    Encoding.UTF8,
-                    "chapters",
-                    rel.Id,
-                    ep.Id,
-                    source: null,
-                    respectUnmanagedExisting: false,
-                    token);
+        var ext = GetSafeImageExtensionFromUrl(epPreviewUrl);
+        var thumbPath = Path.Combine(seasonDir, $"S{seasonNum:00}E{epNum:00}-thumb{ext}");
+        await DownloadManagedImageAsync(manifest, epPreviewUrl, thumbPath, "episode-thumb", releaseId, ep.Id, token);
+    }
 
-                var runtimeSec = ep.Duration > 0
-                    ? ep.Duration
-                    : await GetHlsDurationAsync(url, token);
+    private static void TrackMediaSegments(
+        int releaseId,
+        EpisodeItem ep,
+        string strmPath,
+        AniLibertyMediaSegmentState mediaSegments)
+    {
+        var segments = BuildMediaSegments(ep);
+        if (segments.Length == 0)
+            return;
 
-                // Outside Jellyfin (tests), library/chapters are null -> skip chapter updates.
-                if (runtimeSec > segments.Max(s => s.stop) + 1 &&
-                    library is not null &&
-                    chapters is not null)
-                {
-                    try
-                    {
-                        if (library.FindByPath(strmPath, false) is Video item)
-                        {
-                            var chapters1 = segments.Select(s => new ChapterInfo
-                            {
-                                Name = s.name,
-                                StartPositionTicks = TimeSpan.FromSeconds(s.start).Ticks
-                            }).ToArray();
+        mediaSegments.Track(strmPath, releaseId, ep.Id, segments);
+    }
 
-#if JF_10_10
-                            chapters.SaveChapters(item.Id, chapters1);
-#else
-                            var existing = chapters.GetChapters(item.Id);
-                            var same = existing.Count >= chapters1.Length &&
-                                       existing.Take(chapters1.Length)
-                                           .Select((c, i) =>
-                                               c.StartPositionTicks == chapters1[i].StartPositionTicks)
-                                           .All(b => b);
+    internal static AniLibertyMediaSegment[] BuildMediaSegments(EpisodeItem ep)
+    {
+        var result = new List<AniLibertyMediaSegment>(2);
+        AddMediaSegment(result, "Intro", ep.Opening);
+        AddMediaSegment(result, "Outro", ep.Ending);
+        return result.ToArray();
+    }
 
-                            if (!same)
-                                chapters.SaveChapters(item, chapters1);
-#endif
-                        }
-                    }
-                    catch (OperationCanceledException)
-                    {
-                        throw;
-                    }
-                    catch (Exception ex)
-                    {
-                        log.Warn(ex, "Unable to save chapters for {0}", strmPath);
-                    }
-                }
-            }
+    private static void AddMediaSegment(List<AniLibertyMediaSegment> result, string type, OpeningBlock? block)
+    {
+        var start = block?.Start ?? -1;
+        var stop = block?.Stop ?? -1;
+        if (start < 0 || stop <= start)
+            return;
 
-            // episode.nfo -------------------------------------------------
-            // v1 has name/name_english + duration, but no episode plot/description.
-            var nfoPath = Path.ChangeExtension(strmPath, ".nfo");
-            {
-                var showTitle = ruName ?? engName ?? safeName;
+        result.Add(new AniLibertyMediaSegment
+        {
+            Type = type,
+            StartTicks = TimeSpan.FromSeconds(start).Ticks,
+            EndTicks = TimeSpan.FromSeconds(stop).Ticks
+        });
+    }
 
-                var epTitleRu = !string.IsNullOrWhiteSpace(ep.Name)
-                    ? ep.Name.Trim()
-                    : $"Episode {episodeId.DisplayEpisodeNumber}";
+    private static async Task WriteEpisodeNfoAsync(
+        EpisodeItem ep,
+        string strmPath,
+        int epNum,
+        EpisodeIdentity episodeId,
+        EpisodeGenerationContext episodeContext,
+        CancellationToken token)
+    {
+        var nfoPath = Path.ChangeExtension(strmPath, ".nfo");
+        var showTitle = episodeContext.Title.RuName ?? episodeContext.Title.EngName ?? episodeContext.Title.SafeName;
+        var epTitleRu = !string.IsNullOrWhiteSpace(ep.Name)
+            ? ep.Name.Trim()
+            : $"Episode {episodeId.DisplayEpisodeNumber}";
+        var epTitleEn = !string.IsNullOrWhiteSpace(ep.NameEnglish) ? ep.NameEnglish.Trim() : string.Empty;
+        var runtimeMin = ep.Duration > 0
+            ? (int)Math.Round(ep.Duration / 60.0, MidpointRounding.AwayFromZero)
+            : 0;
 
-                var epTitleEn = !string.IsNullOrWhiteSpace(ep.NameEnglish)
-                    ? ep.NameEnglish.Trim()
-                    : string.Empty;
-
-                var runtimeMin = ep.Duration > 0
-                    ? (int)Math.Round(ep.Duration / 60.0, MidpointRounding.AwayFromZero)
-                    : 0;
-
-                var xml = AddGeneratedXmlMarker($@"<?xml version=""1.0"" encoding=""utf-8"" standalone=""yes""?>
+        var xml = AddGeneratedXmlMarker($@"<?xml version=""1.0"" encoding=""utf-8"" standalone=""yes""?>
 <episodedetails>
   <title>{MakeSafeXml(epTitleRu)}</title>
   {(epTitleEn.Length > 0 && !string.Equals(epTitleEn, epTitleRu, StringComparison.OrdinalIgnoreCase)
       ? $"  <originaltitle>{MakeSafeXml(epTitleEn)}</originaltitle>"
       : string.Empty)}
   {(Guid.TryParse(ep.Id, out _) ? $"  <uniqueid type=\"aniliberty_episode_id\" default=\"false\">{MakeSafeXml(ep.Id)}</uniqueid>" : string.Empty)}
-  {(rel.Year > 0 ? $"  <year>{rel.Year}</year>" : string.Empty)}
+  {(episodeContext.Release.Year > 0 ? $"  <year>{episodeContext.Release.Year}</year>" : string.Empty)}
   {(runtimeMin > 0 ? $"  <runtime>{runtimeMin}</runtime>" : string.Empty)}
   <showtitle>{MakeSafeXml(showTitle)}</showtitle>
   <episode>{epNum}</episode>
   {(episodeId.ShouldWriteDisplayEpisode ? $"  <displayepisode>{MakeSafeXml(episodeId.DisplayEpisodeNumber)}</displayepisode>" : string.Empty)}
-  <season>{seasonNum}</season>
+  <season>{episodeContext.SeasonNumber}</season>
   <lockdata>false</lockdata>
 </episodedetails>");
-                await WriteManagedTextIfChangedAsync(
-                    manifest,
-                    nfoPath,
-                    xml,
-                    Encoding.UTF8,
-                    "episode-nfo",
-                    rel.Id,
-                    ep.Id,
-                    source: null,
-                    respectUnmanagedExisting: true,
-                    token);
-            }
-        }
+        await WriteManagedTextIfChangedAsync(
+            new ManagedTextWrite(nfoPath, xml, Encoding.UTF8, "episode-nfo", episodeContext.Release.Id, ep.Id, null, true),
+            episodeContext.Generation.Manifest,
+            token);
     }
 
     // ─────────────────────── franchises -> season number ─────────────────────
@@ -715,7 +803,7 @@ public sealed class AniLibertyStrmGenerator(
         return ComputeSeasonFromFranchises(frList, releaseId);
     }
 
-    private static bool IsRegularTvSeason(FranchiseReleaseLink link)
+    internal static bool IsRegularTvSeason(FranchiseReleaseLink link)
     {
         if (!string.Equals(link.Release?.Type?.Value, "TV", StringComparison.OrdinalIgnoreCase))
             return false;
@@ -725,10 +813,10 @@ public sealed class AniLibertyStrmGenerator(
         var alt = link.Release?.Name?.Alternative ?? string.Empty;
         var text = $"{en} {ru} {alt}";
 
-        return !_rxNonSeasonTv.IsMatch(text);
+        return !NonSeasonTvRegex().IsMatch(text);
     }
 
-    private static int ComputeSeasonFromFranchises(List<FranchiseInfo>? list, int releaseId)
+    internal static int ComputeSeasonFromFranchises(List<FranchiseInfo>? list, int releaseId)
     {
         if (list is null || list.Count == 0) return 0;
 
@@ -738,9 +826,9 @@ public sealed class AniLibertyStrmGenerator(
 
         var best = candidates
             .OrderByDescending(f => f.FranchiseReleases?.Count ?? 0)
-            .FirstOrDefault();
+            .First();
 
-        if (best?.FranchiseReleases == null || best.FranchiseReleases.Count == 0)
+        if (best.FranchiseReleases == null || best.FranchiseReleases.Count == 0)
             return 0;
 
         var seasons = best.FranchiseReleases
@@ -915,35 +1003,28 @@ public sealed class AniLibertyStrmGenerator(
             await File.WriteAllTextAsync(path, content, encoding, ct);
     }
 
-    private static bool TextMatches(string existing, string content)
+    internal static bool TextMatches(string existing, string content)
     {
         return NormalizeTextForCompare(existing) == NormalizeTextForCompare(content);
     }
 
     private static async Task WriteManagedTextIfChangedAsync(
+        ManagedTextWrite write,
         ManagedLibraryManifest manifest,
-        string path,
-        string content,
-        Encoding? encoding,
-        string kind,
-        int releaseId,
-        string? episodeId,
-        string? source,
-        bool respectUnmanagedExisting,
         CancellationToken ct)
     {
-        if (respectUnmanagedExisting && File.Exists(path) && !manifest.IsManaged(path))
+        if (write.RespectUnmanagedExisting && File.Exists(write.Path) && !manifest.IsManaged(write.Path))
         {
-            var existing = await File.ReadAllTextAsync(path, ct);
+            var existing = await File.ReadAllTextAsync(write.Path, ct);
             if (!ManagedLibraryManifest.HasGeneratedXmlMarker(existing))
                 return;
         }
 
-        await WriteTextIfChangedAsync(path, content, encoding, ct);
-        manifest.TrackText(path, kind, content, encoding, releaseId, episodeId, source);
+        await WriteTextIfChangedAsync(write.Path, write.Content, write.Encoding, ct);
+        manifest.TrackText(write.Path, write.Kind, write.Content, write.Encoding, write.ReleaseId, write.EpisodeId, write.Source);
     }
 
-    private static string AddGeneratedXmlMarker(string xml)
+    internal static string AddGeneratedXmlMarker(string xml)
     {
         const string marker = "<!-- generated-by AniLibertyStrmPlugin -->";
         if (xml.Contains(marker, StringComparison.Ordinal))
@@ -957,15 +1038,70 @@ public sealed class AniLibertyStrmGenerator(
         return xml.Insert(insertAt, Environment.NewLine + marker);
     }
 
-    private static string NormalizeTextForCompare(string text)
+    internal static string NormalizeTextForCompare(string text)
     {
         return text.Replace("\r\n", "\n").TrimEnd('\n', '\r');
     }
+
+    private readonly record struct GenerationContext(
+        string BasePath,
+        string Resolution,
+        IReadOnlyDictionary<int, int> FallbackById,
+        IList<ReleaseResponse> AllTitles,
+        bool PlaybackDiagnostics,
+        ManagedLibraryManifest Manifest,
+        AniLibertyMediaSegmentState MediaSegments);
+
+    private readonly record struct TitleGenerationInfo(
+        string? RuName,
+        string? EngName,
+        string? AltName,
+        string SafeName,
+        bool IsSpecialsTitle);
+
+    private readonly record struct SeasonPaths(
+        string ShowDir,
+        string SeasonFolder,
+        string SeasonDir);
+
+    private readonly record struct EpisodeGenerationContext(
+        ReleaseResponse Release,
+        TitleGenerationInfo Title,
+        SeasonPaths Paths,
+        int SeasonNumber,
+        GenerationContext Generation);
+
+    private readonly record struct ManagedTextWrite(
+        string Path,
+        string Content,
+        Encoding? Encoding,
+        string Kind,
+        int ReleaseId,
+        string? EpisodeId,
+        string? Source,
+        bool RespectUnmanagedExisting);
 
     private readonly record struct EpisodeIdentity(
         int FileEpisodeNumber,
         string DisplayEpisodeNumber,
         bool ShouldWriteDisplayEpisode);
+
+    private sealed class EpisodeNumberState
+    {
+        private readonly HashSet<int> _usedEpisodeNumbers = new();
+        private readonly bool _useSortOrderFileNumbers;
+        private int _autoNumber = 1;
+
+        public EpisodeNumberState(IReadOnlyCollection<EpisodeItem> episodes)
+        {
+            _useSortOrderFileNumbers = ShouldUseSortOrderFileNumbers(episodes);
+        }
+
+        public EpisodeIdentity Resolve(EpisodeItem ep)
+        {
+            return ResolveEpisodeIdentity(ep, ref _autoNumber, _usedEpisodeNumbers, _useSortOrderFileNumbers);
+        }
+    }
 
     private static string TrimForLog(string? text, int max = 220)
     {
@@ -974,6 +1110,7 @@ public sealed class AniLibertyStrmGenerator(
         return t.Length <= max ? t : t[..max] + "…";
     }
 
+    [ExcludeFromCodeCoverage(Justification = "Diagnostic-only network probe; generation behavior is covered without live HLS calls.")]
     private async Task LogPlaybackDiagnosticsAsync(
         string context,
         EpisodeItem ep,
@@ -1026,7 +1163,8 @@ public sealed class AniLibertyStrmGenerator(
         log.Info("[PLAYBACK-DIAG] HLS probe: {0}; {1}", TrimForLog(normalizedUrl, 320), probe);
     }
 
-    private async Task<string> ProbeHlsPlaylistAsync(string url, CancellationToken ct)
+    [ExcludeFromCodeCoverage(Justification = "Diagnostic-only network probe; not deterministic in unit tests.")]
+    private static async Task<string> ProbeHlsPlaylistAsync(string url, CancellationToken ct)
     {
         if (string.IsNullOrWhiteSpace(url)) return "empty-url";
         if (_hlsProbeCache.TryGetValue(url, out var cached)) return cached;
@@ -1064,7 +1202,7 @@ public sealed class AniLibertyStrmGenerator(
         return summary;
     }
 
-    private static string PickImageUrl(ImageBlock? img)
+    internal static string PickImageUrl(ImageBlock? img)
     {
         if (img is null) return string.Empty;
 
@@ -1082,7 +1220,7 @@ public sealed class AniLibertyStrmGenerator(
         );
     }
 
-    private static string NormalizeImageUrlPreferJpg(string url)
+    internal static string NormalizeImageUrlPreferJpg(string url)
     {
         if (string.IsNullOrWhiteSpace(url)) return url;
 
@@ -1110,7 +1248,7 @@ public sealed class AniLibertyStrmGenerator(
             : url;
     }
 
-    private static string GetSafeImageExtensionFromUrl(string url)
+    internal static string GetSafeImageExtensionFromUrl(string url)
     {
         if (string.IsNullOrWhiteSpace(url)) return ".jpg";
 
@@ -1137,6 +1275,7 @@ public sealed class AniLibertyStrmGenerator(
         return ext2 is ".jpg" or ".jpeg" or ".png" ? ext2 : ".jpg";
     }
 
+    [ExcludeFromCodeCoverage(Justification = "Integration boundary: downloads remote poster/thumbnail assets.")]
     private async Task DownloadManagedImageAsync(
         ManagedLibraryManifest manifest,
         string url,
@@ -1155,28 +1294,10 @@ public sealed class AniLibertyStrmGenerator(
 
         try
         {
-            using var resp = await _mediaHttp.GetAsync(url, ct);
-            if (!resp.IsSuccessStatusCode)
+            var bytes = await DownloadImageBytesAsync(url, ct);
+            if (bytes is null)
             {
-                if (exists)
-                    manifest.TrackExisting(path, kind, releaseId, episodeId, url);
-                return;
-            }
-
-            var bytes = await resp.Content.ReadAsByteArrayAsync(ct);
-            if (bytes.Length < 4)
-            {
-                if (exists)
-                    manifest.TrackExisting(path, kind, releaseId, episodeId, url);
-                return;
-            }
-
-            var isJpg = bytes[0] == 0xFF && bytes[1] == 0xD8;
-            var isPng = bytes[0] == 0x89 && bytes[1] == 0x50 && bytes[2] == 0x4E && bytes[3] == 0x47;
-            if (!isJpg && !isPng)
-            {
-                if (exists)
-                    manifest.TrackExisting(path, kind, releaseId, episodeId, url);
+                TrackExistingImage(manifest, exists, path, kind, releaseId, episodeId, url);
                 return;
             }
 
@@ -1191,12 +1312,47 @@ public sealed class AniLibertyStrmGenerator(
         }
         catch (Exception ex)
         {
-            if (exists)
-                manifest.TrackExisting(path, kind, releaseId, episodeId, url);
+            TrackExistingImage(manifest, exists, path, kind, releaseId, episodeId, url);
             log.Warn(ex, "Download image failed: {0}", url);
         }
     }
 
+    [ExcludeFromCodeCoverage(Justification = "Integration boundary: downloads remote poster/thumbnail assets.")]
+    private static async Task<byte[]?> DownloadImageBytesAsync(string url, CancellationToken ct)
+    {
+        using var resp = await _mediaHttp.GetAsync(url, ct);
+        if (!resp.IsSuccessStatusCode)
+            return null;
+
+        var bytes = await resp.Content.ReadAsByteArrayAsync(ct);
+        return IsSupportedImage(bytes) ? bytes : null;
+    }
+
+    internal static bool IsSupportedImage(byte[] bytes)
+    {
+        if (bytes.Length < 4)
+            return false;
+
+        var isJpg = bytes[0] == 0xFF && bytes[1] == 0xD8;
+        var isPng = bytes[0] == 0x89 && bytes[1] == 0x50 && bytes[2] == 0x4E && bytes[3] == 0x47;
+        return isJpg || isPng;
+    }
+
+    [ExcludeFromCodeCoverage(Justification = "Fallback path for remote image download failures.")]
+    private static void TrackExistingImage(
+        ManagedLibraryManifest manifest,
+        bool exists,
+        string path,
+        string kind,
+        int releaseId,
+        string? episodeId,
+        string url)
+    {
+        if (exists)
+            manifest.TrackExisting(path, kind, releaseId, episodeId, url);
+    }
+
+    [ExcludeFromCodeCoverage(Justification = "File byte comparison fallback for remote image cache writes.")]
     private static bool BytesMatch(string path, byte[] bytes)
     {
         try
@@ -1210,13 +1366,13 @@ public sealed class AniLibertyStrmGenerator(
         }
     }
 
-    private static string? ChooseHls(EpisodeItem ep, string pref)
+    internal static string? ChooseHls(EpisodeItem ep, string pref)
     {
         return pref switch
         {
             "1080" => ep.Hls1080 ?? ep.Hls720 ?? ep.Hls480,
-            "720"  => ep.Hls720 ?? ep.Hls1080 ?? ep.Hls480,
-            _      => ep.Hls480 ?? ep.Hls720 ?? ep.Hls1080
+            "720" => ep.Hls720 ?? ep.Hls1080 ?? ep.Hls480,
+            _ => ep.Hls480 ?? ep.Hls720 ?? ep.Hls1080
         };
     }
 
@@ -1240,24 +1396,59 @@ public sealed class AniLibertyStrmGenerator(
         try
         {
             var configuredBaseUrl = Plugin.Instance?.Configuration?.JellyfinPlaybackProxyBaseUrl?.Trim();
-            var baseUrl = configuredBaseUrl;
-            if (string.IsNullOrWhiteSpace(baseUrl))
-            {
-                var preferredIp = networkManager.GetInternalBindAddresses()
-                    .Select(x => x.Address)
-                    .FirstOrDefault(ip => ip is not null &&
-                                          !IPAddress.IsLoopback(ip) &&
-                                          ip.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork)
-                    ?? networkManager.GetInternalBindAddresses()
-                        .Select(x => x.Address)
-                        .FirstOrDefault(ip => ip is not null && !IPAddress.IsLoopback(ip));
+            var publishedBaseUrl = GetPublishedServerBaseUrl();
+            var isContainer = IsRunningInContainer();
 
-                if (preferredIp is not null)
-                    baseUrl = serverHost.GetApiUrlForLocalAccess(preferredIp, serverHost.ListenWithHttps);
+            if (!string.IsNullOrWhiteSpace(configuredBaseUrl) &&
+                !TryNormalizePlaybackProxyBaseUrl(configuredBaseUrl, out _))
+            {
+                LogOnce(
+                    ref _invalidConfiguredProxyUrlWarningLogged,
+                    "Jellyfin Playback Proxy Base URL '{0}' is not a valid HTTP(S) base URL and will be ignored.",
+                    configuredBaseUrl);
             }
 
+            if (!string.IsNullOrWhiteSpace(publishedBaseUrl) &&
+                !TryNormalizePlaybackProxyBaseUrl(publishedBaseUrl, out _))
+            {
+                LogOnce(
+                    ref _invalidPublishedProxyUrlWarningLogged,
+                    "{0} value '{1}' is not a valid HTTP(S) base URL and will be ignored.",
+                    PublishedServerUrlEnvironmentVariable,
+                    publishedBaseUrl);
+            }
+
+            var localBaseUrl = isContainer ? string.Empty : TryGetLocalPlaybackProxyBaseUrl();
+            var baseUrl = ResolvePlaybackProxyBaseUrl(
+                configuredBaseUrl,
+                publishedBaseUrl,
+                isContainer,
+                localBaseUrl);
+
             if (string.IsNullOrWhiteSpace(baseUrl))
+            {
+                if (isContainer)
+                {
+                    LogOnce(
+                        ref _containerProxyFallbackWarningLogged,
+                        "Container detected, but no client-reachable Jellyfin playback proxy URL is configured. " +
+                        "Generated STRM files will use direct AniLiberty HLS URLs instead of an internal container address. " +
+                        "Set Jellyfin Playback Proxy Base URL or {0}, then regenerate the library to enable the proxy.",
+                        PublishedServerUrlEnvironmentVariable);
+                }
+
                 return string.Empty;
+            }
+
+            if (string.IsNullOrWhiteSpace(configuredBaseUrl) &&
+                TryNormalizePlaybackProxyBaseUrl(publishedBaseUrl, out var normalizedPublishedBaseUrl) &&
+                string.Equals(baseUrl, normalizedPublishedBaseUrl, StringComparison.OrdinalIgnoreCase))
+            {
+                LogInfoOnce(
+                    ref _publishedProxyUrlLogged,
+                    "Using {0} for generated Jellyfin playback proxy URLs.",
+                    PublishedServerUrlEnvironmentVariable);
+            }
 
             var route = serverHost.ReverseVirtualPath(PlaybackProxyHelper.ProxyRoute);
             if (string.IsNullOrWhiteSpace(route))
@@ -1272,7 +1463,103 @@ public sealed class AniLibertyStrmGenerator(
         }
     }
 
-    private static string MakeFullUrl(string url)
+    private string TryGetLocalPlaybackProxyBaseUrl()
+    {
+        var bindAddresses = networkManager.GetInternalBindAddresses();
+        var preferredIp = bindAddresses
+            .Select(x => x.Address)
+            .FirstOrDefault(ip => ip is not null &&
+                                  !IPAddress.IsLoopback(ip) &&
+                                  ip.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork)
+            ?? bindAddresses
+                .Select(x => x.Address)
+                .FirstOrDefault(ip => ip is not null && !IPAddress.IsLoopback(ip));
+
+        return preferredIp is null
+            ? string.Empty
+            : serverHost.GetApiUrlForLocalAccess(preferredIp, serverHost.ListenWithHttps);
+    }
+
+    private static string? GetPublishedServerBaseUrl()
+    {
+        var publishedBaseUrl = Environment.GetEnvironmentVariable(PublishedServerUrlEnvironmentVariable);
+        return string.IsNullOrWhiteSpace(publishedBaseUrl)
+            ? Environment.GetEnvironmentVariable(UppercasePublishedServerUrlEnvironmentVariable)
+            : publishedBaseUrl;
+    }
+
+    private static bool IsRunningInContainer()
+    {
+        return IsContainerEnvironment(
+            Environment.GetEnvironmentVariable(DotnetRunningInContainerEnvironmentVariable),
+            File.Exists("/.dockerenv"),
+            File.Exists("/run/.containerenv"),
+            Environment.GetEnvironmentVariable("KUBERNETES_SERVICE_HOST"));
+    }
+
+    internal static bool IsContainerEnvironment(
+        string? dotnetRunningInContainer,
+        bool hasDockerEnvironmentFile,
+        bool hasContainerEnvironmentFile,
+        string? kubernetesServiceHost)
+    {
+        return string.Equals(dotnetRunningInContainer, "true", StringComparison.OrdinalIgnoreCase) ||
+               string.Equals(dotnetRunningInContainer, "1", StringComparison.Ordinal) ||
+               hasDockerEnvironmentFile ||
+               hasContainerEnvironmentFile ||
+               !string.IsNullOrWhiteSpace(kubernetesServiceHost);
+    }
+
+    internal static string ResolvePlaybackProxyBaseUrl(
+        string? configuredBaseUrl,
+        string? publishedBaseUrl,
+        bool isContainer,
+        string? localBaseUrl)
+    {
+        if (TryNormalizePlaybackProxyBaseUrl(configuredBaseUrl, out var normalizedConfiguredBaseUrl))
+            return normalizedConfiguredBaseUrl;
+
+        if (TryNormalizePlaybackProxyBaseUrl(publishedBaseUrl, out var normalizedPublishedBaseUrl))
+            return normalizedPublishedBaseUrl;
+
+        if (isContainer)
+            return string.Empty;
+
+        return TryNormalizePlaybackProxyBaseUrl(localBaseUrl, out var normalizedLocalBaseUrl)
+            ? normalizedLocalBaseUrl
+            : string.Empty;
+    }
+
+    internal static bool TryNormalizePlaybackProxyBaseUrl(string? candidate, out string normalizedBaseUrl)
+    {
+        normalizedBaseUrl = string.Empty;
+        if (string.IsNullOrWhiteSpace(candidate) ||
+            !Uri.TryCreate(candidate.Trim(), UriKind.Absolute, out var uri) ||
+            (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps) ||
+            string.IsNullOrWhiteSpace(uri.Host) ||
+            !string.IsNullOrEmpty(uri.Query) ||
+            !string.IsNullOrEmpty(uri.Fragment))
+        {
+            return false;
+        }
+
+        normalizedBaseUrl = candidate.Trim().TrimEnd('/');
+        return true;
+    }
+
+    private void LogOnce(ref int marker, string format, params object?[] args)
+    {
+        if (Interlocked.Exchange(ref marker, 1) == 0)
+            log.Warn(format, args);
+    }
+
+    private void LogInfoOnce(ref int marker, string format, params object?[] args)
+    {
+        if (Interlocked.Exchange(ref marker, 1) == 0)
+            log.Info(format, args);
+    }
+
+    internal static string MakeFullUrl(string url)
     {
         if (string.IsNullOrWhiteSpace(url)) return url;
 
@@ -1282,12 +1569,12 @@ public sealed class AniLibertyStrmGenerator(
         if (url.StartsWith("//", StringComparison.Ordinal))
             return "https:" + url;
 
-        return url.StartsWith("/", StringComparison.Ordinal)
+        return url.StartsWith('/')
             ? "https://api.anilibria.app" + url
             : "https://api.anilibria.app/" + url;
     }
 
-    private static string MakeSafe(string s)
+    internal static string MakeSafe(string s)
     {
         if (string.IsNullOrEmpty(s)) return string.Empty;
 
@@ -1313,63 +1600,24 @@ public sealed class AniLibertyStrmGenerator(
             sb.Append(Array.IndexOf(invalid, ch) >= 0 ? ' ' : ch);
         }
 
-        var tmp = Regex.Replace(sb.ToString(), @"[ \t\.\-]{2,}", " ").Trim();
+        var tmp = RepeatedSeparatorRegex().Replace(sb.ToString(), " ").Trim();
         return tmp;
     }
 
-    private static string NormalizeTitleForFs(string s)
+    internal static string NormalizeTitleForFs(string s)
     {
         if (string.IsNullOrWhiteSpace(s)) return string.Empty;
 
         s = s.Replace('×', 'x').Replace('Ｘ', 'x');
         s = s.Replace("-", " ").Replace("–", " ").Replace("—", " ");
         s = s.Replace("Ω", "").Replace("ω", "");
-        s = Regex.Replace(s, @"\s+", " ").Trim();
+        s = WhitespaceRegex().Replace(s, " ").Trim();
         return MakeSafe(CleanShowName(s));
     }
 
-    private static string MakeSafeXml(string? text)
+    internal static string MakeSafeXml(string? text)
     {
         return SecurityElement.Escape(text) ?? string.Empty;
     }
 
-    private async Task<double> GetHlsDurationAsync(string url, CancellationToken ct)
-    {
-        if (_hlsDurationCache.TryGetValue(url, out var cached))
-            return cached;
-
-        try
-        {
-            var playlist = await _hlsHttp.GetStringAsync(url, ct);
-
-            double sum = 0;
-            foreach (var line in playlist.Split('\n', StringSplitOptions.RemoveEmptyEntries))
-            {
-                if (!line.StartsWith("#EXTINF:", StringComparison.Ordinal)) continue;
-                var segTxt = line["#EXTINF:".Length..];
-                var comma = segTxt.IndexOf(',');
-                if (comma >= 0) segTxt = segTxt[..comma];
-                if (double.TryParse(segTxt, NumberStyles.Float, CultureInfo.InvariantCulture, out var seg))
-                    sum += seg;
-            }
-
-            _hlsDurationCache[url] = sum;
-            return sum;
-        }
-        catch (OperationCanceledException)
-        {
-            throw;
-        }
-        catch (HttpRequestException ex) when ((int?)ex.StatusCode == 429)
-        {
-            _hlsDurationCache[url] = 0;
-            return 0;
-        }
-        catch (Exception ex)
-        {
-            log.Warn(ex, "GetHlsDuration failed: {0}", url);
-            _hlsDurationCache[url] = 0;
-            return 0;
-        }
-    }
 }

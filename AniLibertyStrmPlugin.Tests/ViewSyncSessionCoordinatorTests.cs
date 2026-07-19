@@ -10,6 +10,21 @@ namespace AniLibertyStrmPlugin.Tests;
 public class ViewSyncSessionCoordinatorTests
 {
     [Fact]
+    public async Task Dispose_CancelsShutdownTokenAndDisposesCreatedGates()
+    {
+        var coordinator = new ViewSyncSessionCoordinator();
+
+        Assert.True(await coordinator.TrySendAsync(
+            "episode|session",
+            10,
+            5,
+            isStopEvent: false,
+            _ => Task.FromResult(true)));
+
+        coordinator.Dispose();
+    }
+
+    [Fact]
     public async Task TrySendAsync_SerializesConcurrentSendsPerSession()
     {
         var coordinator = new ViewSyncSessionCoordinator();

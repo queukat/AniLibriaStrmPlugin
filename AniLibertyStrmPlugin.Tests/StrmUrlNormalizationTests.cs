@@ -26,8 +26,6 @@ public class StrmUrlNormalizationTests
                 NullLogger<AniLibertyStrmGenerator>.Instance,
                 serverHost: null!,
                 networkManager: null!,
-                library: null!,
-                chapters: null!,
                 client: new StubClient());
 
             var release = new ReleaseResponse

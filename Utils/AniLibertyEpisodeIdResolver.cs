@@ -2,12 +2,15 @@ using System.Text.RegularExpressions;
 
 namespace AniLibertyStrmPlugin.Utils;
 
-internal static class AniLibertyEpisodeIdResolver
+internal static partial class AniLibertyEpisodeIdResolver
 {
     private const string SidecarExt = ".aniid";
-    private static readonly Regex UniqueIdRx = new(
+
+    [GeneratedRegex(
         @"<uniqueid[^>]*aniliberty_episode_id[^>]*>\s*(?<id>[^<\s]+)\s*</uniqueid>",
-        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Compiled);
+        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant,
+        1000)]
+    private static partial Regex UniqueIdRegex();
 
     public static string GetSidecarPath(string strmPath)
         => Path.ChangeExtension(strmPath, SidecarExt);
@@ -35,7 +38,7 @@ internal static class AniLibertyEpisodeIdResolver
             return false;
 
         var nfo = File.ReadAllText(nfoPath);
-        var m = UniqueIdRx.Match(nfo);
+        var m = UniqueIdRegex().Match(nfo);
         if (!m.Success)
             return false;
 

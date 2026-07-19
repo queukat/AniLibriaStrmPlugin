@@ -43,6 +43,33 @@ public class ManagedMirrorTests
     }
 
     [Fact]
+    public async Task GenerateTitles_DoesNotOverwriteExistingUnmarkedPopularitySidecar()
+    {
+        var outDir = NewTempDir();
+        try
+        {
+            var showDir = Path.Combine(outDir, "demo show");
+            Directory.CreateDirectory(showDir);
+            var sidecar = Path.Combine(showDir, AniLibertyPopularityDocument.FileName);
+            const string customContent = "{\"source\":\"custom\",\"favorites\":999}";
+            await File.WriteAllTextAsync(sidecar, customContent);
+
+            await NewGenerator().GenerateTitlesAsync(
+                new[] { BuildRelease() },
+                outDir,
+                "1080",
+                progress: null,
+                token: CancellationToken.None);
+
+            Assert.Equal(customContent, await File.ReadAllTextAsync(sidecar));
+        }
+        finally
+        {
+            DeleteTempDir(outDir);
+        }
+    }
+
+    [Fact]
     public async Task GenerateTitles_DoesNotOverwriteExistingUnmarkedEpisodeAndSeasonNfo()
     {
         var outDir = NewTempDir();
@@ -125,6 +152,7 @@ public class ManagedMirrorTests
             var files = document.RootElement.GetProperty("files").EnumerateArray().ToList();
             Assert.Contains(files, x => HasEntry(x, "demo show/Season 01/S01E01.strm", "strm"));
             Assert.Contains(files, x => HasEntry(x, "demo show/Season 01/S01E01.aniid", "aniid"));
+            Assert.Contains(files, x => HasEntry(x, "demo show/aniliberty-popularity.json", "popularity-json"));
             Assert.Contains(files, x => HasEntry(x, "demo show/tvshow.nfo", "tvshow-nfo"));
             Assert.Contains(files, x => HasEntry(x, "demo show/Season 01/season.nfo", "season-nfo"));
             Assert.Contains(files, x => HasEntry(x, "demo show/Season 01/S01E01.nfo", "episode-nfo"));
@@ -275,14 +303,12 @@ public class ManagedMirrorTests
         }
     }
 
-    private static IAniLibertyStrmGenerator NewGenerator()
+    private static AniLibertyStrmGenerator NewGenerator()
     {
         return new AniLibertyStrmGenerator(
             NullLogger<AniLibertyStrmGenerator>.Instance,
             serverHost: null!,
             networkManager: null!,
-            library: null!,
-            chapters: null!,
             client: new StubClient());
     }
 
@@ -296,6 +322,12 @@ public class ManagedMirrorTests
             Type = new ReleaseType { Value = "TV" },
             Year = 2025,
             Description = description,
+            AddedInUsersFavorites = 1234,
+            AddedInPlannedCollection = 100,
+            AddedInWatchedCollection = 200,
+            AddedInWatchingCollection = 300,
+            AddedInPostponedCollection = 400,
+            AddedInAbandonedCollection = 500,
             Episodes =
             [
                 new EpisodeItem

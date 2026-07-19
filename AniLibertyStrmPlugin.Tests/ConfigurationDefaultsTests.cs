@@ -17,6 +17,9 @@ public class ConfigurationDefaultsTests
         Assert.Empty(config.LastRawTaskLog);
         Assert.False(config.EnableRawSupportLogs);
         Assert.Equal(20000, config.LastRawLogMaxLines);
+        Assert.True(config.EnableAniLibertyPopularityBadge);
+        Assert.True(config.EnableAniLibertyAuthNotifications);
+        Assert.Equal(DateTime.MinValue, config.LastAniLibertyAuthExpiredNotificationUtc);
     }
 
     [Fact]

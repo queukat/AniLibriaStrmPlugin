@@ -23,7 +23,7 @@ namespace AniLibertyStrmPlugin.Tests
         private static AniLibertyClient NewClient()
         {
             var http = new HttpClient { Timeout = TimeSpan.FromSeconds(15) };
-            var log  = NullLogger<AniLibertyClient>.Instance;
+            var log = NullLogger<AniLibertyClient>.Instance;
             return new AniLibertyClient(http, log);
         }
 
@@ -52,7 +52,7 @@ namespace AniLibertyStrmPlugin.Tests
             if (list.Count == 0) return;   // API may be temporarily empty; still OK
 
             var first = list[0];
-            var raw   = await client.GetStringWithLoggingAsync(
+            var raw = await client.GetStringWithLoggingAsync(
                 $"{ApiBase}/anime/releases/{first.Id}",
                 CancellationToken.None);
 

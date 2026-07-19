@@ -9,17 +9,21 @@ namespace AniLibertyStrmPlugin.Tasks;
 public sealed class AniLibertyFavoritesTask(
     IAniLibertyClient client,
     IAniLibertyStrmGenerator gen,
-    ILogger<AniLibertyFavoritesTask> log
+    ILogger<AniLibertyFavoritesTask> log,
+    IAniLibertyAuthNotificationService? authNotifications = null
 ) : IScheduledTask
 {
+    private readonly bool _isHidden = false;
     private readonly IAniLibertyClient _client = client;
     private readonly IAniLibertyStrmGenerator _gen = gen;
     private readonly ILogger<AniLibertyFavoritesTask> _log = log;
+    private readonly IAniLibertyAuthNotificationService _authNotifications =
+        authNotifications ?? NullAniLibertyAuthNotificationService.Instance;
 
-    public bool IsHidden => false;
+    public bool IsHidden => _isHidden;
     public string Name => "Generate AniLiberty STRM (Favorites Only)";
     public string Category => "AniLiberty";
-    public string Description => "Fetches AniLiberty favorites and generates .strm + .edl + .nfo.";
+    public string Description => "Fetches AniLiberty favorites and generates .strm + .nfo plus Jellyfin skip timings.";
     public string Key => "AniLibertyStrmFavoritesOnly";
 
     public IEnumerable<TaskTriggerInfo> GetDefaultTriggers()
@@ -27,7 +31,7 @@ public sealed class AniLibertyFavoritesTask(
         return Array.Empty<TaskTriggerInfo>();
     }
 
-    public async Task ExecuteAsync(IProgress<double> progress, CancellationToken token)
+    public async Task ExecuteAsync(IProgress<double> progress, CancellationToken cancellationToken)
     {
         var plugin = Plugin.Instance ?? throw new InvalidOperationException("Plugin instance is not initialized.");
         var cfg = plugin.Configuration;
@@ -60,7 +64,7 @@ public sealed class AniLibertyFavoritesTask(
                 cfg.StrmFavoritesPath,
                 "Favorites STRM Path",
                 _log,
-                token);
+                cancellationToken);
 
             _log.Info("Fetching favourites pageSize={0}, maxPages={1} …",
                 cfg.FavoritesPageSize, cfg.FavoritesMaxPages);
@@ -69,7 +73,7 @@ public sealed class AniLibertyFavoritesTask(
                 cfg.AniLibertyToken,
                 cfg.FavoritesPageSize,
                 cfg.FavoritesMaxPages,
-                token);
+                cancellationToken);
 
             _log.Info("Total favourites fetched: {0}", titles.Count);
 
@@ -78,13 +82,19 @@ public sealed class AniLibertyFavoritesTask(
                 cfg.StrmFavoritesPath,
                 cfg.PreferredResolution,
                 progress,
-                token);
+                cancellationToken);
 
             FavoritesCache.Update(titles.Select(t => t.Id));
         }
         catch (OperationCanceledException)
         {
             _log.Warn("AniLibertyFavoritesTask canceled.");
+            throw;
+        }
+        catch (AniLibertyAuthExpiredException ex)
+        {
+            _log.Warn(ex, "AniLiberty authorization expired while fetching favorites.");
+            await _authNotifications.NotifyAuthExpiredAsync("Favorites catalogue update", ex, cancellationToken);
             throw;
         }
         catch (Exception ex)

@@ -36,6 +36,9 @@ jobs:
       - name: Restore locked packages
         run: dotnet restore AniLibertyStrmPlugin.sln --locked-mode
 
+      - name: Verify formatting and analyzers
+        run: dotnet format AniLibertyStrmPlugin.sln --verify-no-changes --no-restore
+
       - name: Verify Jellyfin package pins
         shell: bash
         run: |

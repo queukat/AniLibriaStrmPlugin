@@ -13,10 +13,15 @@ public sealed class AniLibertyViewsPullTask(
     ILibraryManager library,
     IUserDataManager userDataManager,
     IUserManager userManager,
-    ILogger<AniLibertyViewsPullTask> log
+    ILogger<AniLibertyViewsPullTask> log,
+    IAniLibertyAuthNotificationService? authNotifications = null
 ) : IScheduledTask
 {
-    public bool IsHidden => false;
+    private readonly bool _isHidden = false;
+    private readonly IAniLibertyAuthNotificationService _authNotifications =
+        authNotifications ?? NullAniLibertyAuthNotificationService.Instance;
+
+    public bool IsHidden => _isHidden;
     public string Name => "Sync AniLiberty watch progress to Jellyfin";
     public string Category => "AniLiberty";
     public string Description => "Pulls AniLiberty view timecodes and imports them into Jellyfin user progress.";
@@ -25,7 +30,7 @@ public sealed class AniLibertyViewsPullTask(
     public IEnumerable<TaskTriggerInfo> GetDefaultTriggers()
         => Array.Empty<TaskTriggerInfo>();
 
-    public async Task ExecuteAsync(IProgress<double> progress, CancellationToken token)
+    public async Task ExecuteAsync(IProgress<double> progress, CancellationToken cancellationToken)
     {
         var plugin = Plugin.Instance ?? throw new InvalidOperationException("Plugin instance is not initialized.");
         var cfg = plugin.Configuration;
@@ -46,7 +51,7 @@ public sealed class AniLibertyViewsPullTask(
                 return;
             }
 
-            var remote = await client.FetchViewTimecodesAsync(cfg.AniLibertyToken, since: null, token);
+            var remote = await client.FetchViewTimecodesAsync(cfg.AniLibertyToken, since: null, cancellationToken);
             if (remote.Count == 0)
             {
                 log.Info("No remote timecodes returned.");
@@ -63,7 +68,7 @@ public sealed class AniLibertyViewsPullTask(
 
             for (var i = 0; i < remote.Count; i++)
             {
-                token.ThrowIfCancellationRequested();
+                cancellationToken.ThrowIfCancellationRequested();
                 var row = remote[i];
 
                 if (!map.TryGetValue(row.ReleaseEpisodeId, out var candidatePaths))
@@ -89,14 +94,14 @@ public sealed class AniLibertyViewsPullTask(
                     continue;
                 }
 
-                if (!ApplyTimecode(row, userData, item))
+                if (!ApplyTimecode(row, userData))
                 {
                     unchanged++;
                     progress.Report((i + 1) / (double)remote.Count * 100.0);
                     continue;
                 }
 
-                userDataManager.SaveUserData(user, item, userData, UserDataSaveReason.Import, token);
+                userDataManager.SaveUserData(user, item, userData, UserDataSaveReason.Import, cancellationToken);
                 applied++;
 
                 progress.Report((i + 1) / (double)remote.Count * 100.0);
@@ -111,6 +116,12 @@ public sealed class AniLibertyViewsPullTask(
             log.Warn("AniLibertyViewsPullTask canceled.");
             throw;
         }
+        catch (AniLibertyAuthExpiredException ex)
+        {
+            log.Warn(ex, "AniLiberty authorization expired while pulling view timecodes.");
+            await _authNotifications.NotifyAuthExpiredAsync("Watch-progress pull sync", ex, cancellationToken);
+            throw;
+        }
         catch (Exception ex)
         {
             log.Err(ex, "AniLibertyViewsPullTask failed");
@@ -123,7 +134,7 @@ public sealed class AniLibertyViewsPullTask(
         }
     }
 
-    private static bool ApplyTimecode(ViewTimecodeEntry row, UserItemData userData, BaseItem item)
+    internal static bool ApplyTimecode(ViewTimecodeEntry row, UserItemData userData)
     {
         var changed = false;
 

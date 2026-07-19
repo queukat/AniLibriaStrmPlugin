@@ -14,6 +14,7 @@ namespace AniLibertyStrmPlugin;
 /// </summary>
 public sealed class Plugin : BasePlugin<PluginConfiguration>, IHasWebPages
 {
+    private readonly ImageFormat _thumbImageFormat = ImageFormat.Png;
     private readonly object _logSync = new();
 
     public Plugin(IApplicationPaths paths, IXmlSerializer xml)
@@ -27,7 +28,7 @@ public sealed class Plugin : BasePlugin<PluginConfiguration>, IHasWebPages
     public override string Name => PluginIdentity.DisplayName;
     public override Guid Id => Guid.Parse("cce0798d-c8b7-4265-b08c-dc9e7bd3fc0f");
 
-    public ImageFormat ThumbImageFormat => ImageFormat.Png;
+    public ImageFormat ThumbImageFormat => _thumbImageFormat;
 
     public IEnumerable<PluginPageInfo> GetPages()
     {

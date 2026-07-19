@@ -1,6 +1,9 @@
 ﻿using System.Net;
+using AniLibertyStrmPlugin.Media;
 using AniLibertyStrmPlugin.Tasks;
+using AniLibertyStrmPlugin.Web;
 using MediaBrowser.Controller;
+using MediaBrowser.Controller.MediaSegments;
 using MediaBrowser.Controller.Plugins;
 using MediaBrowser.Model.Tasks;
 using Microsoft.Extensions.Hosting;
@@ -13,9 +16,10 @@ namespace AniLibertyStrmPlugin;
 /// <summary>DI wiring for Jellyfin 10.11.</summary>
 public class AniLibertyServiceRegistrator : IPluginServiceRegistrator
 {
-    void IPluginServiceRegistrator.RegisterServices(IServiceCollection services, IServerApplicationHost _)
+    void IPluginServiceRegistrator.RegisterServices(IServiceCollection serviceCollection, IServerApplicationHost applicationHost)
     {
-        Register(services);
+        _ = applicationHost;
+        Register(serviceCollection);
     }
 
     private static void Register(IServiceCollection services)
@@ -48,11 +52,15 @@ public class AniLibertyServiceRegistrator : IPluginServiceRegistrator
         });
 
         /* ---- singletons / tasks ---- */
+        services.AddSingleton<IAniLibertyAuthNotificationService, AniLibertyAuthNotificationService>();
         services.AddSingleton<IAniLibertyStrmGenerator, AniLibertyStrmGenerator>();
+        services.AddSingleton<IMediaSegmentProvider, AniLibertyMediaSegmentProvider>();
         services.AddSingleton<IScheduledTask, AniLibertyAllTask>();
         services.AddSingleton<IScheduledTask, AniLibertyFavoritesTask>();
         services.AddSingleton<IScheduledTask, AniLibertyViewsPullTask>();
         services.AddSingleton<IHostedService, AniLibertyViewSyncHostedService>();
+        services.AddSingleton<IHostedService, AniLibertyMediaSegmentWarmupHostedService>();
+        services.AddSingleton<IHostedService, AniLibertyPopularityBadgeHostedService>();
     }
 }
 

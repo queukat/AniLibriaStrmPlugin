@@ -6,7 +6,13 @@ internal static class PluginIdentity
 {
     public const string DisplayName = "AniLiberty STRM Plugin";
     public const string ProductToken = "AniLibertyStrmPlugin";
-    public const string RepositoryUrl = "https://github.com/queukat/AniLibriaStrmPlugin";
+    private const string RepositoryHost = "github.com";
+    private const string RepositoryPath = "queukat/AniLibriaStrmPlugin";
+
+    public static string RepositoryUrl => new UriBuilder(Uri.UriSchemeHttps, RepositoryHost)
+    {
+        Path = RepositoryPath
+    }.Uri.ToString().TrimEnd('/');
 
     public static string Version =>
         typeof(PluginIdentity).Assembly

@@ -447,6 +447,15 @@
                             AniLiberty CDN URLs directly to the TV client.
                         </div>
 
+                        <label class="checkboxContainer stack-top-lg">
+                            <input id="EnableAniLibertyPopularityBadge" is="emby-checkbox" type="checkbox">
+                            <span>Show AniLiberty popularity badge in Jellyfin Web</span>
+                        </label>
+                        <div class="fieldDescription">
+                            Shows the AniLiberty icon plus the favorites count on item detail pages. The plugin patches
+                            Jellyfin Web index.html automatically and restores its marker block when disabled.
+                        </div>
+
                         <div class="inputContainer field-width-wide stack-top-sm">
                             <label for="JellyfinPlaybackProxyBaseUrl">Proxy base URL override:</label>
                             <input id="JellyfinPlaybackProxyBaseUrl"
@@ -454,10 +463,11 @@
                                    type="text"
                                    placeholder="http://192.168.100.6:8096">
                             <div class="fieldDescription">
-                                Optional. Usually empty. Set only when another playback device needs a specific Jellyfin
-                                LAN or reverse-proxy address, for example http://192.168.1.10:8096. Use the base Jellyfin
-                                URL only; do not add /AniLibertyPlayback/hls. Do not use localhost for phones, TVs, or
-                                Docker host ports.
+                                Optional on native installs. In Docker or another container, set a Jellyfin LAN or
+                                reverse-proxy address reachable by playback clients, or define JELLYFIN_PublishedServerUrl.
+                                Without either value, the plugin safely writes direct AniLiberty HLS URLs instead of a
+                                container-only bridge address. Use the base Jellyfin URL only; do not add /AniLibertyPlayback/hls.
+                                Do not use localhost for phones, TVs, or other playback devices.
                             </div>
                         </div>
 
@@ -519,6 +529,14 @@
                 <div class="note-block section-help">
                     Two flows: <b>Login + Password</b> (immediate JWT) and <b>OTP</b> (device + code).
                     Successful responses store <code>AniLibertyToken</code> and <code>DeviceId</code>. OTP codes are shown only for the current flow.
+                </div>
+
+                <label class="checkboxContainer stack-top-md">
+                    <input id="EnableAniLibertyAuthNotifications" is="emby-checkbox" type="checkbox">
+                    <span>Notify when AniLiberty authorization expires</span>
+                </label>
+                <div class="fieldDescription">
+                    Creates a Jellyfin activity notification when AniLiberty returns HTTP 401 or 403 for stored-token requests.
                 </div>
 
                 <div class="auth-grid">
@@ -680,6 +698,8 @@
                 $("EnablePlaybackDiagnostics").checked = cfg.EnablePlaybackDiagnostics ?? false;
                 $("StaleCleanupMode").value = cfg.StaleCleanupMode || "DryRun";
                 $("UseJellyfinPlaybackProxy").checked = cfg.UseJellyfinPlaybackProxy ?? true;
+                $("EnableAniLibertyPopularityBadge").checked = cfg.EnableAniLibertyPopularityBadge ?? true;
+                $("EnableAniLibertyAuthNotifications").checked = cfg.EnableAniLibertyAuthNotifications ?? true;
                 $("JellyfinPlaybackProxyBaseUrl").value = cfg.JellyfinPlaybackProxyBaseUrl || "";
                 $("EnableAniLibertyViewSync").checked = cfg.EnableAniLibertyViewSync ?? false;
                 $("AniLibertyViewSyncMinDeltaSeconds").value = cfg.AniLibertyViewSyncMinDeltaSeconds ?? 30;
@@ -745,6 +765,8 @@
                 cfg.EnablePlaybackDiagnostics = $("EnablePlaybackDiagnostics").checked;
                 cfg.StaleCleanupMode = $("StaleCleanupMode").value;
                 cfg.UseJellyfinPlaybackProxy = $("UseJellyfinPlaybackProxy").checked;
+                cfg.EnableAniLibertyPopularityBadge = $("EnableAniLibertyPopularityBadge").checked;
+                cfg.EnableAniLibertyAuthNotifications = $("EnableAniLibertyAuthNotifications").checked;
                 cfg.JellyfinPlaybackProxyBaseUrl = $("JellyfinPlaybackProxyBaseUrl").value.trim();
                 cfg.EnableAniLibertyViewSync = $("EnableAniLibertyViewSync").checked;
                 cfg.AniLibertyViewSyncMinDeltaSeconds = +$("AniLibertyViewSyncMinDeltaSeconds").value || 30;
@@ -1027,6 +1049,8 @@
                 "EnablePlaybackDiagnostics: " + String(cfg.EnablePlaybackDiagnostics ?? false),
                 "StaleCleanupMode: " + String(cfg.StaleCleanupMode ?? ""),
                 "UseJellyfinPlaybackProxy: " + String(cfg.UseJellyfinPlaybackProxy ?? false),
+                "EnableAniLibertyPopularityBadge: " + String(cfg.EnableAniLibertyPopularityBadge ?? true),
+                "EnableAniLibertyAuthNotifications: " + String(cfg.EnableAniLibertyAuthNotifications ?? true),
                 "JellyfinPlaybackProxyBaseUrl: " + (cfg.JellyfinPlaybackProxyBaseUrl || "(empty)"),
                 "EnableAniLibertyViewSync: " + String(cfg.EnableAniLibertyViewSync ?? false),
                 "AniLibertyViewSyncMinDeltaSeconds: " + String(cfg.AniLibertyViewSyncMinDeltaSeconds ?? ""),

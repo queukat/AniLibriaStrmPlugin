@@ -5,6 +5,8 @@ namespace AniLibertyStrmPlugin.Utils;
 
 internal static class LogHelper
 {
+    private const string MessageTemplate = "{Message}";
+
     private static string WithLevel(string level, string msg)
         => $"[{level}] {msg}";
 
@@ -12,8 +14,6 @@ internal static class LogHelper
     {
         try
         {
-            // In normal plugin runtime Instance is available;
-            // in tests it can be null, so we just exit.
             var plugin = Plugin.Instance;
             if (plugin is null)
                 return;
@@ -53,7 +53,7 @@ internal static class LogHelper
         if (log is null) return;
 
         var msg = string.Format(fmt, args);
-        log.LogInformation(msg);
+        log.LogInformation(MessageTemplate, msg);
         AppendTaskLogSafe(LogLevel.Information, "INFO", msg);
     }
 
@@ -62,7 +62,7 @@ internal static class LogHelper
         if (log is null) return;
 
         var msg = string.Format(fmt, args);
-        log.LogWarning(msg);
+        log.LogWarning(MessageTemplate, msg);
         AppendTaskLogSafe(LogLevel.Warning, "WARN", msg);
     }
 
@@ -71,7 +71,7 @@ internal static class LogHelper
         if (log is null) return;
 
         var msg = string.Format(fmt, args);
-        log.LogWarning(ex, msg);
+        log.LogWarning(ex, MessageTemplate, msg);
         AppendTaskLogSafe(LogLevel.Warning, "WARN", msg, ex);
         AppendRawExceptionDetailSafe(msg, ex);
     }
@@ -81,7 +81,7 @@ internal static class LogHelper
         if (log is null) return;
 
         var msg = string.Format(fmt, args);
-        log.LogError(ex, msg);
+        log.LogError(ex, MessageTemplate, msg);
         AppendTaskLogSafe(LogLevel.Error, "ERROR", msg, ex);
         AppendRawExceptionDetailSafe(msg, ex);
     }
@@ -98,7 +98,7 @@ internal static class LogHelper
         var msg = string.Format(fmt, args);
 
         if (log.IsEnabled(LogLevel.Debug))
-            log.LogDebug(msg);
+            log.LogDebug(MessageTemplate, msg);
 
         AppendTaskLogSafe(LogLevel.Debug, "DBG", msg);
     }

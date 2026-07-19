@@ -4,6 +4,7 @@ using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 using AniLibertyStrmPlugin.Models;
+using AniLibertyStrmPlugin.Utils;
 using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 
@@ -49,7 +50,7 @@ public class StrmRewriteBehaviorTests
     }
 
     [Fact]
-    public async Task GenerateTitles_RewritesExistingSkipFilesWhenMarkersChange()
+    public async Task GenerateTitles_RewritesExistingMediaSegmentStateWhenMarkersChange()
     {
         var outDir = Path.Combine(Path.GetTempPath(), "alib-skip-rewrite-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(outDir);
@@ -80,19 +81,29 @@ public class StrmRewriteBehaviorTests
                 progress: null,
                 token: CancellationToken.None);
 
-            var edlFiles = Directory.GetFiles(outDir, "*.edl", SearchOption.AllDirectories);
-            var chaptersFiles = Directory.GetFiles(outDir, "*.chapters.xml", SearchOption.AllDirectories);
+            var strmPath = Assert.Single(Directory.GetFiles(outDir, "*.strm", SearchOption.AllDirectories));
+            var entry = await AniLibertyMediaSegmentState.TryReadEntryForPathAsync(strmPath, CancellationToken.None);
 
-            Assert.Single(edlFiles);
-            Assert.Single(chaptersFiles);
+            Assert.NotNull(entry);
+            Assert.Equal("11111111-1111-1111-1111-111111111111", entry!.ReleaseEpisodeId);
+            Assert.Equal(123, entry.ReleaseId);
+            Assert.Collection(
+                entry.Segments,
+                segment =>
+                {
+                    Assert.Equal("Intro", segment.Type);
+                    Assert.Equal(TimeSpan.FromSeconds(20).Ticks, segment.StartTicks);
+                    Assert.Equal(TimeSpan.FromSeconds(40).Ticks, segment.EndTicks);
+                },
+                segment =>
+                {
+                    Assert.Equal("Outro", segment.Type);
+                    Assert.Equal(TimeSpan.FromSeconds(41).Ticks, segment.StartTicks);
+                    Assert.Equal(TimeSpan.FromSeconds(55).Ticks, segment.EndTicks);
+                });
 
-            var edl = Normalize(await File.ReadAllTextAsync(edlFiles[0]));
-            var chapters = Normalize(await File.ReadAllTextAsync(chaptersFiles[0]));
-
-            Assert.Equal("20 40 0\n41 55 0", edl);
-            Assert.DoesNotContain("00:00:10.000", chapters);
-            Assert.Contains("00:00:20.000", chapters);
-            Assert.Contains("00:00:41.000", chapters);
+            Assert.Empty(Directory.GetFiles(outDir, "*.edl", SearchOption.AllDirectories));
+            Assert.Empty(Directory.GetFiles(outDir, "*.chapters.xml", SearchOption.AllDirectories));
         }
         finally
         {
@@ -101,14 +112,12 @@ public class StrmRewriteBehaviorTests
         }
     }
 
-    private static IAniLibertyStrmGenerator NewGenerator()
+    private static AniLibertyStrmGenerator NewGenerator()
     {
         return new AniLibertyStrmGenerator(
             NullLogger<AniLibertyStrmGenerator>.Instance,
             serverHost: null!,
             networkManager: null!,
-            library: null!,
-            chapters: null!,
             client: new StubClient());
     }
 
@@ -144,8 +153,6 @@ public class StrmRewriteBehaviorTests
             ]
         };
     }
-
-    private static string Normalize(string text) => text.Replace("\r\n", "\n").Trim();
 
     private sealed class StubClient : IAniLibertyClient
     {

@@ -226,12 +226,11 @@ public class AniLibertyAuthController : ControllerBase
     private static void AppendLog(string msg)
     {
         // Write only when Debug logs are enabled (otherwise UI log grows too fast).
-        var cfg = Plugin.Instance?.Configuration;
-        if (cfg?.EnableDebugLogs != true)
+        var plugin = Plugin.Instance;
+        if (plugin?.Configuration.EnableDebugLogs != true)
             return;
 
-        // In tests or before plugin initialization, Instance may be null.
-        Plugin.Instance?.AppendTaskLog("[AniLibertyAuth] " + msg, LogLevel.Debug);
+        plugin.AppendTaskLog("[AniLibertyAuth] " + msg, LogLevel.Debug);
     }
 }
 

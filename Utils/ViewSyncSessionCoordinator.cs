@@ -2,7 +2,7 @@ using System.Collections.Concurrent;
 
 namespace AniLibertyStrmPlugin.Utils;
 
-internal sealed class ViewSyncSessionCoordinator
+internal sealed class ViewSyncSessionCoordinator : IDisposable
 {
     private readonly ConcurrentDictionary<string, SemaphoreSlim> _gates =
         new(StringComparer.OrdinalIgnoreCase);
@@ -49,5 +49,14 @@ internal sealed class ViewSyncSessionCoordinator
     {
         if (!_shutdown.IsCancellationRequested)
             _shutdown.Cancel();
+    }
+
+    public void Dispose()
+    {
+        CancelPending();
+        _shutdown.Dispose();
+
+        foreach (var gate in _gates.Values)
+            gate.Dispose();
     }
 }

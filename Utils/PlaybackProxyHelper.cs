@@ -55,7 +55,7 @@ public static partial class PlaybackProxyHelper
         if (string.IsNullOrWhiteSpace(route))
             route = ProxyRoute;
 
-        if (!route.StartsWith("/", StringComparison.Ordinal))
+        if (!route.StartsWith('/'))
             route = "/" + route;
 
         return baseUrl.TrimEnd('/') + route;
@@ -93,7 +93,7 @@ public static partial class PlaybackProxyHelper
             return line;
 
         var trimmed = line.Trim();
-        if (trimmed.StartsWith("#", StringComparison.Ordinal))
+        if (trimmed.StartsWith('#'))
             return RewriteUriAttributes(line, playlistUri, proxyEndpointUrl);
 
         var resolved = ResolveUpstreamUri(trimmed, playlistUri);

@@ -34,6 +34,30 @@ public class ReleaseResponse
     [JsonConverter(typeof(IntNullableConverter))]
     public int? EpisodesTotal { get; set; }
 
+    [JsonPropertyName("added_in_users_favorites")]
+    [JsonConverter(typeof(IntNullableConverter))]
+    public int? AddedInUsersFavorites { get; set; }
+
+    [JsonPropertyName("added_in_planned_collection")]
+    [JsonConverter(typeof(IntNullableConverter))]
+    public int? AddedInPlannedCollection { get; set; }
+
+    [JsonPropertyName("added_in_watched_collection")]
+    [JsonConverter(typeof(IntNullableConverter))]
+    public int? AddedInWatchedCollection { get; set; }
+
+    [JsonPropertyName("added_in_watching_collection")]
+    [JsonConverter(typeof(IntNullableConverter))]
+    public int? AddedInWatchingCollection { get; set; }
+
+    [JsonPropertyName("added_in_postponed_collection")]
+    [JsonConverter(typeof(IntNullableConverter))]
+    public int? AddedInPostponedCollection { get; set; }
+
+    [JsonPropertyName("added_in_abandoned_collection")]
+    [JsonConverter(typeof(IntNullableConverter))]
+    public int? AddedInAbandonedCollection { get; set; }
+
     [JsonPropertyName("episodes")] public List<EpisodeItem> Episodes { get; set; } = new();
 }
 

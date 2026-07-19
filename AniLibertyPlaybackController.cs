@@ -53,9 +53,18 @@ public sealed class AniLibertyPlaybackController(
             await upstream.Content.CopyToAsync(Response.Body, ct);
             return new EmptyResult();
         }
+        catch (OperationCanceledException) when (Response.HasStarted)
+        {
+            return new EmptyResult();
+        }
         catch (OperationCanceledException)
         {
             return StatusCode(StatusCodes.Status499ClientClosedRequest);
+        }
+        catch (Exception ex) when (Response.HasStarted)
+        {
+            log.LogDebug(ex, "AniLiberty playback proxy failed after response started for {Url}", upstreamUri);
+            return new EmptyResult();
         }
         catch (Exception ex)
         {

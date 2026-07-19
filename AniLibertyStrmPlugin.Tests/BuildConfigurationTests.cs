@@ -12,8 +12,14 @@ using Xunit;
 
 namespace AniLibertyStrmPlugin.Tests;
 
-public class BuildConfigurationTests
+public partial class BuildConfigurationTests
 {
+    [GeneratedRegex(@"^AniLibertyStrmPlugin/\d+\.\d+\.\d+\.\d+ \(Jellyfin; \+https://github\.com/queukat/AniLibriaStrmPlugin\)$")]
+    private static partial Regex UserAgentRegex();
+
+    [GeneratedRegex("PluginIdentity\\.UserAgent")]
+    private static partial Regex PluginIdentityUserAgentRegex();
+
     [Fact]
     public void JellyfinPackageReferences_ArePinnedToMinimumSupportedAbi()
     {
@@ -56,7 +62,7 @@ public class BuildConfigurationTests
     public void PluginIdentity_UserAgent_IsCanonicalAniLibertyName()
     {
         Assert.Matches(
-            new Regex(@"^AniLibertyStrmPlugin/\d+\.\d+\.\d+\.\d+ \(Jellyfin; \+https://github\.com/queukat/AniLibriaStrmPlugin\)$"),
+            UserAgentRegex(),
             PluginIdentity.UserAgent);
     }
 
@@ -82,7 +88,7 @@ public class BuildConfigurationTests
         var allSource = serviceRegistration + Environment.NewLine + generator;
 
         Assert.DoesNotContain("Jellyfin-AniLibertyStrm", allSource, StringComparison.Ordinal);
-        Assert.True(Regex.Matches(allSource, "PluginIdentity\\.UserAgent").Count >= 3);
+        Assert.True(PluginIdentityUserAgentRegex().Matches(allSource).Count >= 3);
     }
 
     [Fact]
@@ -177,6 +183,22 @@ public class BuildConfigurationTests
     }
 
     [Fact]
+    public void PopularityBadgeWebInjection_UsesOnlyPublicMetadataEndpoints()
+    {
+        var root = FindRepoRoot();
+        var webFiles = Directory.GetFiles(Path.Combine(root, "Web"), "*.cs", SearchOption.TopDirectoryOnly);
+        var webSource = string.Join(Environment.NewLine, webFiles.Select(File.ReadAllText));
+
+        Assert.Contains("AniLibertyMetadata/Popularity", webSource, StringComparison.Ordinal);
+        Assert.Contains("AniLibertyMetadata/Assets/aniliberty-rating.png", webSource, StringComparison.Ordinal);
+        Assert.Contains("AniLibertyMetadata/Assets/aniliberty-popularity.js", webSource, StringComparison.Ordinal);
+        Assert.Contains("url.hash", webSource, StringComparison.Ordinal);
+        Assert.DoesNotContain("AniLibertyToken", webSource, StringComparison.Ordinal);
+        Assert.DoesNotContain("CommunityRating =", webSource, StringComparison.Ordinal);
+        Assert.DoesNotContain("CriticRating =", webSource, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void SupportTrace_DetailedProgressDoesNotPolluteCompactInfoLog()
     {
         var root = FindRepoRoot();
@@ -239,7 +261,11 @@ public class BuildConfigurationTests
         Assert.Contains(".github/release-notes.md", workflow, StringComparison.Ordinal);
         Assert.Contains(".release_notes_body.md", workflow, StringComparison.Ordinal);
         Assert.Contains("cat .release_notes_body.md", workflow, StringComparison.Ordinal);
+        Assert.Contains(".manifest_changelog.txt", workflow, StringComparison.Ordinal);
+        Assert.Contains("MANIFEST_NOTES=", workflow, StringComparison.Ordinal);
+        Assert.Contains(".changelog = $notes", workflow, StringComparison.Ordinal);
         Assert.Contains("AniLiberty STRM", notes, StringComparison.Ordinal);
+        Assert.Contains("Docker Direct Play Guard", notes, StringComparison.Ordinal);
         Assert.Contains("AniLiberty STRM", buildManifest, StringComparison.Ordinal);
         Assert.DoesNotContain("release: fix locked Jellyfin restore", notes, StringComparison.Ordinal);
         Assert.DoesNotContain("release: harden AniLiberty STRM system", notes, StringComparison.Ordinal);

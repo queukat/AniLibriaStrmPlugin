@@ -9,7 +9,7 @@
 
 AniLiberty STRM Plugin is a Jellyfin library reconstruction system for **AniLiberty** releases.
 It turns AniLiberty API v1 signals into a governed Jellyfin media surface: STRM playback entries,
-metadata, skip-control markers, artwork, favorites mirroring, and optional watch-progress sync.
+metadata, native Jellyfin skip timings, artwork, favorites mirroring, and optional watch-progress sync.
 
 The result is a controlled library pipeline rather than a loose folder dump: acquisition, reconstruction,
 playback routing, manifest governance, telemetry, and release distribution all operate as one system.
@@ -27,9 +27,9 @@ playback routing, manifest governance, telemetry, and release distribution all o
 - **Context-Aware Reconstruction Core**
   - Detects catalog disorder: movie/series ambiguity, specials, fractional episode ordinals, API v1 year placement,
     image schema variation, and missing detail payloads.
-  - Introduces a reconstruction policy for Jellyfin-ready folder structure, `SxxExx.strm`, `.nfo`, `.edl`,
-    `.chapters.xml`, `.aniid`, and artwork.
-  - Users see a Jellyfin library that behaves like curated media, including native Skip Intro markers on Jellyfin 10.11+.
+  - Introduces a reconstruction policy for Jellyfin-ready folder structure, `SxxExx.strm`, `.nfo`, `.aniid`,
+    artwork, and provider-backed Jellyfin media segments.
+  - Users see a Jellyfin library that behaves like curated media, including native Skip Intro/Outro markers on Jellyfin 10.11+.
 
 - **Playback Proxy Rail**
   - Detects direct HLS exposure and redirect drift before playback traffic leaves Jellyfin.
@@ -56,7 +56,7 @@ playback routing, manifest governance, telemetry, and release distribution all o
 - **Distribution Rail and Quality Gates**
   - Detect Jellyfin ABI drift, package resolution drift, and release/catalog mismatch.
   - Introduce Jellyfin `10.11.0` package pins, committed lock files, locked restore in CI, package-resolution checks,
-    synchronized release versioning, and automated catalog publishing.
+    formatting and Roslyn analyzer verification, synchronized release versioning, and automated catalog publishing.
   - Users see releases aligned to a declared Jellyfin ABI with a plugin manifest that remains in step with the build.
 
 ## Visual System Map
@@ -255,7 +255,8 @@ Recommended first run:
 
 The first successful run creates the governance manifest
 `.aniliberty-strm-plugin/manifest.json`, title folders, `.strm` playback entries, metadata,
-artwork, and skip-control files where the upstream signal contains them.
+artwork, and `.aniliberty-strm-plugin/media-segments.json` skip timing state where the upstream
+signal contains opening/ending markers.
 
 For favorites, complete **AniLiberty authentication** first, set **Favorites STRM Path** to a
 container-visible path such as `/media/aniliberty-strm/favorites`, keep **Generate favorites
@@ -276,8 +277,9 @@ If the output directory stays empty, check these control points:
 
 ### Playback Proxy Base URL, plain rule
 
-Leave **Jellyfin Playback Proxy Base URL** empty when playback already works from the Jellyfin server
-or from a browser on the same machine. The plugin will let Jellyfin choose its local server address.
+On a native Jellyfin install, leave **Jellyfin Playback Proxy Base URL** empty when playback already
+works from the server or from a browser on the same machine. The plugin will let Jellyfin choose its
+local server address.
 
 Set this field only when generated `.strm` playback must point at a specific Jellyfin address that
 another device can reach. The value is the base Jellyfin URL as seen by the playback device, without
@@ -293,9 +295,15 @@ Examples:
 - Jellyfin is published through a reverse proxy: `https://jellyfin.example.test`.
 
 Do not use `localhost` for another device. On a phone, `localhost` means the phone. Inside Docker,
-`localhost` means the container. For Docker, use a LAN IP or reverse-proxy hostname that the playback
-device can reach; if that address is not reachable from the Jellyfin container too, leave the field
-empty and use the auto-detected server address.
+`localhost` means the container. For Docker, either set this field or define the container environment
+variable `JELLYFIN_PublishedServerUrl` with a LAN or reverse-proxy base URL that playback devices can
+reach. The address should also be reachable from the Jellyfin container so media probing and an
+intentional transcode can still work.
+
+When Jellyfin runs in a container and neither value supplies a valid HTTP(S) URL, the plugin does not
+use Jellyfin's auto-detected container bridge address. It writes direct AniLiberty HLS URLs and records
+a warning in the task log. This prevents an unreachable bridge IP from turning every Direct Play attempt
+into a server-side transcode fallback.
 
 After changing this field, run **Generate AniLiberty STRM library** again so existing `.strm` files
 receive the new proxy URLs.
@@ -321,7 +329,8 @@ Cleanup modes:
 
 Existing `.nfo` files and artwork that were not generated by this plugin are preserved. Generated
 XML contains a `generated-by AniLibertyStrmPlugin` marker, and the manifest records managed STRM,
-ANIID, EDL, chapter XML, NFO, artwork, release IDs, episode IDs, hashes, and timestamps.
+ANIID, NFO, artwork, release IDs, episode IDs, hashes, and timestamps. Skip timings are stored in
+`.aniliberty-strm-plugin/media-segments.json` and exposed through the Jellyfin media segment provider.
 
 ---
 
@@ -418,7 +427,7 @@ Three orchestration rails appear under **Dashboard → Scheduled Tasks → AniLi
    - Acquires the complete AniLiberty catalog signal from `/anime/catalog/releases`.
    - Requires **Generate full catalog library** to be enabled.
    - Applies `AllTitlesPageSize` and `AllTitlesMaxPages` as acquisition pressure controls.
-   - Produces STRM playback entries, metadata, skip markers, thumbnails, and optional chapters
+   - Produces STRM playback entries, metadata, native Jellyfin skip timings, and thumbnails
      under **All Titles STRM Path**.
    - Does nothing when **All Titles STRM Path** is empty.
    - By default runs **once per day**.
