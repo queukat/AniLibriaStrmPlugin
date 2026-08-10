@@ -64,7 +64,7 @@ body:
     id: host-permissions
     attributes:
       label: Host folder permissions
-      description: Optional but useful. Example command: `ls -ld /.strm /.strm/all /.strm/favorites`.
+      description: "Optional but useful. Example command: `ls -ld /.strm /.strm/all /.strm/favorites`."
       render: shell
     validations:
       required: false

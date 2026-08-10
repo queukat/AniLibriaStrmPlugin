@@ -1,45 +1,40 @@
-name: Capability request
-description: Propose a new control layer, workflow, or product capability.
-title: "[Capability]: "
+name: Feature request
+description: Suggest an improvement or a new plugin capability.
+title: "[Feature]: "
 labels:
   - enhancement
 body:
   - type: markdown
     attributes:
       value: |
-        Describe the capability in product terms: what disorder it controls, what result it gives users, and how it fits the AniLiberty STRM system.
+        Describe the use case and the result you would like to see. Please check existing issues before submitting a new request.
   - type: textarea
-    id: chaos
+    id: problem
     attributes:
-      label: What disorder does this detect?
-      placeholder: "Example: generated metadata becomes stale after AniLiberty changes a release..."
+      label: What problem are you trying to solve?
+      description: Explain what is difficult or impossible with the plugin today.
+      placeholder: "Example: I only want to update a small set of ongoing titles without generating the full catalog..."
     validations:
       required: true
   - type: textarea
-    id: control
+    id: solution
     attributes:
-      label: What control should the plugin introduce?
-      placeholder: "Example: a safe refresh policy with previewable changes..."
+      label: What would you like the plugin to do?
+      description: Describe the behavior or workflow you expect to use.
+      placeholder: "Example: allow a selected set of titles to be updated independently..."
     validations:
       required: true
   - type: textarea
-    id: result
+    id: workaround
     attributes:
-      label: What should the user see?
-      placeholder: "Example: a clear review surface before generated files are changed..."
+      label: How do you handle this today?
+      description: Describe any current workaround, if one exists.
     validations:
-      required: true
-  - type: textarea
-    id: fit
-    attributes:
-      label: Why does this belong in the system?
-      placeholder: "How does it connect to generation, playback, metadata governance, diagnostics, or distribution?"
-    validations:
-      required: true
+      required: false
   - type: textarea
     id: extra
     attributes:
       label: Extra context
-      description: Screenshots, examples, links, or current workarounds.
+      description: Add screenshots, examples, links, or other relevant details.
     validations:
       required: false

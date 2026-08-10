@@ -1,5 +1,5 @@
-name: Generation or playback problem
-description: STRM generation, Jellyfin scanning, metadata, proxy, or playback is not working.
+name: Bug report
+description: Report a reproducible problem with generation, scanning, metadata, authentication, performance, or playback.
 title: "[Bug]: "
 labels:
   - bug
@@ -16,7 +16,7 @@ body:
         Support flow:
         1. Open AniLiberty STRM Plugin settings.
         2. Click `Huge trace: OFF` so it becomes `ON`.
-        3. Run the failing scheduled task again.
+        3. Reproduce the problem once. Run the affected scheduled task, playback, or action as applicable.
         4. Return to plugin settings.
         5. Click `Copy support bundle`.
         6. Paste the bundle below. Tokens are not included.
@@ -24,7 +24,7 @@ body:
     id: plugin-version
     attributes:
       label: Plugin version
-      description: Example: 2.0.0.11
+      description: "Example: 2.0.0.11"
       placeholder: "2.0.0.11"
     validations:
       required: true
@@ -47,6 +47,7 @@ body:
         - Metadata / NFO / artwork
         - Authentication / OTP / token
         - Favorites / watch sync
+        - Performance / high CPU / memory / request rate
         - Other
     validations:
       required: true
@@ -69,6 +70,14 @@ body:
         3. Open ...
     validations:
       required: true
+  - type: textarea
+    id: impact
+    attributes:
+      label: Observed impact
+      description: If relevant, include CPU usage, memory usage, request rate, task duration, or the number of affected titles.
+      placeholder: "Example: memory grows from 300 MB to 1.5 GB while processing 2,000 titles..."
+    validations:
+      required: false
   - type: textarea
     id: support-bundle
     attributes:
@@ -95,7 +104,7 @@ body:
       options:
         - label: I restarted Jellyfin after installing or updating the plugin.
           required: true
-        - label: I ran the scheduled task again after enabling Huge trace.
+        - label: I reproduced the problem once after enabling Huge trace.
           required: true
         - label: I did not paste AniLiberty tokens, passwords, or cookies.
           required: true
