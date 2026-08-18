@@ -44,6 +44,7 @@ public class AniLibertyStrmGeneratorHelperTests
         var third = Release("Other", id: 30, year: 2024);
 
         var map = AniLibertyStrmGenerator.BuildFallbackSeasonMap([first, second, third]);
+        var index = AniLibertyStrmGenerator.BuildCatalogIndex([first, second, third]);
 
         Assert.Equal("demo", AniLibertyStrmGenerator.GroupKey(first));
         Assert.Equal(1, map[second.Id]);
@@ -51,6 +52,13 @@ public class AniLibertyStrmGeneratorHelperTests
         Assert.Equal(1, map[third.Id]);
         Assert.Equal(2, AniLibertyStrmGenerator.QuarterIndex("spring"));
         Assert.Equal(99, AniLibertyStrmGenerator.QuarterIndex("unknown"));
+        Assert.True(index.TryGet(first.Id, out var firstInfo));
+        Assert.Equal(2, firstInfo.GroupCount);
+        Assert.Equal(2024, firstInfo.ShowYear);
+        Assert.Equal(2, firstInfo.FallbackSeason);
+        Assert.True(index.TryGet(third.Id, out var thirdInfo));
+        Assert.Equal(1, thirdInfo.GroupCount);
+        Assert.Equal(2024, thirdInfo.ShowYear);
     }
 
     [Fact]

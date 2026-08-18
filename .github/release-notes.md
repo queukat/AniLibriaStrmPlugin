@@ -1,54 +1,14 @@
-AniLiberty STRM Native Media Segments & Docker Playback Hardening
+AniLiberty STRM Performance Update
 
-This release improves Jellyfin-native skip controls, managed-library refresh behavior, authentication visibility, and Docker playback safety. It also expands automated coverage and adds formatting/analyzer checks to both stable and nightly release pipelines.
+This update makes library generation and Skip Intro/Outro processing faster and lighter on Jellyfin, especially for larger libraries.
 
-### Licensing and Branding
-- The repository is now licensed for non-commercial use under the **PolyForm Noncommercial License 1.0.0**.
-- Added explicit commercial licensing, trademark, and required-notice documents.
-- Commercial use requires separate permission from the project owner; the AniLiberty STRM name and branding are not granted for unrestricted reuse.
-
-### Docker Direct Play Guard
-- Fixed automatic playback proxy URL selection inside Docker and other containers.
-- The plugin no longer writes container-only bridge addresses such as `172.17.x.x` into generated `.strm` files.
-- Proxy base URL priority is now: explicit **Jellyfin Playback Proxy Base URL**, `JELLYFIN_PublishedServerUrl`, then native-host auto-detection outside containers.
-- When no client-reachable HTTP(S) base URL exists in a container, generation safely falls back to direct AniLiberty HLS URLs and records a clear task warning.
-- Invalid manual or published proxy URLs are ignored instead of producing broken playback links.
-
-### Native Skip Intro / Outro
-- Replaced generated EDL and chapter XML skip files with a Jellyfin `IMediaSegmentProvider` implementation.
-- Opening and ending timings are stored in `.aniliberty-strm-plugin/media-segments.json` and exposed as native Jellyfin media segments.
-- Added background warm-up and path-to-episode reconciliation so existing library items receive updated skip timings without rewriting user-authored metadata.
-
-### Managed Mirror and Metadata Refresh
-- Expanded managed manifest tracking for STRM, NFO, artwork, popularity metadata, and media-segment state.
-- Generated metadata is refreshed when the upstream AniLiberty signal changes while unmarked user-authored files remain protected.
-- Cleanup remains bounded to plugin-managed files, with `Keep`, `DryRun`, and opt-in `Delete` behavior.
-- Improved specials, franchise-season, fractional-ordinal, hydration, and image-handling paths.
-
-### Popularity and Authentication Visibility
-- Added an optional AniLiberty popularity badge to Jellyfin Web item pages.
-- Added a public, read-only metadata endpoint backed only by plugin-generated popularity sidecars.
-- Added Jellyfin activity notifications when a stored AniLiberty token starts returning HTTP 401/403, with cooldown protection against notification spam.
-- Improved login/password, OTP, favorites, and watch-timecode API handling and validation.
-
-### Playback and Sync Reliability
-- Kept HLS playlist and segment delivery streaming through Jellyfin without buffering complete media objects in memory.
-- Improved STRM URL normalization, playlist route handling, redirect validation, and playback diagnostics.
-- Improved per-session watch-progress coordination, cancellation, path resolution, and forward-only progress updates.
-
-### Quality Gates and Verification
-- Added `dotnet format --verify-no-changes` to stable and nightly workflows, covering formatting and built-in Roslyn analyzer diagnostics without an extra linter dependency.
-- Expanded automated coverage across controllers, API clients, scheduled tasks, managed cleanup, native media segments, popularity injection, authentication notifications, and Docker proxy URL selection.
-- Full release-gated result: **207/207 non-integration tests passed**, clean Debug and Release builds, and zero compiler warnings. Three opt-in live AniLiberty API checks remain outside the release gate.
-- Reproduced the Docker failure on Jellyfin 10.11.11: an internal bridge URL caused `DirectPlayError` and ffmpeg fallback; a client-reachable proxy URL played the same H.264/AAC stream through Direct Play with no transcoding.
+### Performance Improvements
+- Faster full-catalog and Favorites library generation.
+- Reduced CPU and memory usage during generation and library updates.
+- Faster preparation of native Skip Intro/Outro data after Jellyfin starts or scans a library.
+- Improved performance during repeated scheduled runs and when multiple library locations are configured.
+- Reduced memory usage while processing artwork and plugin-managed library data.
 
 ### Upgrade Notes
 - Restart Jellyfin after installing the update.
-- Run **Generate AniLiberty STRM library** again so existing `.strm` files and managed state receive the new routing and metadata behavior.
-- Docker users who want Jellyfin-proxied playback should set **Jellyfin Playback Proxy Base URL** or `JELLYFIN_PublishedServerUrl` to an address reachable by playback devices and the Jellyfin container.
-
-### Not Included
-- No Jellyfin 10.10 compatibility build.
-- No full-segment server-side cache or mid-segment resume; brief client-side HLS buffering remains the current protection against connection jitter.
-- No change to AniLiberty API endpoint hosts or the legacy GitHub Pages repository URL.
-- No season-gap fix: the reported missing-season case was not established as a plugin defect in this work.
+- No settings changes or library regeneration are required.

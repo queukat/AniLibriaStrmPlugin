@@ -82,7 +82,8 @@ public class StrmRewriteBehaviorTests
                 token: CancellationToken.None);
 
             var strmPath = Assert.Single(Directory.GetFiles(outDir, "*.strm", SearchOption.AllDirectories));
-            var entry = await AniLibertyMediaSegmentState.TryReadEntryForPathAsync(strmPath, CancellationToken.None);
+            var mediaSegmentIndex = new AniLibertyMediaSegmentIndex();
+            var entry = await mediaSegmentIndex.TryGetEntryForPathAsync(strmPath, CancellationToken.None);
 
             Assert.NotNull(entry);
             Assert.Equal("11111111-1111-1111-1111-111111111111", entry!.ReleaseEpisodeId);

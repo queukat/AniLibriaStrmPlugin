@@ -170,8 +170,6 @@ internal sealed class ManagedLibraryManifest
 
     public async Task SaveAsync(StaleCleanupMode mode, CancellationToken ct)
     {
-        var files = new Dictionary<string, ManagedFileEntry>(_previous, StringComparer.OrdinalIgnoreCase);
-
         if (mode == StaleCleanupMode.Delete)
         {
             foreach (var key in _previous.Keys.ToList())
@@ -180,20 +178,18 @@ internal sealed class ManagedLibraryManifest
                 {
                     var fullPath = Path.Combine(RootPath, key.Replace('/', Path.DirectorySeparatorChar));
                     if (!File.Exists(fullPath))
-                        files.Remove(key);
+                        _previous.Remove(key);
                 }
             }
         }
-
-        foreach (var (key, value) in _current)
-            files[key] = value;
 
         var document = new ManifestDocument
         {
             SchemaVersion = 1,
             Product = PluginIdentity.ProductToken,
             GeneratedAtUtc = DateTimeOffset.UtcNow,
-            Files = files.Values
+            Files = _previous.Values
+                .Concat(_current.Values)
                 .OrderBy(x => x.RelativePath, StringComparer.OrdinalIgnoreCase)
                 .ToList()
         };
@@ -222,6 +218,7 @@ internal sealed class ManagedLibraryManifest
             ContentSha256 = contentHash,
             LastSeenUtc = DateTimeOffset.UtcNow
         };
+        _previous.Remove(rel);
     }
 
     private string GetRelativePath(string path)

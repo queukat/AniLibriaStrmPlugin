@@ -1,3 +1,4 @@
+using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
@@ -8,13 +9,14 @@ internal sealed class AniLibertyMediaSegmentState
     public const int SchemaVersion = 1;
     public const string MediaSegmentsFileName = "media-segments.json";
 
-    private static readonly JsonSerializerOptions JsonOptions = new()
+    internal static readonly JsonSerializerOptions SerializerOptions = new()
     {
         DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
         PropertyNameCaseInsensitive = true,
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
         WriteIndented = true
     };
+    private static readonly byte[] NewLineBytes = Encoding.UTF8.GetBytes(Environment.NewLine);
 
     private readonly Dictionary<string, AniLibertyMediaSegmentEntry> _entries = new(StringComparer.OrdinalIgnoreCase);
 
@@ -76,49 +78,8 @@ internal sealed class AniLibertyMediaSegmentState
                 .ToArray()
         };
 
-        var json = JsonSerializer.Serialize(document, JsonOptions);
-        await WriteTextAtomicallyAsync(StatePath, json + Environment.NewLine, cancellationToken).ConfigureAwait(false);
+        await WriteDocumentAtomicallyAsync(StatePath, document, cancellationToken).ConfigureAwait(false);
         Saved?.Invoke(RootPath, document.Entries.Length);
-    }
-
-    public static async Task<AniLibertyMediaSegmentEntry?> TryReadEntryForPathAsync(
-        string episodeFilePath,
-        CancellationToken cancellationToken)
-    {
-        if (string.IsNullOrWhiteSpace(episodeFilePath))
-            return null;
-
-        try
-        {
-            var fullPath = Path.GetFullPath(episodeFilePath);
-            if (!TryResolveRootForPath(fullPath, out var rootPath))
-                return null;
-
-            var statePath = Path.Combine(
-                rootPath,
-                ManagedLibraryManifest.StateDirectoryName,
-                MediaSegmentsFileName);
-            if (!File.Exists(statePath))
-                return null;
-
-            var json = await File.ReadAllTextAsync(statePath, cancellationToken).ConfigureAwait(false);
-            var document = JsonSerializer.Deserialize<AniLibertyMediaSegmentDocument>(json, JsonOptions);
-            if (document?.SchemaVersion != SchemaVersion ||
-                document.Entries.Length == 0 ||
-                !string.Equals(document.Product, PluginIdentity.ProductToken, StringComparison.Ordinal))
-            {
-                return null;
-            }
-
-            var relativePath = GetRelativePath(rootPath, fullPath);
-            return document.Entries.FirstOrDefault(entry =>
-                string.Equals(entry.RelativePath, relativePath, StringComparison.OrdinalIgnoreCase) &&
-                entry.Segments.Length > 0);
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException or ArgumentException)
-        {
-            return null;
-        }
     }
 
     public static bool IsConfiguredAniLibertyPath(string? path)
@@ -157,6 +118,16 @@ internal sealed class AniLibertyMediaSegmentState
         {
             return false;
         }
+    }
+
+    internal static bool TryResolveStatePath(string fullPath, out string rootPath, out string statePath)
+    {
+        statePath = string.Empty;
+        if (!TryResolveRootForPath(fullPath, out rootPath))
+            return false;
+
+        statePath = Path.Combine(rootPath, ManagedLibraryManifest.StateDirectoryName, MediaSegmentsFileName);
+        return true;
     }
 
     private static bool TryResolveRootForPath(string fullPath, out string rootPath)
@@ -219,7 +190,7 @@ internal sealed class AniLibertyMediaSegmentState
         return normalizedPath.StartsWith(rootWithSeparator, StringComparison.OrdinalIgnoreCase);
     }
 
-    private static string GetRelativePath(string rootPath, string path)
+    internal static string GetRelativePath(string rootPath, string path)
     {
         var root = Path.GetFullPath(rootPath);
         var fullPath = Path.GetFullPath(path);
@@ -233,14 +204,14 @@ internal sealed class AniLibertyMediaSegmentState
         return NormalizeRelativePath(Path.GetRelativePath(root, fullPath));
     }
 
-    private static string NormalizeRelativePath(string path)
+    internal static string NormalizeRelativePath(string path)
     {
         return path.Replace('\\', '/').TrimStart('/');
     }
 
-    private static async Task WriteTextAtomicallyAsync(
+    private static async Task WriteDocumentAtomicallyAsync(
         string path,
-        string content,
+        AniLibertyMediaSegmentDocument document,
         CancellationToken cancellationToken)
     {
         var directory = Path.GetDirectoryName(path);
@@ -252,7 +223,19 @@ internal sealed class AniLibertyMediaSegmentState
 
         try
         {
-            await File.WriteAllTextAsync(tempPath, content, cancellationToken).ConfigureAwait(false);
+            await using (var stream = new FileStream(
+                             tempPath,
+                             FileMode.CreateNew,
+                             FileAccess.Write,
+                             FileShare.None,
+                             bufferSize: 64 * 1024,
+                             FileOptions.Asynchronous | FileOptions.SequentialScan))
+            {
+                await JsonSerializer.SerializeAsync(stream, document, SerializerOptions, cancellationToken)
+                    .ConfigureAwait(false);
+                await stream.WriteAsync(NewLineBytes, cancellationToken).ConfigureAwait(false);
+            }
+
             File.Move(tempPath, path, overwrite: true);
         }
         finally

@@ -1,4 +1,3 @@
-using System.Collections.Concurrent;
 using System.Globalization;
 using System.Diagnostics.CodeAnalysis;
 using System.Net;
@@ -66,11 +65,6 @@ public sealed partial class AniLibertyStrmGenerator(
         ["summer"] = 3,
         ["autumn"] = 4
     };
-
-    // ─────────────────────── franchise -> season number ───────────────────
-    private static readonly ConcurrentDictionary<int, List<FranchiseInfo>?> _franchiseCache = new();
-
-    private static readonly ConcurrentDictionary<string, string> _hlsProbeCache = new();
 
     private static readonly JsonSerializerOptions PopularityJsonOptions = new()
     {
@@ -182,11 +176,12 @@ public sealed partial class AniLibertyStrmGenerator(
         var context = new GenerationContext(
             basePath,
             resolution,
-            BuildFallbackSeasonMap(list),
-            list,
+            BuildCatalogIndex(list),
             cfg?.EnablePlaybackDiagnostics == true,
             manifest,
-            mediaSegments);
+            mediaSegments,
+            new Dictionary<int, List<FranchiseInfo>?>(),
+            new Dictionary<string, string>(StringComparer.Ordinal));
 
         await GenerateTitleListAsync(list, context, progress, debugLogs, supportTrace, token);
 
@@ -196,23 +191,38 @@ public sealed partial class AniLibertyStrmGenerator(
     }
 
     internal static Dictionary<int, int> BuildFallbackSeasonMap(IList<ReleaseResponse> list)
+        => BuildCatalogIndex(list).ToFallbackSeasonMap();
+
+    internal static CatalogGenerationIndex BuildCatalogIndex(IList<ReleaseResponse> list)
     {
-        var fallbackById = new Dictionary<int, int>();
-        foreach (var group in list.GroupBy(GroupKey))
+        var byReleaseId = new Dictionary<int, CatalogTitleInfo>(list.Count);
+        var keyedTitles = list.Select(release => new KeyedRelease(release, GroupKey(release)));
+        foreach (var group in keyedTitles.GroupBy(x => x.GroupKey, StringComparer.Ordinal))
         {
             var ordered = group
-                .OrderBy(r => r.Year > 0 ? r.Year : int.MaxValue)
-                .ThenBy(r => QuarterIndex(r.Season?.Value))
-                .ThenBy(r => r.Name?.English ?? r.Name?.Main ?? r.Alias ?? string.Empty,
+                .Select(x => x.Release)
+                .OrderBy(release => release.Year > 0 ? release.Year : int.MaxValue)
+                .ThenBy(release => QuarterIndex(release.Season?.Value))
+                .ThenBy(release => release.Name?.English ?? release.Name?.Main ?? release.Alias ?? string.Empty,
                     StringComparer.OrdinalIgnoreCase)
-                .ThenBy(r => r.Id)
+                .ThenBy(release => release.Id)
                 .ToList();
+            var showYear = ordered
+                .Select(release => release.Year)
+                .Where(year => year > 0)
+                .DefaultIfEmpty(0)
+                .Min();
 
             for (var i = 0; i < ordered.Count; i++)
-                fallbackById[ordered[i].Id] = i + 1;
+            {
+                byReleaseId[ordered[i].Id] = new CatalogTitleInfo(
+                    GroupCount: ordered.Count,
+                    ShowYear: showYear,
+                    FallbackSeason: i + 1);
+            }
         }
 
-        return fallbackById;
+        return new CatalogGenerationIndex(byReleaseId);
     }
 
     private async Task GenerateTitleListAsync(
@@ -261,7 +271,7 @@ public sealed partial class AniLibertyStrmGenerator(
 
         var displayRaw = hydrated.Name?.English ?? hydrated.Name?.Main ?? hydrated.Alias ?? "";
         if (LooksLikeMovie(hydrated, displayRaw))
-            await GenerateMovieAsync(hydrated, context.BasePath, context.Resolution, context.PlaybackDiagnostics, context.Manifest, token);
+            await GenerateMovieAsync(hydrated, context, token);
         else
             await GenerateStrmForTitle(hydrated, context, token);
     }
@@ -351,10 +361,7 @@ public sealed partial class AniLibertyStrmGenerator(
 
     private async Task GenerateMovieAsync(
         ReleaseResponse rel,
-        string basePath,
-        string resolution,
-        bool playbackDiag,
-        ManagedLibraryManifest manifest,
+        GenerationContext context,
         CancellationToken token)
     {
         var ep = rel.Episodes?.FirstOrDefault();
@@ -374,40 +381,41 @@ public sealed partial class AniLibertyStrmGenerator(
 
         var year = rel.Year > 0 ? rel.Year : DateTime.UtcNow.Year;
         var folder = $"{title} ({year})";
-        var movieDir = Path.Combine(basePath, folder);
+        var movieDir = Path.Combine(context.BasePath, folder);
         Directory.CreateDirectory(movieDir);
 
         var strmPath = Path.Combine(movieDir, $"{folder}.strm");
-        var selectedRaw = ChooseHls(ep, resolution) ?? string.Empty;
+        var selectedRaw = ChooseHls(ep, context.Resolution) ?? string.Empty;
         var url = MakePlaybackUrl(selectedRaw);
         if (string.IsNullOrWhiteSpace(url))
         {
-            if (playbackDiag)
+            if (context.PlaybackDiagnostics)
                 log.Warn("[PLAYBACK-DIAG] MOVIE relId={0} alias={1}: no HLS URL selected; hls1080=\"{2}\" hls720=\"{3}\" hls480=\"{4}\"",
                     rel.Id, rel.Alias, TrimForLog(ep.Hls1080), TrimForLog(ep.Hls720), TrimForLog(ep.Hls480));
             return;
         }
 
-        if (playbackDiag)
+        if (context.PlaybackDiagnostics)
             await LogPlaybackDiagnosticsAsync(
                 $"MOVIE relId={rel.Id} alias={rel.Alias}",
                 ep,
-                resolution,
+                context.Resolution,
                 selectedRaw,
                 url,
                 strmPath,
+                context.HlsProbeCache,
                 token);
 
         await WriteManagedTextIfChangedAsync(
             new ManagedTextWrite(strmPath, url, null, "strm", rel.Id, ep.Id, selectedRaw, false),
-            manifest,
+            context.Manifest,
             token);
-        await WriteEpisodeIdSidecarAsync(manifest, strmPath, ep.Id, rel.Id, token);
-        await WritePopularitySidecarAsync(rel, movieDir, manifest, token);
+        await WriteEpisodeIdSidecarAsync(context.Manifest, strmPath, ep.Id, rel.Id, token);
+        await WritePopularitySidecarAsync(rel, movieDir, context.Manifest, token);
 
         var posterUrl = NormalizeImageUrlPreferJpg(MakeFullUrl(PickImageUrl(rel.Poster)));
         await DownloadManagedImageAsync(
-            manifest,
+            context.Manifest,
             posterUrl,
             Path.Combine(movieDir, "cover.jpg"),
             "movie-cover",
@@ -430,7 +438,7 @@ public sealed partial class AniLibertyStrmGenerator(
         var nfoPath = Path.Combine(movieDir, $"{folder}.nfo");
         await WriteManagedTextIfChangedAsync(
             new ManagedTextWrite(nfoPath, nfo, Encoding.UTF8, "movie-nfo", rel.Id, ep.Id, null, true),
-            manifest,
+            context.Manifest,
             token);
     }
 
@@ -490,7 +498,7 @@ public sealed partial class AniLibertyStrmGenerator(
         if (title.IsSpecialsTitle)
             return 0;
 
-        var franchiseSeason = await DetectSeasonFromFranchiseAsync(rel.Id, token);
+        var franchiseSeason = await DetectSeasonFromFranchiseAsync(rel.Id, context.FranchiseCache, token);
         if (franchiseSeason > 0)
             return franchiseSeason;
 
@@ -509,9 +517,9 @@ public sealed partial class AniLibertyStrmGenerator(
         out int seasonNum)
     {
         seasonNum = 0;
-        var key = GroupKey(rel);
-        var sameGroupCount = context.AllTitles.Count(x => GroupKey(x) == key);
-        return sameGroupCount > 1 && context.FallbackById.TryGetValue(rel.Id, out seasonNum);
+        return context.Catalog.TryGet(rel.Id, out var titleInfo) &&
+               titleInfo.GroupCount > 1 &&
+               (seasonNum = titleInfo.FallbackSeason) > 0;
     }
 
     private static SeasonPaths CreateSeasonPaths(string basePath, string safeName, int seasonNum)
@@ -533,7 +541,8 @@ public sealed partial class AniLibertyStrmGenerator(
         CancellationToken token)
     {
         var tvshowNfo = Path.Combine(showDir, "tvshow.nfo");
-        var xml = BuildTvShowNfo(rel, title, context.AllTitles);
+        var showYear = context.Catalog.TryGet(rel.Id, out var titleInfo) ? titleInfo.ShowYear : 0;
+        var xml = BuildTvShowNfo(rel, title, showYear);
         await WriteManagedTextIfChangedAsync(
             new ManagedTextWrite(tvshowNfo, xml, Encoding.UTF8, "tvshow-nfo", rel.Id, null, null, true),
             context.Manifest,
@@ -543,13 +552,12 @@ public sealed partial class AniLibertyStrmGenerator(
     private static string BuildTvShowNfo(
         ReleaseResponse rel,
         TitleGenerationInfo title,
-        IList<ReleaseResponse> allTitles)
+        int showYear)
     {
         var displayTitle = title.RuName ?? title.EngName ?? title.SafeName;
         var originalTitle = title.AltName ?? title.EngName ?? displayTitle;
         var sortTitle = title.EngName ?? title.RuName ?? displayTitle;
         var plot = MakeSafeXml(rel.Description?.Trim() ?? string.Empty);
-        var showYear = FindShowYear(rel, allTitles);
 
         return AddGeneratedXmlMarker($@"<?xml version=""1.0"" encoding=""utf-8"" standalone=""yes""?>
 <tvshow>
@@ -560,17 +568,6 @@ public sealed partial class AniLibertyStrmGenerator(
   {(plot.Length > 0 ? $"  <plot>{plot}</plot><outline>{plot}</outline>" : string.Empty)}
   <lockdata>false</lockdata>
 </tvshow>");
-    }
-
-    private static int FindShowYear(ReleaseResponse rel, IList<ReleaseResponse> allTitles)
-    {
-        var groupKey = GroupKey(rel);
-        return allTitles
-            .Where(x => GroupKey(x) == groupKey)
-            .Select(x => x.Year)
-            .Where(y => y > 0)
-            .DefaultIfEmpty(0)
-            .Min();
     }
 
     private static async Task WriteSeasonNfoAsync(
@@ -693,6 +690,7 @@ public sealed partial class AniLibertyStrmGenerator(
             selectedRaw,
             url,
             strmPath,
+            episodeContext.Generation.HlsProbeCache,
             token);
     }
 
@@ -792,12 +790,15 @@ public sealed partial class AniLibertyStrmGenerator(
 
     // ─────────────────────── franchises -> season number ─────────────────────
 
-    private async Task<int> DetectSeasonFromFranchiseAsync(int releaseId, CancellationToken ct)
+    private async Task<int> DetectSeasonFromFranchiseAsync(
+        int releaseId,
+        IDictionary<int, List<FranchiseInfo>?> franchiseCache,
+        CancellationToken ct)
     {
-        if (!_franchiseCache.TryGetValue(releaseId, out var frList))
+        if (!franchiseCache.TryGetValue(releaseId, out var frList))
         {
             frList = await client.FetchFranchisesForReleaseAsync(releaseId, ct);
-            _franchiseCache[releaseId] = frList;
+            franchiseCache[releaseId] = frList;
         }
 
         return ComputeSeasonFromFranchises(frList, releaseId);
@@ -1043,14 +1044,34 @@ public sealed partial class AniLibertyStrmGenerator(
         return text.Replace("\r\n", "\n").TrimEnd('\n', '\r');
     }
 
+    internal sealed class CatalogGenerationIndex(
+        IReadOnlyDictionary<int, CatalogTitleInfo> byReleaseId)
+    {
+        internal bool TryGet(int releaseId, out CatalogTitleInfo titleInfo)
+            => byReleaseId.TryGetValue(releaseId, out titleInfo);
+
+        internal Dictionary<int, int> ToFallbackSeasonMap()
+            => byReleaseId.ToDictionary(x => x.Key, x => x.Value.FallbackSeason);
+    }
+
+    internal readonly record struct CatalogTitleInfo(
+        int GroupCount,
+        int ShowYear,
+        int FallbackSeason);
+
+    private readonly record struct KeyedRelease(
+        ReleaseResponse Release,
+        string GroupKey);
+
     private readonly record struct GenerationContext(
         string BasePath,
         string Resolution,
-        IReadOnlyDictionary<int, int> FallbackById,
-        IList<ReleaseResponse> AllTitles,
+        CatalogGenerationIndex Catalog,
         bool PlaybackDiagnostics,
         ManagedLibraryManifest Manifest,
-        AniLibertyMediaSegmentState MediaSegments);
+        AniLibertyMediaSegmentState MediaSegments,
+        Dictionary<int, List<FranchiseInfo>?> FranchiseCache,
+        Dictionary<string, string> HlsProbeCache);
 
     private readonly record struct TitleGenerationInfo(
         string? RuName,
@@ -1118,6 +1139,7 @@ public sealed partial class AniLibertyStrmGenerator(
         string selectedRaw,
         string normalizedUrl,
         string strmPath,
+        IDictionary<string, string> hlsProbeCache,
         CancellationToken ct)
     {
         log.Info(
@@ -1159,15 +1181,18 @@ public sealed partial class AniLibertyStrmGenerator(
                 strmPath, TrimForLog(normalizedUrl, 320));
         }
 
-        var probe = await ProbeHlsPlaylistAsync(normalizedUrl, ct);
+        var probe = await ProbeHlsPlaylistAsync(normalizedUrl, hlsProbeCache, ct);
         log.Info("[PLAYBACK-DIAG] HLS probe: {0}; {1}", TrimForLog(normalizedUrl, 320), probe);
     }
 
     [ExcludeFromCodeCoverage(Justification = "Diagnostic-only network probe; not deterministic in unit tests.")]
-    private static async Task<string> ProbeHlsPlaylistAsync(string url, CancellationToken ct)
+    private static async Task<string> ProbeHlsPlaylistAsync(
+        string url,
+        IDictionary<string, string> hlsProbeCache,
+        CancellationToken ct)
     {
         if (string.IsNullOrWhiteSpace(url)) return "empty-url";
-        if (_hlsProbeCache.TryGetValue(url, out var cached)) return cached;
+        if (hlsProbeCache.TryGetValue(url, out var cached)) return cached;
 
         string summary;
         try
@@ -1198,7 +1223,7 @@ public sealed partial class AniLibertyStrmGenerator(
             summary = $"probe-failed: {ex.GetType().Name}: {TrimForLog(ex.Message, 180)}";
         }
 
-        _hlsProbeCache[url] = summary;
+        hlsProbeCache[url] = summary;
         return summary;
     }
 
@@ -1327,7 +1352,7 @@ public sealed partial class AniLibertyStrmGenerator(
     [ExcludeFromCodeCoverage(Justification = "Integration boundary: downloads remote poster/thumbnail assets.")]
     private static async Task<byte[]?> DownloadImageBytesAsync(string url, CancellationToken ct)
     {
-        using var resp = await _mediaHttp.GetAsync(url, ct);
+        using var resp = await _mediaHttp.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, ct);
         if (!resp.IsSuccessStatusCode)
             return null;
 
@@ -1364,8 +1389,23 @@ public sealed partial class AniLibertyStrmGenerator(
     {
         try
         {
-            var existing = File.ReadAllBytes(path);
-            return existing.AsSpan().SequenceEqual(bytes);
+            using var stream = File.OpenRead(path);
+            if (stream.Length != bytes.LongLength)
+                return false;
+
+            Span<byte> buffer = stackalloc byte[16 * 1024];
+            var offset = 0;
+            while (offset < bytes.Length)
+            {
+                var requested = Math.Min(buffer.Length, bytes.Length - offset);
+                var read = stream.Read(buffer[..requested]);
+                if (read == 0 || !buffer[..read].SequenceEqual(bytes.AsSpan(offset, read)))
+                    return false;
+
+                offset += read;
+            }
+
+            return true;
         }
         catch
         {

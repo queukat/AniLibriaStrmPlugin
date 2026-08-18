@@ -14,13 +14,16 @@ public sealed class AniLibertyMediaSegmentProvider : IMediaSegmentProvider
     public const string ProviderName = "AniLiberty skip timings";
 
     private readonly ILibraryManager _libraryManager;
+    private readonly AniLibertyMediaSegmentIndex _mediaSegmentIndex;
     private readonly ILogger<AniLibertyMediaSegmentProvider> _logger;
 
     public AniLibertyMediaSegmentProvider(
         ILibraryManager libraryManager,
+        AniLibertyMediaSegmentIndex mediaSegmentIndex,
         ILogger<AniLibertyMediaSegmentProvider> logger)
     {
         _libraryManager = libraryManager;
+        _mediaSegmentIndex = mediaSegmentIndex;
         _logger = logger;
     }
 
@@ -47,8 +50,8 @@ public sealed class AniLibertyMediaSegmentProvider : IMediaSegmentProvider
 
         try
         {
-            var entry = await AniLibertyMediaSegmentState
-                .TryReadEntryForPathAsync(item.Path, cancellationToken)
+            var entry = await _mediaSegmentIndex
+                .TryGetEntryForPathAsync(item.Path, cancellationToken)
                 .ConfigureAwait(false);
             if (entry?.Segments == null || entry.Segments.Length == 0)
                 return Array.Empty<MediaSegmentDto>();

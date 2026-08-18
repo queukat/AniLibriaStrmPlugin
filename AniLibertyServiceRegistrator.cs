@@ -1,6 +1,7 @@
 ﻿using System.Net;
 using AniLibertyStrmPlugin.Media;
 using AniLibertyStrmPlugin.Tasks;
+using AniLibertyStrmPlugin.Utils;
 using AniLibertyStrmPlugin.Web;
 using MediaBrowser.Controller;
 using MediaBrowser.Controller.MediaSegments;
@@ -54,6 +55,7 @@ public class AniLibertyServiceRegistrator : IPluginServiceRegistrator
         /* ---- singletons / tasks ---- */
         services.AddSingleton<IAniLibertyAuthNotificationService, AniLibertyAuthNotificationService>();
         services.AddSingleton<IAniLibertyStrmGenerator, AniLibertyStrmGenerator>();
+        services.AddSingleton<AniLibertyMediaSegmentIndex>();
         services.AddSingleton<IMediaSegmentProvider, AniLibertyMediaSegmentProvider>();
         services.AddSingleton<IScheduledTask, AniLibertyAllTask>();
         services.AddSingleton<IScheduledTask, AniLibertyFavoritesTask>();

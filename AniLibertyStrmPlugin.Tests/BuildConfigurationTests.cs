@@ -265,7 +265,8 @@ public partial class BuildConfigurationTests
         Assert.Contains("MANIFEST_NOTES=", workflow, StringComparison.Ordinal);
         Assert.Contains(".changelog = $notes", workflow, StringComparison.Ordinal);
         Assert.Contains("AniLiberty STRM", notes, StringComparison.Ordinal);
-        Assert.Contains("Docker Direct Play Guard", notes, StringComparison.Ordinal);
+        Assert.Contains("### ", notes, StringComparison.Ordinal);
+        Assert.Contains("- ", notes, StringComparison.Ordinal);
         Assert.Contains("AniLiberty STRM", buildManifest, StringComparison.Ordinal);
         Assert.DoesNotContain("release: fix locked Jellyfin restore", notes, StringComparison.Ordinal);
         Assert.DoesNotContain("release: harden AniLiberty STRM system", notes, StringComparison.Ordinal);
