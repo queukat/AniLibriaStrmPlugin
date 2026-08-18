@@ -2,6 +2,24 @@
 
 All notable changes to this plugin are documented in this file.
 
+## v2.0.0.13 - 2026-08-18
+AniLiberty STRM Performance Update
+
+This update makes library generation and Skip Intro/Outro processing faster and lighter on Jellyfin, especially for larger libraries.
+
+### Performance Improvements
+- Faster full-catalog and Favorites library generation.
+- Reduced CPU and memory usage during generation and library updates.
+- Faster preparation of native Skip Intro/Outro data after Jellyfin starts or scans a library.
+- Improved performance during repeated scheduled runs and when multiple library locations are configured.
+- Reduced memory usage while processing artwork and plugin-managed library data.
+
+### Upgrade Notes
+- Restart Jellyfin after installing the update.
+- No settings changes or library regeneration are required.
+- GitHub Release: https://github.com/queukat/AniLibriaStrmPlugin/releases/tag/v2.0.0.13
+- Compare: https://github.com/queukat/AniLibriaStrmPlugin/compare/v2.0.0.12...v2.0.0.13
+
 ## v2.0.0.12 - 2026-07-19
 AniLiberty STRM Native Media Segments & Docker Playback Hardening
 
