@@ -71,13 +71,13 @@ public class AniLibertyClientApiTests
     }
 
     [Fact]
-    public async Task FetchAllTitlesAsync_StopsOnEmptyOrBadPayload()
+    public async Task FetchAllTitlesAsync_StopsOnEmptyButRejectsBadPayload()
     {
         var emptyClient = NewClient(new QueueHandler(_ => Json(HttpStatusCode.OK, "[]")));
         Assert.Empty(await emptyClient.FetchAllTitlesAsync(pageSize: 10, maxPages: 5, CancellationToken.None));
 
         var badClient = NewClient(new QueueHandler(_ => Json(HttpStatusCode.OK, "{ not-json")));
-        Assert.Empty(await badClient.FetchAllTitlesAsync(pageSize: 10, maxPages: 5, CancellationToken.None));
+        await Assert.ThrowsAnyAsync<JsonException>(() => badClient.FetchAllTitlesAsync(pageSize: 10, maxPages: 5, CancellationToken.None));
     }
 
     [Fact]
@@ -118,13 +118,11 @@ public class AniLibertyClientApiTests
     }
 
     [Fact]
-    public async Task FetchFavoritesAsync_ReturnsEmptyOnNonAuthPageFailure()
+    public async Task FetchFavoritesAsync_ThrowsOnNonAuthPageFailure()
     {
         var client = NewClient(new QueueHandler(_ => Json(HttpStatusCode.InternalServerError, """{"error":"fail"}""")));
 
-        var favorites = await client.FetchFavoritesAsync("token-value", pageSize: 20, maxPages: 2, CancellationToken.None);
-
-        Assert.Empty(favorites);
+        await Assert.ThrowsAsync<HttpRequestException>(() => client.FetchFavoritesAsync("token-value", pageSize: 20, maxPages: 2, CancellationToken.None));
     }
 
     [Fact]
@@ -190,7 +188,7 @@ public class AniLibertyClientApiTests
     }
 
     [Fact]
-    public async Task FetchReleaseByIdAsync_ReturnsReleaseOrNull()
+    public async Task FetchReleaseByIdAsync_ReturnsReleaseOrThrows()
     {
         var okClient = NewClient(new QueueHandler(_ => Json(HttpStatusCode.OK, """{"id":42,"alias":"answer","name":{"main":"Answer"}}""")));
 
@@ -201,7 +199,64 @@ public class AniLibertyClientApiTests
         Assert.Equal("answer", release.Alias);
 
         var failClient = NewClient(new QueueHandler(_ => Json(HttpStatusCode.NotFound, """{"error":"missing"}""")));
-        Assert.Null(await failClient.FetchReleaseByIdAsync(404, CancellationToken.None));
+        await Assert.ThrowsAsync<HttpRequestException>(() => failClient.FetchReleaseByIdAsync(404, CancellationToken.None));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task ReleasePages_DoNotReturnPartialSuccessAfterHttpFailure(bool favorites)
+    {
+        var client = NewClient(new QueueHandler(
+            _ => Json(HttpStatusCode.OK, """{"data":[{"id":1}]}"""),
+            _ => Json(HttpStatusCode.ServiceUnavailable, "unavailable")));
+        await Assert.ThrowsAsync<HttpRequestException>(() => favorites
+            ? client.FetchFavoritesAsync("token", 1, 3, CancellationToken.None)
+            : client.FetchAllTitlesAsync(1, 3, CancellationToken.None));
+    }
+
+    [Theory]
+    [InlineData(false, "{}")]
+    [InlineData(true, "{}")]
+    [InlineData(false, "{\"data\":null}")]
+    [InlineData(true, "{\"data\":[{}]}")]
+    public async Task ReleasePages_DoNotMistakeMalformedPageForEnd(bool favorites, string malformed)
+    {
+        var client = NewClient(new QueueHandler(
+            _ => Json(HttpStatusCode.OK, """{"data":[{"id":1}]}"""),
+            _ => Json(HttpStatusCode.OK, malformed)));
+        await Assert.ThrowsAsync<JsonException>(() => favorites
+            ? client.FetchFavoritesAsync("token", 1, 3, CancellationToken.None)
+            : client.FetchAllTitlesAsync(1, 3, CancellationToken.None));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task ReleasePages_RejectUnprovenCompletenessAtLimit(bool favorites)
+    {
+        var client = NewClient(new QueueHandler(_ => Json(HttpStatusCode.OK, """{"data":[{"id":1}]}""")));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => favorites
+            ? client.FetchFavoritesAsync("token", 1, 1, CancellationToken.None)
+            : client.FetchAllTitlesAsync(1, 1, CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task Favorites_ShortLastPageDoesNotFetchExtraEmptyPage()
+    {
+        var handler = new QueueHandler(_ => Json(HttpStatusCode.OK, """{"data":[{"id":1}]}"""));
+        Assert.Single(await NewClient(handler).FetchFavoritesAsync("token", 10, 1, CancellationToken.None));
+        Assert.Single(handler.Requests);
+    }
+
+    [Theory]
+    [InlineData("null")]
+    [InlineData("{}")]
+    [InlineData("{\"id\":99}")]
+    public async Task ReleaseDetails_RejectInvalidOrWrongIdentity(string payload)
+    {
+        var client = NewClient(new QueueHandler(_ => Json(HttpStatusCode.OK, payload)));
+        await Assert.ThrowsAsync<JsonException>(() => client.FetchReleaseByIdAsync(42, CancellationToken.None));
     }
 
     [Fact]

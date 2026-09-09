@@ -48,7 +48,13 @@ namespace AniLibertyStrmPlugin.Tests
 
             var client = NewClient();
 
-            var list = await client.FetchAllTitlesAsync(1, 1, CancellationToken.None);
+            // This smoke needs one sample, not a complete snapshot suitable for mirroring.
+            var page = await client.GetStringWithLoggingAsync(
+                $"{ApiBase}/anime/catalog/releases?limit=1&page=1", CancellationToken.None);
+            using var document = JsonDocument.Parse(page);
+            var data = document.RootElement.ValueKind == JsonValueKind.Array
+                ? document.RootElement : document.RootElement.GetProperty("data");
+            var list = data.Deserialize<System.Collections.Generic.List<ReleaseResponse>>()!;
             if (list.Count == 0) return;   // API may be temporarily empty; still OK
 
             var first = list[0];

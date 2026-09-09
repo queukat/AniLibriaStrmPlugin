@@ -64,6 +64,27 @@ internal sealed class ManagedLibraryManifest
         return _current.ContainsKey(rel) || _previous.ContainsKey(rel);
     }
 
+    public bool HasRelease(int releaseId)
+        => _previous.Values.Any(entry => entry.ReleaseId == releaseId);
+
+    public (string? ETag, DateTimeOffset? LastModified, string? ContentHash) GetImageValidators(string path, string source)
+    {
+        var relativePath = GetRelativePath(path);
+        if ((_current.TryGetValue(relativePath, out var entry) || _previous.TryGetValue(relativePath, out entry)) &&
+            string.Equals(entry.Source, source, StringComparison.Ordinal))
+            return (entry.ETag, entry.LastModified, entry.ContentSha256);
+        return (null, null, null);
+    }
+
+    public void TrackImage(string path, string kind, byte[] bytes, int releaseId, string? episodeId,
+        string source, string? etag, DateTimeOffset? lastModified)
+    {
+        TrackBytes(path, kind, bytes, releaseId, episodeId, source);
+        var entry = _current[GetRelativePath(path)];
+        entry.ETag = etag;
+        entry.LastModified = lastModified;
+    }
+
     public static bool HasGeneratedXmlMarker(string text)
     {
         return text.Contains(GeneratedXmlMarker, StringComparison.Ordinal);
@@ -195,8 +216,19 @@ internal sealed class ManagedLibraryManifest
         };
 
         Directory.CreateDirectory(Path.GetDirectoryName(ManifestPath)!);
-        await using var stream = File.Create(ManifestPath);
-        await JsonSerializer.SerializeAsync(stream, document, JsonOptions, ct);
+        var temporaryPath = ManifestPath + "." + Guid.NewGuid().ToString("N") + ".tmp";
+        try
+        {
+            await using (var stream = File.Create(temporaryPath))
+                await JsonSerializer.SerializeAsync(stream, document, JsonOptions, ct);
+            ct.ThrowIfCancellationRequested();
+            File.Move(temporaryPath, ManifestPath, overwrite: true);
+        }
+        finally
+        {
+            if (File.Exists(temporaryPath))
+                File.Delete(temporaryPath);
+        }
     }
 
     private void Track(
@@ -290,6 +322,8 @@ internal sealed class ManagedLibraryManifest
         [JsonPropertyName("releaseEpisodeId")] public string? ReleaseEpisodeId { get; set; }
         [JsonPropertyName("source")] public string? Source { get; set; }
         [JsonPropertyName("contentSha256")] public string? ContentSha256 { get; set; }
+        [JsonPropertyName("etag")] public string? ETag { get; set; }
+        [JsonPropertyName("lastModified")] public DateTimeOffset? LastModified { get; set; }
         [JsonPropertyName("lastSeenUtc")] public DateTimeOffset LastSeenUtc { get; set; }
     }
 }

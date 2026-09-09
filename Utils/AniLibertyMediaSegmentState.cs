@@ -78,8 +78,49 @@ internal sealed class AniLibertyMediaSegmentState
                 .ToArray()
         };
 
+        if (File.Exists(StatePath))
+        {
+            try
+            {
+                await using var stream = File.OpenRead(StatePath);
+                var previous = await JsonSerializer.DeserializeAsync<AniLibertyMediaSegmentDocument>(
+                    stream, SerializerOptions, cancellationToken).ConfigureAwait(false);
+                if (previous is not null && HasSameContent(previous, document))
+                    return;
+            }
+            catch (JsonException)
+            {
+                // A complete new snapshot repairs an unreadable state document.
+            }
+        }
+
         await WriteDocumentAtomicallyAsync(StatePath, document, cancellationToken).ConfigureAwait(false);
         Saved?.Invoke(RootPath, document.Entries.Length);
+    }
+
+    internal static bool HasSameContent(
+        AniLibertyMediaSegmentDocument previous,
+        AniLibertyMediaSegmentDocument current)
+    {
+        if (previous.SchemaVersion != current.SchemaVersion || previous.Product != current.Product ||
+            previous.Entries is null || previous.Entries.Length != current.Entries.Length ||
+            previous.Entries.Any(x => x is null || x.Segments is null || x.Segments.Any(segment => segment is null)))
+            return false;
+
+        var previousEntries = previous.Entries.OrderBy(x => x.RelativePath, StringComparer.OrdinalIgnoreCase);
+        var currentEntries = current.Entries.OrderBy(x => x.RelativePath, StringComparer.OrdinalIgnoreCase);
+        return previousEntries.Zip(currentEntries).All(pair =>
+            string.Equals(pair.First.RelativePath, pair.Second.RelativePath, StringComparison.OrdinalIgnoreCase) &&
+            pair.First.ReleaseId == pair.Second.ReleaseId &&
+            pair.First.ReleaseEpisodeId == pair.Second.ReleaseEpisodeId &&
+            pair.First.Segments is not null && pair.Second.Segments is not null &&
+            SegmentValues(pair.First).SequenceEqual(SegmentValues(pair.Second)));
+
+        static IEnumerable<(string Type, long StartTicks, long EndTicks)> SegmentValues(AniLibertyMediaSegmentEntry entry)
+            => entry.Segments.Select(x => (x.Type, x.StartTicks, x.EndTicks))
+                .OrderBy(x => x.Type, StringComparer.Ordinal)
+                .ThenBy(x => x.StartTicks)
+                .ThenBy(x => x.EndTicks);
     }
 
     public static bool IsConfiguredAniLibertyPath(string? path)
@@ -158,7 +199,7 @@ internal sealed class AniLibertyMediaSegmentState
         return false;
     }
 
-    private static IEnumerable<string> EnumerateConfiguredRoots()
+    internal static IEnumerable<string> EnumerateConfiguredRoots()
     {
         var cfg = Plugin.Instance?.Configuration;
         foreach (var root in new[] { cfg?.StrmAllPath, cfg?.StrmFavoritesPath })

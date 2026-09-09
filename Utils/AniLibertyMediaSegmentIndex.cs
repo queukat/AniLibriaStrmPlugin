@@ -39,6 +39,21 @@ public sealed class AniLibertyMediaSegmentIndex
             return null;
         }
 
+        return await GetSnapshotAsync(rootPath, statePath, cancellationToken).ConfigureAwait(false);
+    }
+
+    internal Task<AniLibertyMediaSegmentSnapshot?> GetSnapshotForRootAsync(
+        string rootPath, CancellationToken cancellationToken)
+    {
+        var fullRoot = Path.GetFullPath(rootPath);
+        var statePath = Path.Combine(fullRoot, ManagedLibraryManifest.StateDirectoryName,
+            AniLibertyMediaSegmentState.MediaSegmentsFileName);
+        return GetSnapshotAsync(fullRoot, statePath, cancellationToken);
+    }
+
+    private async Task<AniLibertyMediaSegmentSnapshot?> GetSnapshotAsync(
+        string rootPath, string statePath, CancellationToken cancellationToken)
+    {
         var fingerprint = TryGetFingerprint(statePath);
         if (fingerprint is null)
             return null;

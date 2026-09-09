@@ -158,7 +158,7 @@ public class AniLibertyStrmGeneratorFocusedTests
     }
 
     [Fact]
-    public async Task GenerateTitlesAsync_SkipsMissingHydrationAndHydrationFailures()
+    public async Task GenerateTitlesAsync_AbortsMissingHydrationAndHydrationFailures()
     {
         using var nullOutput = TempOutput.Create();
         var shell = BuildRelease(
@@ -167,11 +167,11 @@ public class AniLibertyStrmGeneratorFocusedTests
             episodeId: "dededede-dede-dede-dede-dededededede",
             includeEpisodes: false);
 
-        await NewGenerator(new StubClient()).GenerateTitlesAsync([shell], nullOutput.Path, "1080", progress: null, CancellationToken.None);
+        await Assert.ThrowsAsync<InvalidOperationException>(() => NewGenerator(new StubClient()).GenerateTitlesAsync([shell], nullOutput.Path, "1080", progress: null, CancellationToken.None));
         Assert.Empty(Directory.GetFiles(nullOutput.Path, "*.strm", SearchOption.AllDirectories));
 
         using var throwOutput = TempOutput.Create();
-        await NewGenerator(new StubClient(throwOnFetchRelease: true)).GenerateTitlesAsync([shell], throwOutput.Path, "1080", progress: null, CancellationToken.None);
+        await Assert.ThrowsAsync<InvalidOperationException>(() => NewGenerator(new StubClient(throwOnFetchRelease: true)).GenerateTitlesAsync([shell], throwOutput.Path, "1080", progress: null, CancellationToken.None));
         Assert.Empty(Directory.GetFiles(throwOutput.Path, "*.strm", SearchOption.AllDirectories));
     }
 
@@ -187,6 +187,38 @@ public class AniLibertyStrmGeneratorFocusedTests
 
         await NewGenerator().GenerateTitlesAsync([release], output.Path, "1080", progress: null, CancellationToken.None);
 
+        Assert.Empty(Directory.GetFiles(output.Path, "*.strm", SearchOption.AllDirectories));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task FailedOrEmptyDetails_PreserveExistingFilesAndStateWithDeleteEnabled(bool emptyDetails)
+    {
+        using var host = PluginTestHost.Create(cfg => cfg.StaleCleanupMode = Configuration.StaleCleanupMode.Delete);
+        using var output = TempOutput.Create();
+        var release = BuildRelease(1101, "Existing Detail");
+        await NewGenerator().GenerateTitlesAsync([release], output.Path, "1080", null, CancellationToken.None);
+        var before = Directory.GetFiles(output.Path, "*", SearchOption.AllDirectories)
+            .ToDictionary(path => path, File.ReadAllBytes);
+        var shell = BuildRelease(1101, "Existing Detail", includeEpisodes: false);
+        var client = emptyDetails ? new StubClient(hydratedRelease: shell) : new StubClient(throwOnFetchRelease: true);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            NewGenerator(client).GenerateTitlesAsync([shell], output.Path, "1080", null, CancellationToken.None));
+
+        Assert.Equal(before.Count, Directory.GetFiles(output.Path, "*", SearchOption.AllDirectories).Length);
+        foreach (var (path, bytes) in before)
+            Assert.Equal(bytes, await File.ReadAllBytesAsync(path));
+    }
+
+    [Fact]
+    public async Task ConfirmedNewAnnouncementWithoutEpisodes_DoesNotAbortGeneration()
+    {
+        using var output = TempOutput.Create();
+        var shell = BuildRelease(1101, "Future Announcement", includeEpisodes: false);
+        await NewGenerator(new StubClient(hydratedRelease: shell))
+            .GenerateTitlesAsync([shell], output.Path, "1080", null, CancellationToken.None);
         Assert.Empty(Directory.GetFiles(output.Path, "*.strm", SearchOption.AllDirectories));
     }
 

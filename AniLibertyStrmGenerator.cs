@@ -74,6 +74,7 @@ public sealed partial class AniLibertyStrmGenerator(
 
     // ────────────────────── 2.  media http (reuse) ──────────────────────
     private static readonly HttpClient _mediaHttp = CreateMediaHttp(TimeSpan.FromSeconds(20));
+    internal HttpClient ImageHttp { get; init; } = _mediaHttp;
     private static readonly HttpClient _hlsHttp = CreateMediaHttp(TimeSpan.FromSeconds(10));
 
     private static HttpClient CreateMediaHttp(TimeSpan timeout)
@@ -181,7 +182,8 @@ public sealed partial class AniLibertyStrmGenerator(
             manifest,
             mediaSegments,
             new Dictionary<int, List<FranchiseInfo>?>(),
-            new Dictionary<string, string>(StringComparer.Ordinal));
+            new Dictionary<string, string>(StringComparer.Ordinal),
+            new ImageRefreshSession(ImageHttp));
 
         await GenerateTitleListAsync(list, context, progress, debugLogs, supportTrace, token);
 
@@ -267,7 +269,11 @@ public sealed partial class AniLibertyStrmGenerator(
     {
         var hydrated = await HydrateReleaseWithEpisodesAsync(rel, token);
         if (hydrated is null)
+        {
+            if (context.Manifest.HasRelease(rel.Id))
+                throw new InvalidOperationException($"Release {rel.Id} unexpectedly has no episodes; keeping the previous library state.");
             return;
+        }
 
         var displayRaw = hydrated.Name?.English ?? hydrated.Name?.Main ?? hydrated.Alias ?? "";
         if (LooksLikeMovie(hydrated, displayRaw))
@@ -283,7 +289,8 @@ public sealed partial class AniLibertyStrmGenerator(
 
         try
         {
-            var full = await client.FetchReleaseByIdAsync(rel.Id, token);
+            var full = await client.FetchReleaseByIdAsync(rel.Id, token)
+                ?? throw new InvalidOperationException($"Release {rel.Id} details are unavailable; generation is incomplete.");
             if (full?.Episodes?.Count > 0)
                 return full;
 
@@ -296,8 +303,8 @@ public sealed partial class AniLibertyStrmGenerator(
         }
         catch (Exception ex)
         {
-            log.Warn(ex, "Skip {0} – failed to fetch details", rel.Id);
-            return null;
+            log.Warn(ex, "Release {0} details failed; aborting generation before cleanup and state publication", rel.Id);
+            throw;
         }
     }
 
@@ -416,6 +423,7 @@ public sealed partial class AniLibertyStrmGenerator(
         var posterUrl = NormalizeImageUrlPreferJpg(MakeFullUrl(PickImageUrl(rel.Poster)));
         await DownloadManagedImageAsync(
             context.Manifest,
+            context.Images,
             posterUrl,
             Path.Combine(movieDir, "cover.jpg"),
             "movie-cover",
@@ -454,8 +462,8 @@ public sealed partial class AniLibertyStrmGenerator(
         var seasonNum = await ResolveSeasonNumberAsync(rel, title, context, token);
         var paths = CreateSeasonPaths(context.BasePath, title.SafeName, seasonNum);
         var posterUrl = NormalizeImageUrlPreferJpg(MakeFullUrl(PickImageUrl(rel.Poster)));
-        await DownloadManagedImageAsync(context.Manifest, posterUrl, Path.Combine(paths.ShowDir, "folder.jpg"), "show-poster", rel.Id, null, token);
-        await DownloadManagedImageAsync(context.Manifest, posterUrl, Path.Combine(paths.ShowDir, $"{paths.SeasonFolder}-poster.jpg"), "season-poster", rel.Id, null, token);
+        await DownloadManagedImageAsync(context.Manifest, context.Images, posterUrl, Path.Combine(paths.ShowDir, "folder.jpg"), "show-poster", rel.Id, null, token);
+        await DownloadManagedImageAsync(context.Manifest, context.Images, posterUrl, Path.Combine(paths.ShowDir, $"{paths.SeasonFolder}-poster.jpg"), "season-poster", rel.Id, null, token);
         await WritePopularitySidecarAsync(rel, paths.ShowDir, context.Manifest, token);
         await WriteTvShowNfoAsync(rel, title, context, paths.ShowDir, token);
         await WriteSeasonNfoAsync(rel.Id, seasonNum, paths.SeasonDir, context.Manifest, token);
@@ -655,7 +663,7 @@ public sealed partial class AniLibertyStrmGenerator(
             episodeContext.Generation.Manifest,
             token);
         await WriteEpisodeIdSidecarAsync(episodeContext.Generation.Manifest, strmPath, ep.Id, episodeContext.Release.Id, token);
-        await WriteEpisodePreviewAsync(episodeContext.Release.Id, ep, episodeContext.Paths.SeasonDir, episodeContext.SeasonNumber, epNum, episodeContext.Generation.Manifest, token);
+        await WriteEpisodePreviewAsync(episodeContext.Release.Id, ep, episodeContext.Paths.SeasonDir, episodeContext.SeasonNumber, epNum, episodeContext.Generation.Manifest, episodeContext.Generation.Images, token);
         TrackMediaSegments(episodeContext.Release.Id, ep, strmPath, episodeContext.Generation.MediaSegments);
         await WriteEpisodeNfoAsync(ep, strmPath, epNum, episodeId, episodeContext, token);
     }
@@ -701,6 +709,7 @@ public sealed partial class AniLibertyStrmGenerator(
         int seasonNum,
         int epNum,
         ManagedLibraryManifest manifest,
+        ImageRefreshSession images,
         CancellationToken token)
     {
         var epPreviewUrlRaw = MakeFullUrl(PickImageUrl(ep.Preview));
@@ -710,7 +719,7 @@ public sealed partial class AniLibertyStrmGenerator(
 
         var ext = GetSafeImageExtensionFromUrl(epPreviewUrl);
         var thumbPath = Path.Combine(seasonDir, $"S{seasonNum:00}E{epNum:00}-thumb{ext}");
-        await DownloadManagedImageAsync(manifest, epPreviewUrl, thumbPath, "episode-thumb", releaseId, ep.Id, token);
+        await DownloadManagedImageAsync(manifest, images, epPreviewUrl, thumbPath, "episode-thumb", releaseId, ep.Id, token);
     }
 
     private static void TrackMediaSegments(
@@ -1071,7 +1080,8 @@ public sealed partial class AniLibertyStrmGenerator(
         ManagedLibraryManifest Manifest,
         AniLibertyMediaSegmentState MediaSegments,
         Dictionary<int, List<FranchiseInfo>?> FranchiseCache,
-        Dictionary<string, string> HlsProbeCache);
+        Dictionary<string, string> HlsProbeCache,
+        ImageRefreshSession Images);
 
     private readonly record struct TitleGenerationInfo(
         string? RuName,
@@ -1310,6 +1320,7 @@ public sealed partial class AniLibertyStrmGenerator(
     [ExcludeFromCodeCoverage(Justification = "Integration boundary: downloads remote poster/thumbnail assets.")]
     private async Task DownloadManagedImageAsync(
         ManagedLibraryManifest manifest,
+        ImageRefreshSession images,
         string url,
         string path,
         string kind,
@@ -1326,17 +1337,18 @@ public sealed partial class AniLibertyStrmGenerator(
 
         try
         {
-            var bytes = await DownloadImageBytesAsync(url, ct);
-            if (bytes is null)
+            var downloaded = await images.GetAsync(url, path, manifest, ct);
+            if (downloaded is null)
             {
                 TrackExistingImage(manifest, exists, path, kind, releaseId, episodeId, url);
                 return;
             }
 
+            var bytes = downloaded.Bytes;
             if (!exists || !BytesMatch(path, bytes))
                 await File.WriteAllBytesAsync(path, bytes, ct);
 
-            manifest.TrackBytes(path, kind, bytes, releaseId, episodeId, url);
+            manifest.TrackImage(path, kind, bytes, releaseId, episodeId, url, downloaded.ETag, downloaded.LastModified);
         }
         catch (OperationCanceledException)
         {
@@ -1347,17 +1359,6 @@ public sealed partial class AniLibertyStrmGenerator(
             TrackExistingImage(manifest, exists, path, kind, releaseId, episodeId, url);
             log.Warn(ex, "Download image failed: {0}", url);
         }
-    }
-
-    [ExcludeFromCodeCoverage(Justification = "Integration boundary: downloads remote poster/thumbnail assets.")]
-    private static async Task<byte[]?> DownloadImageBytesAsync(string url, CancellationToken ct)
-    {
-        using var resp = await _mediaHttp.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, ct);
-        if (!resp.IsSuccessStatusCode)
-            return null;
-
-        var bytes = await resp.Content.ReadAsByteArrayAsync(ct);
-        return IsSupportedImage(bytes) ? bytes : null;
     }
 
     internal static bool IsSupportedImage(byte[] bytes)

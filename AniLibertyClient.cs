@@ -76,6 +76,8 @@ public sealed record AniLibertyClient(HttpClient http, ILogger<AniLibertyClient>
 
     public async Task<List<ReleaseResponse>> FetchAllTitlesAsync(int pageSize, int maxPages, CancellationToken ct)
     {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(pageSize);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maxPages);
         var result = new List<ReleaseResponse>();
 
         for (var page = 1; page <= maxPages; page++) // ← 1-based
@@ -90,27 +92,18 @@ public sealed record AniLibertyClient(HttpClient http, ILogger<AniLibertyClient>
                 raw = await GetStringWithLoggingAsync(url, ct);
                 log.Debug("ALL page {0}: response received, {1} bytes", page, raw.Length);
 
-                List<ReleaseResponse>? pageData = null;
-                try
-                {
-                    pageData = JsonSerializer.Deserialize<List<ReleaseResponse>>(raw, _jsonOpts);
-                }
-                catch (JsonException)
-                {
-                    var old = JsonSerializer.Deserialize<ReleasesApiResponse>(raw, _jsonOpts);
-                    pageData = old?.Data;
-                }
+                var pageData = ParseReleasePage(raw, allowArray: true);
 
                 if (pageData is { Count: > 0 })
                 {
                     result.AddRange(pageData);
                     log.Debug("ALL page {0}: parsed {1} titles, total={2}", page, pageData.Count, result.Count);
-                    if (pageData.Count < pageSize) break;
+                    if (pageData.Count < pageSize) return result;
                 }
                 else
                 {
                     log.Debug("ALL page {0}: no titles returned, stopping.", page);
-                    break;
+                    return result;
                 }
             }
             catch (OperationCanceledException)
@@ -121,16 +114,18 @@ public sealed record AniLibertyClient(HttpClient http, ILogger<AniLibertyClient>
             {
                 log.Err(ex, "ALL page {0}: fetch/parse failed. Raw length={1}. First 300: {2}",
                     page, raw?.Length ?? 0, Truncate(raw, 300));
-                break;
+                throw;
             }
         }
 
-        return result;
+        throw new InvalidOperationException("Catalog page limit reached before completeness was established. Increase MaxPages; library cleanup was not started.");
     }
 
     public async Task<List<ReleaseResponse>> FetchFavoritesAsync(string bearerToken, int pageSize, int maxPages,
         CancellationToken ct)
     {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(pageSize);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maxPages);
         var result = new List<ReleaseResponse>();
 
         for (var page = 1; page <= maxPages; page++)
@@ -140,8 +135,8 @@ public sealed record AniLibertyClient(HttpClient http, ILogger<AniLibertyClient>
             try
             {
                 var raw = await GetStringAuthAsync(url, bearerToken, ct);
-                var parsed = JsonSerializer.Deserialize<ReleasesApiResponse>(raw, _jsonOpts);
-                var got = parsed?.Data?.Count ?? 0;
+                var data = ParseReleasePage(raw, allowArray: false);
+                var got = data.Count;
 
                 sw.Stop();
                 log.Debug("FAV page {0}: OK, {1} items, {2} ms", page, got, sw.ElapsedMilliseconds);
@@ -150,10 +145,12 @@ public sealed record AniLibertyClient(HttpClient http, ILogger<AniLibertyClient>
                 {
                     if (page == 1)
                         log.Warn("API returned 0 favorites — check token or favorites content.");
-                    break;
+                    return result;
                 }
 
-                result.AddRange(parsed!.Data);
+                result.AddRange(data);
+                if (got < pageSize)
+                    return result;
             }
             catch (OperationCanceledException)
             {
@@ -167,11 +164,28 @@ public sealed record AniLibertyClient(HttpClient http, ILogger<AniLibertyClient>
             {
                 sw.Stop();
                 log.Err(ex, "FAV page {0} failed after {1} ms", page, sw.ElapsedMilliseconds);
-                break;
+                throw;
             }
         }
 
-        return result;
+        throw new InvalidOperationException("Favorites page limit reached before completeness was established. Increase MaxPages; library cleanup was not started.");
+    }
+
+    private static List<ReleaseResponse> ParseReleasePage(string raw, bool allowArray)
+    {
+        using var document = JsonDocument.Parse(raw);
+        var data = document.RootElement;
+        if (data.ValueKind == JsonValueKind.Object && data.TryGetProperty("data", out var wrapped))
+            data = wrapped;
+        else if (!allowArray)
+            throw new JsonException("Release response does not contain a data array.");
+
+        if (data.ValueKind != JsonValueKind.Array)
+            throw new JsonException("Release response does not contain a release array.");
+        var releases = data.Deserialize<List<ReleaseResponse>>(_jsonOpts)!;
+        if (releases.Any(release => release is null || release.Id <= 0))
+            throw new JsonException("Release response contains an invalid release.");
+        return releases;
     }
 
     public async Task<bool> UpdateViewTimecodesAsync(string bearerToken, IEnumerable<ViewTimecodeUpdateItem> updates,
@@ -302,8 +316,8 @@ public sealed record AniLibertyClient(HttpClient http, ILogger<AniLibertyClient>
         {
             var raw = await GetStringWithLoggingAsync(url, ct);
             var full = JsonSerializer.Deserialize<ReleaseResponse>(raw, _jsonOpts);
-            if (full == null)
-                log.Warn("Deserialize of release {0} returned null", id);
+            if (full is null || full.Id != id)
+                throw new JsonException($"Release details do not match requested release {id}.");
             return full;
         }
         catch (OperationCanceledException)
@@ -313,7 +327,7 @@ public sealed record AniLibertyClient(HttpClient http, ILogger<AniLibertyClient>
         catch (Exception ex)
         {
             log.Err(ex, "Failed to fetch release {0}", id);
-            return null;
+            throw;
         }
     }
 
