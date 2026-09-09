@@ -1,14 +1,11 @@
-AniLiberty STRM Performance Update
+AniLiberty STRM 2.0.0.14 — Jellyfin 10.11
 
-This update makes library generation and Skip Intro/Outro processing faster and lighter on Jellyfin, especially for larger libraries.
+### Changes
 
-### Performance Improvements
-- Faster full-catalog and Favorites library generation.
-- Reduced CPU and memory usage during generation and library updates.
-- Faster preparation of native Skip Intro/Outro data after Jellyfin starts or scans a library.
-- Improved performance during repeated scheduled runs and when multiple library locations are configured.
-- Reduced memory usage while processing artwork and plugin-managed library data.
+- Reduced unnecessary artwork downloads during library updates.
+- Reduced background processing for intro and outro skipping.
+- Fixed a problem that could remove generated library files when AniLiberty returned incomplete data.
 
 ### Upgrade Notes
-- Restart Jellyfin after installing the update.
-- No settings changes or library regeneration are required.
+
+Restart Jellyfin after updating. No settings changes or library regeneration are required.

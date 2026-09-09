@@ -100,7 +100,9 @@ public partial class BuildConfigurationTests
         Assert.Contains("does not download episodes for offline viewing", readme, StringComparison.Ordinal);
         Assert.Contains("tree/jellyfin-12", readme, StringComparison.Ordinal);
         Assert.Contains("tree/aniLiberty-v2", readme, StringComparison.Ordinal);
-        Assert.Contains("not published releases", readme, StringComparison.Ordinal);
+        Assert.Contains("releases/tag/v2.0.0.14", readme, StringComparison.Ordinal);
+        Assert.Contains("releases/tag/v2.0.0.15", readme, StringComparison.Ordinal);
+        Assert.DoesNotContain("no public Jellyfin 12 release yet", readme, StringComparison.Ordinal);
         foreach (var internalDetail in new[] { "Signal Acquisition Layer", "Operational Command Center", "C:\\Users\\", "local-install-20260908", "docs/audits/" })
             Assert.DoesNotContain(internalDetail, readme, StringComparison.Ordinal);
     }
