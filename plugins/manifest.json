@@ -10,6 +10,26 @@
     "imageUrl": "https://queukat.github.io/AniLibriaStrmPlugin/plugins/aniliberty-strm-plugin/icon.png",
     "versions": [
       {
+        "version": "2.0.0.15",
+        "changelog": "AniLiberty STRM 2.0.0.15 — Jellyfin 12\n\n### Changes\n\n- Added support for Jellyfin 12.\n- Reduced unnecessary artwork downloads during library updates.\n- Reduced background processing for intro and outro skipping.\n- Fixed a problem that could remove generated library files when AniLiberty returned incomplete data.\n\n### Upgrade Notes\n\nRestart Jellyfin after updating. No settings changes or library regeneration are required.",
+        "targetAbi": "12.0.0.0",
+        "sourceUrl": "https://queukat.github.io/AniLibriaStrmPlugin/plugins/AniLibertyStrmPlugin_2.0.0.15_jellyfin-12.0.0.0.zip",
+        "checksum": "fd87929b4cd552e52d79fe9310a10a16",
+        "timestamp": "2026-09-09T08:10:56Z",
+        "releaseUrl": "https://github.com/queukat/AniLibriaStrmPlugin/releases/tag/v2.0.0.15",
+        "changelogUrl": "https://queukat.github.io/AniLibriaStrmPlugin/CHANGELOG.md"
+      },
+      {
+        "version": "2.0.0.14",
+        "changelog": "AniLiberty STRM 2.0.0.14 — Jellyfin 10.11\n\n### Changes\n\n- Reduced unnecessary artwork downloads during library updates.\n- Reduced background processing for intro and outro skipping.\n- Fixed a problem that could remove generated library files when AniLiberty returned incomplete data.\n\n### Upgrade Notes\n\nRestart Jellyfin after updating. No settings changes or library regeneration are required.",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://queukat.github.io/AniLibriaStrmPlugin/plugins/AniLibertyStrmPlugin_2.0.0.14_jellyfin-10.11.0.0.zip",
+        "checksum": "b7b592c95ab7cab5397263ba3596a38b",
+        "timestamp": "2026-09-09T08:10:56Z",
+        "releaseUrl": "https://github.com/queukat/AniLibriaStrmPlugin/releases/tag/v2.0.0.14",
+        "changelogUrl": "https://queukat.github.io/AniLibriaStrmPlugin/CHANGELOG.md"
+      },
+      {
         "version": "2.0.0.13",
         "changelog": "Release 2.0.0.13\nAniLiberty STRM Performance Update\n\nThis update makes library generation and Skip Intro/Outro processing faster and lighter on Jellyfin, especially for larger libraries.\n\n### Performance Improvements\n- Faster full-catalog and Favorites library generation.\n- Reduced CPU and memory usage during generation and library updates.\n- Faster preparation of native Skip Intro/Outro data after Jellyfin starts or scans a library.\n- Improved performance during repeated scheduled runs and when multiple library locations are configured.\n- Reduced memory usage while processing artwork and plugin-managed library data.\n\n### Upgrade Notes\n- Restart Jellyfin after installing the update.\n- No settings changes or library regeneration are required.\n\nGitHub Release: https://github.com/queukat/AniLibriaStrmPlugin/releases/tag/v2.0.0.13\nFull changelog: https://github.com/queukat/AniLibriaStrmPlugin/blob/aniLiberty-v2/CHANGELOG.md",
         "targetAbi": "10.11.0.0",
