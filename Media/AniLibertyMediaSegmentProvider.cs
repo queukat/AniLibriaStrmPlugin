@@ -65,6 +65,12 @@ public sealed class AniLibertyMediaSegmentProvider : IMediaSegmentProvider
         }
     }
 
+    public Task CleanupExtractedData(Guid itemId, CancellationToken cancellationToken)
+    {
+        // AniLiberty timings are upstream metadata, not item-specific analysis data owned by Jellyfin.
+        return Task.CompletedTask;
+    }
+
     private static IReadOnlyList<MediaSegmentDto> BuildSegments(
         Guid itemId,
         IReadOnlyCollection<AniLibertyMediaSegment> segments)

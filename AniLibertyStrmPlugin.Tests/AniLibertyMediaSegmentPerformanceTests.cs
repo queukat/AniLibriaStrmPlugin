@@ -2,6 +2,7 @@ using AniLibertyStrmPlugin.Media;
 using AniLibertyStrmPlugin.Utils;
 using Jellyfin.Data.Enums;
 using Jellyfin.Database.Implementations.Enums;
+using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 
 namespace AniLibertyStrmPlugin.Tests;
@@ -66,6 +67,41 @@ public sealed class AniLibertyMediaSegmentPerformanceTests
             query.OrderBy,
             order => Assert.Equal((ItemSortBy.SortName, SortOrder.Ascending), order),
             order => Assert.Equal((ItemSortBy.DateCreated, SortOrder.Ascending), order));
+    }
+
+    [Fact]
+    public async Task CleanupExtractedData_PreservesSourceBackedSegmentState()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "alib-segment-cleanup-" + Guid.NewGuid().ToString("N"));
+        var episodePath = Path.Combine(root, "Show", "Season 01", "S01E01.strm");
+        Directory.CreateDirectory(Path.GetDirectoryName(episodePath)!);
+        await File.WriteAllTextAsync(episodePath, "https://example.test/one.m3u8");
+
+        try
+        {
+            var state = new AniLibertyMediaSegmentState(root);
+            state.Track(episodePath, 1, "episode-1", [Segment(10)]);
+            await state.SaveAsync(CancellationToken.None);
+
+            var statePath = Path.Combine(
+                root,
+                ManagedLibraryManifest.StateDirectoryName,
+                AniLibertyMediaSegmentState.MediaSegmentsFileName);
+            var before = await File.ReadAllBytesAsync(statePath);
+            var provider = new AniLibertyMediaSegmentProvider(
+                null!,
+                new AniLibertyMediaSegmentIndex(),
+                NullLogger<AniLibertyMediaSegmentProvider>.Instance);
+
+            await provider.CleanupExtractedData(Guid.NewGuid(), CancellationToken.None);
+
+            Assert.Equal(before, await File.ReadAllBytesAsync(statePath));
+        }
+        finally
+        {
+            if (Directory.Exists(root))
+                Directory.Delete(root, recursive: true);
+        }
     }
 
     private static async Task SaveStateAsync(

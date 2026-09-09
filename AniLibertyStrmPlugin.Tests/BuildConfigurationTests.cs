@@ -39,7 +39,7 @@ public partial class BuildConfigurationTests
         Assert.NotEmpty(jellyfinPackages);
         Assert.All(jellyfinPackages, package =>
         {
-            Assert.Equal("10.11.0", package.Version);
+            Assert.Equal("12.0.0-rc6", package.Version);
             Assert.DoesNotContain("*", package.Version, StringComparison.Ordinal);
         });
     }
@@ -55,7 +55,7 @@ public partial class BuildConfigurationTests
 
         Assert.NotEmpty(jellyfinPackages);
         Assert.All(jellyfinPackages, package =>
-            Assert.Equal("10.11.0", package.Resolved));
+            Assert.Equal("12.0.0-rc6", package.Resolved));
     }
 
     [Fact]

@@ -194,7 +194,7 @@ public sealed class AniLibertyViewsPullTask(
             return configuredUser;
         }
 
-        var allUsers = userManager.Users?.ToList() ?? new List<Jellyfin.Database.Implementations.Entities.User>();
+        var allUsers = userManager.GetUsers().ToList();
         if (allUsers.Count == 1)
         {
             var only = allUsers[0];
