@@ -92,27 +92,17 @@ public partial class BuildConfigurationTests
     }
 
     [Fact]
-    public void PublicReadme_UsesSystemPresentationLanguage()
+    public void PublicReadme_ExplainsProductAndCompatibilityWithoutInternalJargon()
     {
         var root = FindRepoRoot();
         var readme = File.ReadAllText(Path.Combine(root, "README.md"));
-        var lower = readme.ToLowerInvariant();
-
-        Assert.Contains("Signal Acquisition Layer", readme, StringComparison.Ordinal);
-        Assert.Contains("Reconstruction Core", readme, StringComparison.Ordinal);
-        Assert.Contains("Mirror Governance Layer", readme, StringComparison.Ordinal);
-        Assert.Contains("Operational Command Center", readme, StringComparison.Ordinal);
-        Assert.Contains("Quality Gates", readme, StringComparison.Ordinal);
-        Assert.Contains("Resources/readme/hero-reconstruction-core.png", readme, StringComparison.Ordinal);
-        Assert.Contains("Resources/readme/system-capability-layers.png", readme, StringComparison.Ordinal);
-        Assert.Contains("Resources/readme/operational-command-center.png", readme, StringComparison.Ordinal);
-
-        foreach (var banned in new[] { "small script", "small helper", "quick tool", "wrapper", "utility", "auth helper" })
-            Assert.DoesNotContain(banned, lower, StringComparison.Ordinal);
-
-        Assert.True(File.Exists(Path.Combine(root, "Resources", "readme", "hero-reconstruction-core.png")));
-        Assert.True(File.Exists(Path.Combine(root, "Resources", "readme", "system-capability-layers.png")));
-        Assert.True(File.Exists(Path.Combine(root, "Resources", "readme", "operational-command-center.png")));
+        Assert.Contains("Browse and watch AniLiberty anime in Jellyfin", readme, StringComparison.Ordinal);
+        Assert.Contains("does not download episodes for offline viewing", readme, StringComparison.Ordinal);
+        Assert.Contains("tree/jellyfin-12", readme, StringComparison.Ordinal);
+        Assert.Contains("tree/aniLiberty-v2", readme, StringComparison.Ordinal);
+        Assert.Contains("not published releases", readme, StringComparison.Ordinal);
+        foreach (var internalDetail in new[] { "Signal Acquisition Layer", "Operational Command Center", "C:\\Users\\", "local-install-20260908", "docs/audits/" })
+            Assert.DoesNotContain(internalDetail, readme, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -122,13 +112,13 @@ public partial class BuildConfigurationTests
         var readme = File.ReadAllText(Path.Combine(root, "README.md"));
         var configPage = File.ReadAllText(Path.Combine(root, "Configuration", "configPage.html"));
 
-        Assert.Contains("aniliberty-strm-plugin_*.zip", readme, StringComparison.Ordinal);
-        Assert.Contains("C:\\ProgramData\\Jellyfin\\Server\\plugins\\AniLiberty STRM Plugin_", readme, StringComparison.Ordinal);
-        Assert.Contains("/config/plugins/AniLiberty STRM Plugin_", readme, StringComparison.Ordinal);
-        Assert.Contains("C:\\ProgramData\\Jellyfin\\Server\\plugins\\configurations\\AniLibertyStrmPlugin.xml", readme, StringComparison.Ordinal);
-        Assert.Contains("/config/plugins/configurations/AniLibertyStrmPlugin.xml", readme, StringComparison.Ordinal);
-        Assert.Contains("Do not use `localhost` for another device", readme, StringComparison.Ordinal);
-        Assert.Contains("After changing this field, run **Generate AniLiberty STRM library** again", readme, StringComparison.Ordinal);
+        Assert.Contains("./scripts/Build-Plugin.ps1 -Version", readme, StringComparison.Ordinal);
+        Assert.Contains("build/packages", readme, StringComparison.Ordinal);
+        Assert.Contains("/config/plugins", readme, StringComparison.Ordinal);
+        Assert.Contains("only one copy remains installed", readme, StringComparison.Ordinal);
+        Assert.Contains("Keep the plugin configuration private", readme, StringComparison.Ordinal);
+        Assert.Contains("Do not use `localhost`", readme, StringComparison.Ordinal);
+        Assert.Contains("rerun each enabled generation task", readme, StringComparison.Ordinal);
         Assert.Contains("do not add /AniLibertyPlayback/hls", configPage, StringComparison.Ordinal);
         Assert.Contains("Do not use localhost for phones, TVs, or", configPage, StringComparison.Ordinal);
 
@@ -142,23 +132,14 @@ public partial class BuildConfigurationTests
         var readme = File.ReadAllText(Path.Combine(root, "README.md"));
         var configPage = File.ReadAllText(Path.Combine(root, "Configuration", "configPage.html"));
 
-        Assert.Contains("Append picked folder", readme, StringComparison.Ordinal);
-        Assert.Contains("Full Catalog and Favorites Are Separate Rails", readme, StringComparison.Ordinal);
-        Assert.Contains("Do not point **All Titles STRM Path** and **Favorites STRM Path** at the same directory", readme, StringComparison.Ordinal);
-        Assert.Contains("Each output", readme, StringComparison.Ordinal);
-        Assert.Contains("Running a scheduled task is not enough by itself", readme, StringComparison.Ordinal);
-        Assert.Contains("If the matching enable flag is off", readme, StringComparison.Ordinal);
-        Assert.Contains("Requires **Generate full catalog library** to be enabled", readme, StringComparison.Ordinal);
-        Assert.Contains("Requires **Generate favorites library** to be enabled", readme, StringComparison.Ordinal);
-        Assert.Contains("Mirror Governance, plain rule", readme, StringComparison.Ordinal);
-        Assert.Contains("does not delete anything", readme, StringComparison.Ordinal);
-        Assert.Contains("Existing `.nfo` files and artwork that were not generated by this plugin are preserved", readme, StringComparison.Ordinal);
-        Assert.Contains("Max UI log lines", readme, StringComparison.Ordinal);
-        Assert.Contains("Watch-State Exchange", readme, StringComparison.Ordinal);
-        Assert.Contains("Enabled by **Sync playback progress to AniLiberty**", readme, StringComparison.Ordinal);
-        Assert.Contains("Run manually through **Sync AniLiberty watch progress to Jellyfin**", readme, StringComparison.Ordinal);
-        Assert.Contains("If the server has exactly one Jellyfin user", readme, StringComparison.Ordinal);
-        Assert.Contains("Sync step (seconds)", readme, StringComparison.Ordinal);
+        Assert.Contains("separate, non-overlapping output folders", readme, StringComparison.Ordinal);
+        Assert.Contains("Both tasks require their own generation option to be enabled", readme, StringComparison.Ordinal);
+        Assert.Contains("without deleting existing files", readme, StringComparison.Ordinal);
+        Assert.Contains("preserving untracked, user-supplied metadata and artwork", readme, StringComparison.Ordinal);
+        Assert.Contains("Incomplete API results do not authorize stale-file cleanup", readme, StringComparison.Ordinal);
+        Assert.Contains("Sync playback progress to AniLiberty", readme, StringComparison.Ordinal);
+        Assert.Contains("Sync AniLiberty watch progress to Jellyfin", readme, StringComparison.Ordinal);
+        Assert.Contains("a server with one user", readme, StringComparison.Ordinal);
         Assert.Contains("Do not reuse the favorites path", configPage, StringComparison.Ordinal);
         Assert.Contains("When OFF, the task exits without updating Favorites STRM Path", configPage, StringComparison.Ordinal);
         Assert.Contains("When OFF, the task exits without updating All Titles STRM Path", configPage, StringComparison.Ordinal);
