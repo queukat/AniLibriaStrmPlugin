@@ -2,6 +2,35 @@
 
 All notable changes to this plugin are documented in this file.
 
+## v2.0.0.15 - 2026-09-09
+
+AniLiberty STRM 2.0.0.15 — Jellyfin 12
+
+### Changes
+
+- Added support for Jellyfin 12.
+- Reduced unnecessary artwork downloads during library updates.
+- Reduced background processing for intro and outro skipping.
+- Fixed a problem that could remove generated library files when AniLiberty returned incomplete data.
+
+### Upgrade Notes
+
+Restart Jellyfin after updating. No settings changes or library regeneration are required.
+
+## v2.0.0.14 - 2026-09-09
+
+AniLiberty STRM 2.0.0.14 — Jellyfin 10.11
+
+### Changes
+
+- Reduced unnecessary artwork downloads during library updates.
+- Reduced background processing for intro and outro skipping.
+- Fixed a problem that could remove generated library files when AniLiberty returned incomplete data.
+
+### Upgrade Notes
+
+Restart Jellyfin after updating. No settings changes or library regeneration are required.
+
 ## v2.0.0.13 - 2026-08-18
 AniLiberty STRM Performance Update
 

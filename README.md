@@ -18,15 +18,15 @@ The branches target different Jellyfin versions. They share the AniLiberty featu
 
 | Jellyfin server | Source branch | Installation |
 | --- | --- | --- |
-| **12** | [`jellyfin-12`](https://github.com/queukat/AniLibriaStrmPlugin/tree/jellyfin-12) — default branch | Build the `2.0.0.15` candidate below; no public Jellyfin 12 release yet |
-| **10.11** | [`aniLiberty-v2`](https://github.com/queukat/AniLibriaStrmPlugin/tree/aniLiberty-v2) | Public release `2.0.0.13`, or build the updated `2.0.0.14` candidate below |
+| **12** | [`jellyfin-12`](https://github.com/queukat/AniLibriaStrmPlugin/tree/jellyfin-12) — default branch | [Release 2.0.0.15](https://github.com/queukat/AniLibriaStrmPlugin/releases/tag/v2.0.0.15) |
+| **10.11** | [`aniLiberty-v2`](https://github.com/queukat/AniLibriaStrmPlugin/tree/aniLiberty-v2) | [Release 2.0.0.14](https://github.com/queukat/AniLibriaStrmPlugin/releases/tag/v2.0.0.14) |
 | **10.10** | [`main`](https://github.com/queukat/AniLibriaStrmPlugin/tree/main) — older AniLibria plugin | Refer to that branch's documentation |
 
-The candidate numbers identify source builds; they are **not published releases**. Switching the default GitHub branch does not change the Jellyfin plugin catalog. Check [Releases](https://github.com/queukat/AniLibriaStrmPlugin/releases) and the package's Jellyfin requirement before installing.
+Install through the plugin catalog below, or download the ZIP from the release matching your Jellyfin version. The catalog offers the compatible update for your server.
 
 ## Install
 
-### Jellyfin 10.11: plugin catalog
+### Plugin catalog: Jellyfin 10.11 and 12
 
 1. Open **Dashboard → Plugins → Repositories → +**.
 2. Add this repository URL:
@@ -38,13 +38,13 @@ The candidate numbers identify source builds; they are **not published releases*
 3. Open **Plugins → Catalog**, select **AniLiberty STRM Plugin**, and install the compatible version.
 4. Restart Jellyfin.
 
-For Jellyfin 12, use the source-build instructions below until a compatible public package is available.
+Jellyfin 10.11 uses plugin 2.0.0.14; Jellyfin 12 uses plugin 2.0.0.15.
 
 ### Install a ZIP manually
 
 1. Obtain a package built for your Jellyfin version.
 2. Stop Jellyfin and back up its existing AniLiberty plugin folder and configuration.
-3. Extract the ZIP contents into a versioned folder under Jellyfin's `plugins` directory, such as `AniLiberty STRM Plugin_2.0.0.15` for the Jellyfin 12 candidate.
+3. Extract the ZIP contents into a versioned folder under Jellyfin's `plugins` directory, such as `AniLiberty STRM Plugin_2.0.0.15` for Jellyfin 12.
 4. Keep the DLLs and `meta.json` directly inside that folder, not inside an extra nested ZIP directory. Move any previous AniLiberty binary folder outside `plugins` so only one copy remains installed. Keep the separate plugin configuration.
 5. Start Jellyfin and check that **AniLiberty STRM Plugin** appears under **Dashboard → Plugins**.
 
