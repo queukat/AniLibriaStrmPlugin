@@ -48,6 +48,7 @@ public sealed class AniLibertyMediaSegmentWarmupHostedService : IHostedService, 
     private int _fullPassStartIndex;
     private int _fullPassVersion;
     private string? _fullPassRootPath;
+    private bool _fullPassRefreshExisting;
     private bool _fullPassInProgress;
     private bool _wasScanRunning;
     private string _lastReason = "Startup";
@@ -83,7 +84,7 @@ public sealed class AniLibertyMediaSegmentWarmupHostedService : IHostedService, 
             MissingSegmentPollInterval,
             MissingSegmentPollInterval);
 
-        RequestFullPass(StartupDebounce, "Startup");
+        RequestFullPass(StartupDebounce, "Startup", refreshExisting: true);
         return Task.CompletedTask;
     }
 
@@ -133,7 +134,7 @@ public sealed class AniLibertyMediaSegmentWarmupHostedService : IHostedService, 
             if (!IsEligibleEpisode(e.Item))
                 return;
 
-            _pendingItemIds[e.Item.Id] = 0;
+            _pendingItemIds[e.Item.Id] = 1;
             ScheduleWorker(ItemChangedDebounce, "ItemChanged");
         }
         catch (Exception ex)
@@ -163,13 +164,11 @@ public sealed class AniLibertyMediaSegmentWarmupHostedService : IHostedService, 
             if (string.Equals(retry.Value.RootPath, rootPath, StringComparison.OrdinalIgnoreCase))
                 _nextRetryUtcByItemId.TryRemove(retry.Key, out _);
         }
-        if (entryCount <= 0)
-            return;
         _logger.LogInformation(
             "[AniLiberty] Media segment state saved. Queuing warmup. root={RootPath} entries={EntryCount}",
             rootPath,
             entryCount);
-        RequestFullPass(TimeSpan.FromSeconds(5), "MediaSegmentStateSaved", rootPath);
+        RequestFullPass(TimeSpan.FromSeconds(5), "MediaSegmentStateSaved", rootPath, refreshExisting: true);
     }
 
     private void ScanPollTick()
@@ -205,13 +204,15 @@ public sealed class AniLibertyMediaSegmentWarmupHostedService : IHostedService, 
         }
     }
 
-    private void RequestFullPass(TimeSpan delay, string reason, string? rootPath = null)
+    private void RequestFullPass(TimeSpan delay, string reason, string? rootPath = null, bool refreshExisting = false)
     {
         if (_stopping)
             return;
 
         lock (_fullPassLock)
         {
+            _fullPassRefreshExisting = refreshExisting ||
+                                       ((_fullPassRequested || _fullPassInProgress) && _fullPassRefreshExisting);
             _fullPassRootPath = (_fullPassRequested || _fullPassInProgress) &&
                                 !string.Equals(_fullPassRootPath, rootPath, StringComparison.OrdinalIgnoreCase)
                 ? null
@@ -311,7 +312,7 @@ public sealed class AniLibertyMediaSegmentWarmupHostedService : IHostedService, 
 
             _fullPassRequested = false;
             _fullPassInProgress = true;
-            return new FullPassRequest(_fullPassVersion, _fullPassStartIndex, _fullPassRootPath);
+            return new FullPassRequest(_fullPassVersion, _fullPassStartIndex, _fullPassRootPath, _fullPassRefreshExisting);
         }
     }
 
@@ -348,7 +349,7 @@ public sealed class AniLibertyMediaSegmentWarmupHostedService : IHostedService, 
         foreach (var root in roots)
         {
             var snapshot = await _mediaSegmentIndex.GetSnapshotForRootAsync(root, cancellationToken).ConfigureAwait(false);
-            if (snapshot is { Count: > 0 })
+            if (snapshot is not null && (request.RefreshExisting || snapshot.Count > 0))
                 snapshots[root] = snapshot;
         }
         if (snapshots.Count == 0)
@@ -377,11 +378,14 @@ public sealed class AniLibertyMediaSegmentWarmupHostedService : IHostedService, 
                 }
 
                 if (!AniLibertyMediaSegmentState.TryResolveStatePath(episode.Path, out var root, out _) ||
-                    !snapshots.TryGetValue(root, out var snapshot) || !snapshot.TryGetEntry(episode.Path, out _) ||
-                    _mediaSegmentManager.HasSegments(episode.Id))
+                    !snapshots.TryGetValue(root, out var snapshot) ||
+                    (!request.RefreshExisting &&
+                     (!snapshot.TryGetEntry(episode.Path, out _) || _mediaSegmentManager.HasSegments(episode.Id))))
                     continue;
 
-                _pendingItemIds[episode.Id] = 0;
+                // A missing-only repair must not downgrade a queued source refresh.
+                _pendingItemIds.AddOrUpdate(episode.Id, request.RefreshExisting ? (byte)1 : (byte)0,
+                    (_, existing) => request.RefreshExisting ? (byte)1 : existing);
                 enqueuedCount++;
                 if (enqueuedCount >= MaxMissingItemsPerFullPass)
                     break;
@@ -452,7 +456,7 @@ public sealed class AniLibertyMediaSegmentWarmupHostedService : IHostedService, 
 
         var options = BuildAniLibertySegmentOptions();
         var processed = 0;
-        var created = 0;
+        var reconciled = 0;
         var skippedNoState = 0;
         var skippedNoEntry = 0;
 
@@ -460,7 +464,7 @@ public sealed class AniLibertyMediaSegmentWarmupHostedService : IHostedService, 
         {
             cancellationToken.ThrowIfCancellationRequested();
 
-            if (!_pendingItemIds.TryRemove(itemId, out _))
+            if (!_pendingItemIds.TryRemove(itemId, out var refreshExisting))
                 continue;
 
             if (!CanRetryMissingItem(itemId, DateTime.UtcNow))
@@ -479,13 +483,14 @@ public sealed class AniLibertyMediaSegmentWarmupHostedService : IHostedService, 
                 continue;
             }
 
-            if (!snapshot.TryGetEntry(episode.Path, out var entry) || entry.Segments.Length == 0)
+            var hasSourceSegments = snapshot.TryGetEntry(episode.Path, out var entry) && entry.Segments.Length > 0;
+            if (!hasSourceSegments && refreshExisting == 0)
             {
                 skippedNoEntry++;
                 continue;
             }
 
-            if (_mediaSegmentManager.HasSegments(itemId))
+            if (refreshExisting == 0 && _mediaSegmentManager.HasSegments(itemId))
             {
                 _nextRetryUtcByItemId.TryRemove(itemId, out _);
                 continue;
@@ -497,10 +502,10 @@ public sealed class AniLibertyMediaSegmentWarmupHostedService : IHostedService, 
                 .RunSegmentPluginProviders(episode, options, forceOverwrite: false, cancellationToken)
                 .ConfigureAwait(false);
 
-            if (_mediaSegmentManager.HasSegments(itemId))
+            if (!hasSourceSegments || _mediaSegmentManager.HasSegments(itemId))
             {
                 _nextRetryUtcByItemId.TryRemove(itemId, out _);
-                created++;
+                reconciled++;
             }
             else
             {
@@ -512,15 +517,15 @@ public sealed class AniLibertyMediaSegmentWarmupHostedService : IHostedService, 
         if (processed > 0 || skippedNoState > 0 || skippedNoEntry > 0)
         {
             _logger.LogInformation(
-                "[AniLiberty] Media segment warmup finished. processed={Processed} created={Created} skippedNoState={SkippedNoState} skippedNoEntry={SkippedNoEntry} reason={Reason}",
+                "[AniLiberty] Media segment warmup finished. processed={Processed} reconciled={Reconciled} skippedNoState={SkippedNoState} skippedNoEntry={SkippedNoEntry} reason={Reason}",
                 processed,
-                created,
+                reconciled,
                 skippedNoState,
                 skippedNoEntry,
                 reason);
         }
 
-        return new WarmupResult(processed, created, skippedNoState, skippedNoEntry);
+        return new WarmupResult(processed, reconciled, skippedNoState, skippedNoEntry);
     }
 
     private static LibraryOptions BuildAniLibertySegmentOptions()
@@ -621,13 +626,13 @@ public sealed class AniLibertyMediaSegmentWarmupHostedService : IHostedService, 
 
     private readonly record struct WarmupResult(
         int Processed,
-        int Created,
+        int Reconciled,
         int SkippedNoState,
         int SkippedNoEntry);
 
     private readonly record struct RetryState(DateTime NextRetryUtc, string RootPath);
 
-    private readonly record struct FullPassRequest(int Version, int StartIndex, string? RootPath);
+    private readonly record struct FullPassRequest(int Version, int StartIndex, string? RootPath, bool RefreshExisting);
 
     private readonly record struct FullPassBatch(
         int EnqueuedCount,

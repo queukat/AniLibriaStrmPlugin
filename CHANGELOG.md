@@ -2,6 +2,49 @@
 
 All notable changes to this plugin are documented in this file.
 
+## v3.0.0.0 - 2026-10-16
+
+AniLiberty STRM 3.0.0.0 — Jellyfin 12
+
+### Changes
+
+- Fixed intro and outro skips disappearing after repeated library updates.
+- Corrected skip timings now apply to episodes already in your library.
+- Temporary read errors no longer remove saved skip timings.
+
+### Upgrade Notes
+
+Restart Jellyfin after updating. No settings changes or library regeneration are required.
+
+## v2.0.1.0 - 2026-10-16
+
+AniLiberty STRM 2.0.1.0 — Jellyfin 10.11
+
+### Changes
+
+- Fixed intro and outro skips disappearing after repeated library updates.
+- Corrected skip timings now apply to episodes already in your library.
+- Temporary read errors no longer remove saved skip timings.
+
+### Upgrade Notes
+
+Restart Jellyfin after updating. No settings changes or library regeneration are required.
+
+## v2.0.0.15 - 2026-09-09
+
+AniLiberty STRM 2.0.0.15 — Jellyfin 12
+
+### Changes
+
+- Added support for Jellyfin 12.
+- Reduced unnecessary artwork downloads during library updates.
+- Reduced background processing for intro and outro skipping.
+- Fixed a problem that could remove generated library files when AniLiberty returned incomplete data.
+
+### Upgrade Notes
+
+Restart Jellyfin after updating. No settings changes or library regeneration are required.
+
 ## v2.0.0.14 - 2026-09-09
 
 AniLiberty STRM 2.0.0.14 — Jellyfin 10.11
