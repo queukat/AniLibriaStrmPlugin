@@ -50,18 +50,22 @@ public sealed class AniLibertyMediaSegmentProvider : IMediaSegmentProvider
 
         try
         {
-            var entry = await _mediaSegmentIndex
-                .TryGetEntryForPathAsync(item.Path, cancellationToken)
+            var snapshot = await _mediaSegmentIndex
+                .GetSnapshotForPathAsync(item.Path, cancellationToken)
                 .ConfigureAwait(false);
-            if (entry?.Segments == null || entry.Segments.Length == 0)
+            if (snapshot is null)
+                throw new IOException("AniLiberty media segment state is unavailable; existing segments must be preserved.");
+
+            if (!snapshot.TryGetEntry(item.Path, out var entry) || entry.Segments.Length == 0)
                 return Array.Empty<MediaSegmentDto>();
 
-            return FilterExistingSegments(request, BuildSegments(request.ItemId, entry.Segments));
+            // Jellyfin replaces this provider's set; it does not append a delta.
+            return BuildSegments(request.ItemId, entry.Segments);
         }
         catch (Exception ex) when (!cancellationToken.IsCancellationRequested)
         {
             _logger.LogWarning(ex, "Failed to resolve AniLiberty media segments. itemId={ItemId}", request.ItemId);
-            return Array.Empty<MediaSegmentDto>();
+            throw;
         }
     }
 
@@ -116,23 +120,5 @@ public sealed class AniLibertyMediaSegmentProvider : IMediaSegmentProvider
 
         type = default;
         return false;
-    }
-
-    private static IReadOnlyList<MediaSegmentDto> FilterExistingSegments(
-        MediaSegmentGenerationRequest request,
-        IReadOnlyList<MediaSegmentDto> segments)
-    {
-        if (segments.Count == 0 || request.ExistingSegments == null || request.ExistingSegments.Count == 0)
-            return segments;
-
-        var existingTypes = request.ExistingSegments
-            .Select(x => x.Type)
-            .ToHashSet();
-        if (existingTypes.Count == 0)
-            return segments;
-
-        return segments
-            .Where(x => !existingTypes.Contains(x.Type))
-            .ToArray();
     }
 }

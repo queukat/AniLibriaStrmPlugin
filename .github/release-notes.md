@@ -1,11 +1,10 @@
-AniLiberty STRM 2.0.0.15 — Jellyfin 12
+AniLiberty STRM 3.0.0.0 — Jellyfin 12
 
 ### Changes
 
-- Added support for Jellyfin 12.
-- Reduced unnecessary artwork downloads during library updates.
-- Reduced background processing for intro and outro skipping.
-- Fixed a problem that could remove generated library files when AniLiberty returned incomplete data.
+- Fixed intro and outro skips disappearing after repeated library updates.
+- Corrected skip timings now apply to episodes already in your library.
+- Temporary read errors no longer remove saved skip timings.
 
 ### Upgrade Notes
 

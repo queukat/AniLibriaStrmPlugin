@@ -23,6 +23,16 @@ try {
         throw "Unsupported framework/ABI pair: $framework / $abi"
     }
 
+    $major = ([version] $Version).Major
+    if (($abi -eq '10.11.0.0' -and $major -ne 2) -or ($abi -eq '12.0.0.0' -and $major -ne 3)) {
+        throw "Version $Version does not belong to the release line for Jellyfin $abi."
+    }
+    $declaredVersion = [regex]::Match((Get-Content 'build.yaml' -Raw), '(?m)^version:\s*"([^"]+)"').Groups[1].Value
+    if ($declaredVersion -ne $Version) { throw 'Version must match build.yaml.' }
+    foreach ($field in @('Version', 'AssemblyVersion', 'FileVersion', 'InformationalVersion')) {
+        if ([string] $project.Project.PropertyGroup.$field -ne $Version) { throw "Project $field must match $Version." }
+    }
+
     $destination = [IO.Path]::GetFullPath($OutputDirectory)
     New-Item -ItemType Directory -Path $destination -Force | Out-Null
     $packageName = "AniLibertyStrmPlugin_${Version}_jellyfin-${abi}"

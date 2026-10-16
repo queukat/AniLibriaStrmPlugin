@@ -18,8 +18,8 @@ The branches target different Jellyfin versions. They share the AniLiberty featu
 
 | Jellyfin server | Source branch | Installation |
 | --- | --- | --- |
-| **12** | [`jellyfin-12`](https://github.com/queukat/AniLibriaStrmPlugin/tree/jellyfin-12) — default branch | [Release 2.0.0.15](https://github.com/queukat/AniLibriaStrmPlugin/releases/tag/v2.0.0.15) |
-| **10.11** | [`aniLiberty-v2`](https://github.com/queukat/AniLibriaStrmPlugin/tree/aniLiberty-v2) | [Release 2.0.0.14](https://github.com/queukat/AniLibriaStrmPlugin/releases/tag/v2.0.0.14) |
+| **12** | [`jellyfin-12`](https://github.com/queukat/AniLibriaStrmPlugin/tree/jellyfin-12) — default branch | [Release 3.0.0.0](https://github.com/queukat/AniLibriaStrmPlugin/releases/tag/v3.0.0.0) |
+| **10.11** | [`aniLiberty-v2`](https://github.com/queukat/AniLibriaStrmPlugin/tree/aniLiberty-v2) | [Release 2.0.1.0](https://github.com/queukat/AniLibriaStrmPlugin/releases/tag/v2.0.1.0) |
 | **10.10** | [`main`](https://github.com/queukat/AniLibriaStrmPlugin/tree/main) — older AniLibria plugin | Refer to that branch's documentation |
 
 Install through the plugin catalog below, or download the ZIP from the release matching your Jellyfin version. The catalog offers the compatible update for your server.
@@ -38,13 +38,13 @@ Install through the plugin catalog below, or download the ZIP from the release m
 3. Open **Plugins → Catalog**, select **AniLiberty STRM Plugin**, and install the compatible version.
 4. Restart Jellyfin.
 
-Jellyfin 10.11 uses plugin 2.0.0.14; Jellyfin 12 uses plugin 2.0.0.15.
+Plugin **2.x** supports Jellyfin **10.11**; plugin **3.x** supports Jellyfin **12**. Both lines receive their own updates through the same catalog. When upgrading Jellyfin from 10.11 to 12, also update the plugin to 3.x.
 
 ### Install a ZIP manually
 
 1. Obtain a package built for your Jellyfin version.
 2. Stop Jellyfin and back up its existing AniLiberty plugin folder and configuration.
-3. Extract the ZIP contents into a versioned folder under Jellyfin's `plugins` directory, such as `AniLiberty STRM Plugin_2.0.0.15` for Jellyfin 12.
+3. Extract the ZIP contents into a versioned folder under Jellyfin's `plugins` directory, such as `AniLiberty STRM Plugin_3.0.0.0` for Jellyfin 12.
 4. Keep the DLLs and `meta.json` directly inside that folder, not inside an extra nested ZIP directory. Move any previous AniLiberty binary folder outside `plugins` so only one copy remains installed. Keep the separate plugin configuration.
 5. Start Jellyfin and check that **AniLiberty STRM Plugin** appears under **Dashboard → Plugins**.
 
@@ -132,7 +132,7 @@ For **Jellyfin 12**:
 ```powershell
 git clone --branch jellyfin-12 https://github.com/queukat/AniLibriaStrmPlugin.git
 cd AniLibriaStrmPlugin
-pwsh ./scripts/Build-Plugin.ps1 -Version 2.0.0.15
+pwsh ./scripts/Build-Plugin.ps1 -Version 3.0.0.0
 ```
 
 For **Jellyfin 10.11**, use this instead:
@@ -140,7 +140,7 @@ For **Jellyfin 10.11**, use this instead:
 ```powershell
 git clone --branch aniLiberty-v2 https://github.com/queukat/AniLibriaStrmPlugin.git
 cd AniLibriaStrmPlugin
-pwsh ./scripts/Build-Plugin.ps1 -Version 2.0.0.14
+pwsh ./scripts/Build-Plugin.ps1 -Version 2.0.1.0
 ```
 
 Run either sequence in a directory without an existing `AniLibriaStrmPlugin` checkout. The build script uses the selected branch's Jellyfin compatibility and produces a ZIP, build receipt, and checksums under `build/packages`. Use `-OutputDirectory` to choose another destination. Follow the manual ZIP installation steps above.
@@ -155,6 +155,8 @@ dotnet test -c Release --no-restore --filter "Category!=Integration&FullyQualifi
 ```
 
 Integration and manual-generation tests can contact external services or write media output; they are excluded from this command. Branch builds do not publish a stable release or update the Jellyfin catalog. Public releases have a separate version and release-note approval step.
+
+For a release, record the approved four-part version in the project and `build.yaml`, and keep the English notes in `.github/release-notes.md`, `build.yaml`, and `CHANGELOG.md` consistent. Run the **Release** workflow on the matching branch with that exact version; it does not choose or increment versions. Keep `aniLiberty-v2` on 2.x and `jellyfin-12` on 3.x. Publish the first 3.x catalog entry before a new 2.x update, since Jellyfin treats the catalog compatibility version as a minimum. Never replace an existing release package.
 
 Issues, feature requests, and pull requests are welcome. Include the target Jellyfin version and keep credentials, local configuration, and generated media out of submissions.
 

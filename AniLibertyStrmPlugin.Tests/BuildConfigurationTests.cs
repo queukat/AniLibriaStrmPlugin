@@ -100,8 +100,8 @@ public partial class BuildConfigurationTests
         Assert.Contains("does not download episodes for offline viewing", readme, StringComparison.Ordinal);
         Assert.Contains("tree/jellyfin-12", readme, StringComparison.Ordinal);
         Assert.Contains("tree/aniLiberty-v2", readme, StringComparison.Ordinal);
-        Assert.Contains("releases/tag/v2.0.0.14", readme, StringComparison.Ordinal);
-        Assert.Contains("releases/tag/v2.0.0.15", readme, StringComparison.Ordinal);
+        Assert.Contains("releases/tag/v2.0.1.0", readme, StringComparison.Ordinal);
+        Assert.Contains("releases/tag/v3.0.0.0", readme, StringComparison.Ordinal);
         Assert.DoesNotContain("no public Jellyfin 12 release yet", readme, StringComparison.Ordinal);
         foreach (var internalDetail in new[] { "Signal Acquisition Layer", "Operational Command Center", "C:\\Users\\", "local-install-20260908", "docs/audits/" })
             Assert.DoesNotContain(internalDetail, readme, StringComparison.Ordinal);
@@ -243,9 +243,16 @@ public partial class BuildConfigurationTests
 
         Assert.Contains(".github/release-notes.md", workflow, StringComparison.Ordinal);
         Assert.Contains(".release_notes_body.md", workflow, StringComparison.Ordinal);
-        Assert.Contains("cat .release_notes_body.md", workflow, StringComparison.Ordinal);
+        Assert.Contains("body_path: .release_notes_body.md", workflow, StringComparison.Ordinal);
         Assert.Contains(".manifest_changelog.txt", workflow, StringComparison.Ordinal);
         Assert.Contains("MANIFEST_NOTES=", workflow, StringComparison.Ordinal);
+        Assert.Contains("REQUESTED_VERSION:", workflow, StringComparison.Ordinal);
+        Assert.Contains("group: stable-release", workflow, StringComparison.Ordinal);
+        Assert.Contains("generate_release_notes: false", workflow, StringComparison.Ordinal);
+        Assert.DoesNotContain("Compute next version", workflow, StringComparison.Ordinal);
+        Assert.DoesNotContain("git log", workflow, StringComparison.Ordinal);
+        Assert.True(workflow.IndexOf("Build plugin zip", StringComparison.Ordinal)
+                    < workflow.IndexOf("Create and push verified release tag", StringComparison.Ordinal));
         Assert.Contains(".changelog = $notes", workflow, StringComparison.Ordinal);
         Assert.Contains("AniLiberty STRM", notes, StringComparison.Ordinal);
         Assert.Contains("### ", notes, StringComparison.Ordinal);
@@ -255,6 +262,31 @@ public partial class BuildConfigurationTests
         Assert.DoesNotContain("release: harden AniLiberty STRM system", notes, StringComparison.Ordinal);
         Assert.DoesNotContain("release: fix locked Jellyfin restore", buildManifest, StringComparison.Ordinal);
         Assert.DoesNotContain("release: harden AniLiberty STRM system", buildManifest, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ReleaseMetadata_UsesSeparateVersionLinesAndMatchingEnglishNotes()
+    {
+        var root = FindRepoRoot();
+        var project = XDocument.Load(Path.Combine(root, "AniLibertyStrmPlugin.csproj"));
+        var version = project.Descendants("Version").Single().Value;
+        var manifest = File.ReadAllText(Path.Combine(root, "build.yaml")).Replace("\r\n", "\n");
+        var notes = File.ReadAllText(Path.Combine(root, ".github", "release-notes.md")).Trim();
+        var changelog = File.ReadAllText(Path.Combine(root, "CHANGELOG.md"));
+        var isJellyfin12 = project.Descendants("TargetFramework").Single().Value == "net10.0";
+        Assert.Equal(isJellyfin12 ? 3 : 2, Version.Parse(version).Major);
+        foreach (var field in new[] { "AssemblyVersion", "FileVersion", "InformationalVersion" })
+            Assert.Equal(version, project.Descendants(field).Single().Value);
+        Assert.Contains($"version: \"{version}\"", manifest, StringComparison.Ordinal);
+        Assert.Contains($"targetAbi: \"{(isJellyfin12 ? "12.0.0.0" : "10.11.0.0")}\"", manifest, StringComparison.Ordinal);
+        Assert.StartsWith($"AniLiberty STRM {version} — Jellyfin ", notes, StringComparison.Ordinal);
+        Assert.Contains(notes, changelog, StringComparison.Ordinal);
+        var noteBlock = manifest.Split("changelog: |\n", 2)[1].Split("\ndescription:", 2)[0];
+        var manifestNotes = string.Join("\n", noteBlock.Split('\n').Select(line => line.Length >= 2 ? line[2..] : line)).Trim();
+        Assert.Equal(notes.Replace("\r\n", "\n"), manifestNotes);
+        Assert.Contains("Temporary read errors no longer remove saved skip timings.", notes, StringComparison.Ordinal);
+        foreach (var internalDetail in new[] { "tests", "cache", "pagination", "Not Included", "workflow" })
+            Assert.DoesNotContain(internalDetail, notes, StringComparison.OrdinalIgnoreCase);
     }
 
     private static string FindRepoRoot()

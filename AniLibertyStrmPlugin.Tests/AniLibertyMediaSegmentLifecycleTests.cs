@@ -3,10 +3,13 @@ using System.Reflection;
 using System.Text.Json;
 using AniLibertyStrmPlugin.Media;
 using AniLibertyStrmPlugin.Utils;
+using Jellyfin.Database.Implementations.Enums;
 using MediaBrowser.Controller.Entities;
 using MediaBrowser.Controller.Entities.TV;
 using MediaBrowser.Controller.Library;
 using MediaBrowser.Controller.MediaSegments;
+using MediaBrowser.Model;
+using MediaBrowser.Model.MediaSegments;
 using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 
@@ -14,6 +17,126 @@ namespace AniLibertyStrmPlugin.Tests;
 
 public sealed class AniLibertyMediaSegmentLifecycleTests
 {
+    [Fact]
+    public async Task Provider_ReturnsCompleteSetOnRepeatedRunsAndAfterTimingChanges()
+    {
+        using var host = PluginTestHost.Create();
+        var root = host.Plugin.Configuration.StrmAllPath;
+        var episode = new Episode { Id = Guid.NewGuid(), Path = Path.Combine(root, "one.strm") };
+        var library = Proxy<ILibraryManager>((method, _) => method.Name == "GetItemById" ? episode : Default(method.ReturnType));
+        var provider = new AniLibertyMediaSegmentProvider(library, new(), NullLogger<AniLibertyMediaSegmentProvider>.Instance);
+        var state = State(root, episode.Path);
+        await state.SaveAsync(CancellationToken.None);
+        var first = await provider.GetMediaSegments(new() { ItemId = episode.Id, ExistingSegments = [] }, CancellationToken.None);
+        var repeated = await provider.GetMediaSegments(new() { ItemId = episode.Id, ExistingSegments = first }, CancellationToken.None);
+        Assert.Single(repeated);
+        Assert.Equal(10, repeated[0].StartTicks);
+
+        state.Track(episode.Path, 1, "episode", [
+            new() { Type = "Intro", StartTicks = 20, EndTicks = 30 },
+            new() { Type = "Outro", StartTicks = 100, EndTicks = 120 }]);
+        await state.SaveAsync(CancellationToken.None);
+        var changed = await provider.GetMediaSegments(new() { ItemId = episode.Id, ExistingSegments = first }, CancellationToken.None);
+        Assert.Collection(changed,
+            intro => { Assert.Equal(MediaSegmentType.Intro, intro.Type); Assert.Equal(20, intro.StartTicks); },
+            outro => { Assert.Equal(MediaSegmentType.Outro, outro.Type); Assert.Equal(100, outro.StartTicks); });
+        var unchanged = await provider.GetMediaSegments(new() { ItemId = episode.Id, ExistingSegments = changed }, CancellationToken.None);
+        Assert.Equal(changed.Select(x => (x.Type, x.StartTicks, x.EndTicks)), unchanged.Select(x => (x.Type, x.StartTicks, x.EndTicks)));
+
+        // A successfully read empty source is authoritative, unlike a read failure.
+        await new AniLibertyMediaSegmentState(root).SaveAsync(CancellationToken.None);
+        Assert.Empty(await provider.GetMediaSegments(new() { ItemId = episode.Id, ExistingSegments = changed }, CancellationToken.None));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Provider_UnavailableSourceThrowsInsteadOfReturningAnEmptyReplacement(bool malformed)
+    {
+        using var host = PluginTestHost.Create();
+        var root = host.Plugin.Configuration.StrmAllPath;
+        var episode = new Episode { Id = Guid.NewGuid(), Path = Path.Combine(root, "one.strm") };
+        var state = State(root, episode.Path);
+        if (malformed)
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(state.StatePath)!);
+            await File.WriteAllTextAsync(state.StatePath, "{broken");
+        }
+        var library = Proxy<ILibraryManager>((method, _) => method.Name == "GetItemById" ? episode : Default(method.ReturnType));
+        var provider = new AniLibertyMediaSegmentProvider(library, new(), NullLogger<AniLibertyMediaSegmentProvider>.Instance);
+        var request = new MediaSegmentGenerationRequest
+        {
+            ItemId = episode.Id,
+            ExistingSegments = [new MediaSegmentDto { ItemId = episode.Id, Type = MediaSegmentType.Intro, StartTicks = 10, EndTicks = 20 }]
+        };
+        await Assert.ThrowsAsync<IOException>(() => provider.GetMediaSegments(request, CancellationToken.None));
+        Assert.Single(request.ExistingSegments);
+    }
+
+    [Fact]
+    public async Task Index_RetriesFailedReadWithoutAFileChangeOrInvalidation()
+    {
+        using var host = PluginTestHost.Create();
+        var root = host.Plugin.Configuration.StrmAllPath;
+        var state = State(root, Path.Combine(root, "one.strm"));
+        await state.SaveAsync(CancellationToken.None);
+        var timestamp = File.GetLastWriteTimeUtc(state.StatePath);
+        var index = new AniLibertyMediaSegmentIndex();
+        using (var locked = new FileStream(state.StatePath, FileMode.Open, FileAccess.Read, FileShare.None))
+            Assert.Null(await index.GetSnapshotForRootAsync(root, CancellationToken.None));
+
+        Assert.NotNull(await index.GetSnapshotForRootAsync(root, CancellationToken.None));
+        Assert.Equal(2, index.LoadCount);
+        Assert.Equal(timestamp, File.GetLastWriteTimeUtc(state.StatePath));
+        Assert.NotNull(await index.GetSnapshotForRootAsync(root, CancellationToken.None));
+        Assert.Equal(2, index.LoadCount);
+    }
+
+    [Fact]
+    public async Task ChangedSource_RefreshesExistingSegmentsButPeriodicRepairDoesNot()
+    {
+        using var host = PluginTestHost.Create();
+        var root = host.Plugin.Configuration.StrmAllPath;
+        var episode = new Episode { Id = Guid.NewGuid(), Path = Path.Combine(root, "one.strm") };
+        await State(root, episode.Path).SaveAsync(CancellationToken.None);
+        var library = Proxy<ILibraryManager>((method, _) => method.Name switch
+        {
+            "GetItemList" => new BaseItem[] { episode },
+            "GetItemById" => episode,
+            _ => Default(method.ReturnType)
+        });
+        var calls = 0;
+        var manager = Proxy<IMediaSegmentManager>((method, args) =>
+        {
+            if (method.Name == "HasSegments") return true;
+            if (method.Name == "RunSegmentPluginProviders")
+            {
+                Assert.False((bool)args![2]!); // Never delete other providers via forceOverwrite.
+                calls++;
+                return Task.CompletedTask;
+            }
+            return Default(method.ReturnType);
+        });
+        using var service = Service(library, manager);
+        try
+        {
+            Invoke(service, "RequestFullPass", TimeSpan.FromHours(1), "PeriodicMissingSegments", null, false);
+            await (Task)Invoke(service, "WarmupWorkerAsync")!;
+            Assert.Equal(0, calls);
+
+            Invoke(service, "OnMediaSegmentStateSaved", root, 1);
+            // Coalescing a weaker request must preserve the required refresh.
+            Invoke(service, "RequestFullPass", TimeSpan.FromHours(1), "PeriodicMissingSegments", null, false);
+            await (Task)Invoke(service, "WarmupWorkerAsync")!;
+            Assert.Equal(1, calls);
+
+            Invoke(service, "RequestFullPass", TimeSpan.FromHours(1), "PeriodicMissingSegments", null, false);
+            await (Task)Invoke(service, "WarmupWorkerAsync")!;
+            Assert.Equal(1, calls);
+        }
+        finally { await service.StopAsync(CancellationToken.None); }
+    }
+
     [Fact]
     public async Task Save_UnchangedContentPreservesBytesTimestampAndCachedSnapshot()
     {
@@ -52,6 +175,54 @@ public sealed class AniLibertyMediaSegmentLifecycleTests
         {
             AniLibertyMediaSegmentState.Saved -= OnSaved;
         }
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task ChangedSource_ReconcilesRemovedTimingsIncludingTheLastEntry(bool lastEntryRemoved)
+    {
+        using var host = PluginTestHost.Create();
+        var root = host.Plugin.Configuration.StrmAllPath;
+        var episode = new Episode { Id = Guid.NewGuid(), Path = Path.Combine(root, "removed.strm") };
+        await State(root, episode.Path).SaveAsync(CancellationToken.None);
+        var current = lastEntryRemoved ? new AniLibertyMediaSegmentState(root) : State(root, Path.Combine(root, "other.strm"));
+        await current.SaveAsync(CancellationToken.None);
+        var library = Proxy<ILibraryManager>((method, _) => method.Name switch
+        {
+            "GetItemList" => new BaseItem[] { episode },
+            "GetItemById" => episode,
+            _ => Default(method.ReturnType)
+        });
+        var provider = new AniLibertyMediaSegmentProvider(library, new(), NullLogger<AniLibertyMediaSegmentProvider>.Instance);
+        var calls = 0;
+        var manager = Proxy<IMediaSegmentManager>((method, _) =>
+        {
+            if (method.Name == "HasSegments") return calls == 0;
+            if (method.Name == "RunSegmentPluginProviders") return Reconcile();
+            return Default(method.ReturnType);
+        });
+        async Task Reconcile()
+        {
+            calls++;
+            Assert.Empty(await provider.GetMediaSegments(new()
+            {
+                ItemId = episode.Id,
+                ExistingSegments = [new() { Type = MediaSegmentType.Intro, StartTicks = 10, EndTicks = 20 }]
+            }, CancellationToken.None));
+        }
+        using var service = Service(library, manager);
+        try
+        {
+            Invoke(service, "OnMediaSegmentStateSaved", root, lastEntryRemoved ? 0 : 1);
+            await (Task)Invoke(service, "WarmupWorkerAsync")!;
+            Assert.Equal(1, calls);
+            Assert.True((bool)Invoke(service, "CanRetryMissingItem", episode.Id, DateTime.UtcNow)!);
+            Invoke(service, "RequestFullPass", TimeSpan.FromHours(1), "PeriodicMissingSegments", null, false);
+            await (Task)Invoke(service, "WarmupWorkerAsync")!;
+            Assert.Equal(1, calls);
+        }
+        finally { await service.StopAsync(CancellationToken.None); }
     }
 
     [Fact]
@@ -112,7 +283,7 @@ public sealed class AniLibertyMediaSegmentLifecycleTests
         using var service = Service(library, manager);
         try
         {
-            Invoke(service, "RequestFullPass", TimeSpan.FromHours(1), "ScanCompleted", null);
+            Invoke(service, "RequestFullPass", TimeSpan.FromHours(1), "ScanCompleted", null, false);
             await (Task)Invoke(service, "WarmupWorkerAsync")!;
             Assert.Equal(1, providers);
             Assert.DoesNotContain(absent.Id, segmentChecks);
@@ -121,7 +292,7 @@ public sealed class AniLibertyMediaSegmentLifecycleTests
 
             // A later reconciliation still checks source-backed episodes, repairing a lost event.
             providers = 0;
-            Invoke(service, "RequestFullPass", TimeSpan.FromHours(1), "PeriodicMissingSegments", null);
+            Invoke(service, "RequestFullPass", TimeSpan.FromHours(1), "PeriodicMissingSegments", null, false);
             await (Task)Invoke(service, "WarmupWorkerAsync")!;
             Assert.Equal(1, providers);
         }
@@ -145,7 +316,7 @@ public sealed class AniLibertyMediaSegmentLifecycleTests
         using var service = Service(library, null!);
         try
         {
-            Invoke(service, "RequestFullPass", TimeSpan.FromHours(1), "PeriodicMissingSegments", null);
+            Invoke(service, "RequestFullPass", TimeSpan.FromHours(1), "PeriodicMissingSegments", null, false);
             await (Task)Invoke(service, "WarmupWorkerAsync")!;
             Assert.Equal(0, queries);
         }
@@ -163,9 +334,9 @@ public sealed class AniLibertyMediaSegmentLifecycleTests
         using var service = Service(Proxy<ILibraryManager>((method, _) => Default(method.ReturnType)), null!);
         try
         {
-            Invoke(service, "RequestFullPass", TimeSpan.FromHours(1), "Startup", firstRoot);
+            Invoke(service, "RequestFullPass", TimeSpan.FromHours(1), "Startup", firstRoot, false);
             if (active) Invoke(service, "TryBeginFullPass");
-            Invoke(service, "RequestFullPass", TimeSpan.FromHours(1), "Changed", secondRoot);
+            Invoke(service, "RequestFullPass", TimeSpan.FromHours(1), "Changed", secondRoot, false);
             Assert.Null(typeof(AniLibertyMediaSegmentWarmupHostedService)
                 .GetField("_fullPassRootPath", BindingFlags.NonPublic | BindingFlags.Instance)!.GetValue(service));
         }

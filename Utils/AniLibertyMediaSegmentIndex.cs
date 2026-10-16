@@ -77,7 +77,10 @@ public sealed class AniLibertyMediaSegmentIndex
 
         try
         {
-            return await selected.Snapshot.Value.WaitAsync(cancellationToken).ConfigureAwait(false);
+            var snapshot = await selected.Snapshot.Value.WaitAsync(cancellationToken).ConfigureAwait(false);
+            if (snapshot is null)
+                RemoveIfCurrent(statePath, selected);
+            return snapshot;
         }
         catch
         {
