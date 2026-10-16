@@ -2,13 +2,33 @@
   {
     "guid": "cce0798d-c8b7-4265-b08c-dc9e7bd3fc0f",
     "name": "AniLiberty STRM Plugin",
-    "description": "AniLiberty library reconstruction system for Jellyfin: acquisition, metadata governance, playback routing, and managed STRM distribution.\n",
-    "overview": "Controls AniLiberty catalog disorder through a Signal Acquisition Layer, Reconstruction Core, Mirror Governance Layer, Playback Proxy Rail, Operational Command Center, and CI Quality Gates.\n",
+    "description": "Browse and watch AniLiberty anime in Jellyfin with posters, episode descriptions, and intro/outro skipping when timings are available.",
+    "overview": "Adds the AniLiberty catalog or your favorites to a Jellyfin library using STRM links and local metadata. Episodes stream online rather than downloading for offline viewing.",
     "owner": "queukat",
     "category": "Metadata",
     "image": "icon.png",
     "imageUrl": "https://queukat.github.io/AniLibriaStrmPlugin/plugins/aniliberty-strm-plugin/icon.png",
     "versions": [
+      {
+        "version": "3.0.0.0",
+        "changelog": "AniLiberty STRM 3.0.0.0 — Jellyfin 12\n\n### Changes\n\n- Fixed intro and outro skips disappearing after repeated library updates.\n- Corrected skip timings now apply to episodes already in your library.\n- Temporary read errors no longer remove saved skip timings.\n\n### Upgrade Notes\n\nRestart Jellyfin after updating. No settings changes or library regeneration are required.",
+        "targetAbi": "12.0.0.0",
+        "sourceUrl": "https://queukat.github.io/AniLibriaStrmPlugin/plugins/AniLibertyStrmPlugin_3.0.0.0_jellyfin-12.0.0.0.zip",
+        "checksum": "f4d89f1539ca16e5df22269eb6d080ff",
+        "timestamp": "2026-10-16T12:28:19Z",
+        "releaseUrl": "https://github.com/queukat/AniLibriaStrmPlugin/releases/tag/v3.0.0.0",
+        "changelogUrl": "https://queukat.github.io/AniLibriaStrmPlugin/CHANGELOG.md"
+      },
+      {
+        "version": "2.0.1.0",
+        "changelog": "AniLiberty STRM 2.0.1.0 — Jellyfin 10.11\n\n### Changes\n\n- Fixed intro and outro skips disappearing after repeated library updates.\n- Corrected skip timings now apply to episodes already in your library.\n- Temporary read errors no longer remove saved skip timings.\n\n### Upgrade Notes\n\nRestart Jellyfin after updating. No settings changes or library regeneration are required.",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://queukat.github.io/AniLibriaStrmPlugin/plugins/AniLibertyStrmPlugin_2.0.1.0_jellyfin-10.11.0.0.zip",
+        "checksum": "600a3643a2bec61cdbf0a0f286a0dcb7",
+        "timestamp": "2026-10-16T12:28:19Z",
+        "releaseUrl": "https://github.com/queukat/AniLibriaStrmPlugin/releases/tag/v2.0.1.0",
+        "changelogUrl": "https://queukat.github.io/AniLibriaStrmPlugin/CHANGELOG.md"
+      },
       {
         "version": "2.0.0.15",
         "changelog": "AniLiberty STRM 2.0.0.15 — Jellyfin 12\n\n### Changes\n\n- Added support for Jellyfin 12.\n- Reduced unnecessary artwork downloads during library updates.\n- Reduced background processing for intro and outro skipping.\n- Fixed a problem that could remove generated library files when AniLiberty returned incomplete data.\n\n### Upgrade Notes\n\nRestart Jellyfin after updating. No settings changes or library regeneration are required.",
